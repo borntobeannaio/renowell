@@ -99,8 +99,15 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
         if (fnError) throw fnError;
         if (!data?.appId) throw new Error("Failed to get Agora credentials");
 
+        const appId = String(data.appId).trim();
+        if (!/^[0-9a-f]{32}$/i.test(appId)) {
+          throw new Error("Некорректный Agora App ID (ожидается 32 символа hex)");
+        }
+
         console.log("Agora credentials:", {
-          appIdLength: String(data.appId).length,
+          appIdLength: appId.length,
+          appIdPrefix: appId.slice(0, 4),
+          appIdSuffix: appId.slice(-4),
           hasToken: Boolean(data.token),
           channelName,
           uid: localUid,
@@ -117,7 +124,7 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
         agoraClient.on("user-unpublished", handleUserUnpublished);
 
         // Join channel
-        await agoraClient.join(data.appId, channelName, data.token ?? null, localUid);
+        await agoraClient.join(appId, channelName, data.token ?? null, localUid);
         console.log("Joined channel:", channelName, "uid:", localUid);
 
         // Create and publish local tracks
