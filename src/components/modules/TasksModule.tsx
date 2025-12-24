@@ -50,20 +50,6 @@ export function TasksModule() {
     },
     enabled: !!user?.id,
   });
-
-  // Load profiles to correctly assign tasks (tasks.assignee_id references profiles.id)
-  const { data: profiles = [] } = useQuery({
-    queryKey: ["profiles"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .limit(500);
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
   // Build maps using direct profile_id from employees table
   const employeeProfileMaps = useMemo(() => {
     const employeeToProfile = new Map<string, string>();
@@ -216,7 +202,8 @@ export function TasksModule() {
 
   // Filter tasks based on showMyTasks toggle (tasks.assignee_id is profile_id)
   const filteredTasks = useMemo(() => {
-    if (!showMyTasks || !profile?.id) return tasks;
+    if (!showMyTasks) return tasks;
+    if (!profile?.id) return tasks;
     return tasks.filter((t) => t.assignee_id === profile.id);
   }, [tasks, showMyTasks, profile?.id]);
 
@@ -295,7 +282,7 @@ export function TasksModule() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-4">
           <p className="text-muted-foreground">Всего задач: {filteredTasks.length}</p>
-          {profile?.id && (
+          {user?.id && (
             <button
               onClick={() => setShowMyTasks(!showMyTasks)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
