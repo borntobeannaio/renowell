@@ -1,5 +1,4 @@
 import { useState, useMemo } from "react";
-import { format, parseISO } from "date-fns";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { Plus, ChevronDown, ChevronUp, Trash2, FolderOpen, CheckCircle2, Download, Pencil, Check, X } from "lucide-react";
@@ -8,17 +7,8 @@ import { useProjects } from "@/hooks/useProjects";
 import { useEmployees } from "@/hooks/useEmployees";
 import { useCreateTask } from "@/hooks/useTasks";
 import { generateProtocolPdf } from "@/utils/protocolPdf";
+import { formatDisplayDate } from "@/utils/dateFormat";
 import { toast } from "sonner";
-
-// Format date from YYYY-MM-DD to DD.MM.YYYY
-const formatDisplayDate = (dateStr: string | null): string => {
-  if (!dateStr) return "";
-  try {
-    return format(parseISO(dateStr), "dd.MM.yyyy");
-  } catch {
-    return dateStr;
-  }
-};
 
 interface ProtocolItemForm {
   project_id: string;
@@ -357,6 +347,7 @@ function ProtocolCard({
   // State for inline editing
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemText, setEditingItemText] = useState("");
+  const [showAddItemForm, setShowAddItemForm] = useState(false);
 
   const handleStartEditItem = (itemId: string, currentText: string) => {
     setEditingItemId(itemId);
@@ -537,10 +528,10 @@ function ProtocolCard({
                               Задача
                             </span>
                           )}
-                          {editingItemId !== item.id && (
+                          {isEditing && editingItemId !== item.id && (
                             <button
                               onClick={() => handleStartEditItem(item.id, item.item_text)}
-                              className="p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded"
                             >
                               <Pencil className="w-4 h-4" />
                             </button>
@@ -560,99 +551,117 @@ function ProtocolCard({
                 </div>
               ))}
 
-              {/* Add item form */}
+              {/* Add item button and form */}
               {isEditing && (
-                <div className="mt-4 p-4 bg-muted/50 rounded-lg space-y-3">
-                  <h5 className="font-medium text-foreground">Новый пункт</h5>
-                  
-                  <div>
-                    <label className="block text-sm text-muted-foreground mb-1">
-                      Проект
-                    </label>
-                    <select
-                      value={itemForm.project_id}
-                      onChange={(e) => setItemForm({ ...itemForm, project_id: e.target.value })}
-                      className="input-base w-full"
-                    >
-                      <option value="">Без проекта</option>
-                      {projects.map((project) => (
-                        <option key={project.id} value={project.id}>
-                          {project.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-muted-foreground mb-1">
-                      Текст пункта
-                    </label>
-                    <input
-                      type="text"
-                      value={itemForm.item_text}
-                      onChange={(e) => setItemForm({ ...itemForm, item_text: e.target.value })}
-                      className="input-base w-full"
-                      placeholder="Описание задачи/действия"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm text-muted-foreground mb-1">
-                        Ответственные
-                      </label>
-                      <EmployeeMultiSelect
-                        employees={employees}
-                        selectedIds={itemForm.responsible_ids}
-                        onChange={(ids) => setItemForm({ ...itemForm, responsible_ids: ids })}
-                        placeholder="Выберите ответственных"
-                        usePortal
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-muted-foreground mb-1">
-                        Срок
-                      </label>
-                      <input
-                        type="date"
-                        value={itemForm.due_date}
-                        onChange={(e) => setItemForm({ ...itemForm, due_date: e.target.value })}
-                        className="input-base w-full"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={itemForm.create_task}
-                        onChange={(e) => setItemForm({ ...itemForm, create_task: e.target.checked })}
-                        className="w-4 h-4 rounded border-input text-primary focus:ring-ring"
-                      />
-                      <span className="text-sm text-foreground">
-                        Создать задачу на канбан
-                      </span>
-                    </label>
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-2">
+                <div className="mt-4">
+                  {!showAddItemForm ? (
                     <button
-                      type="button"
-                      onClick={resetItemForm}
-                      className="btn-secondary text-sm"
+                      onClick={() => setShowAddItemForm(true)}
+                      className="btn-secondary text-sm flex items-center gap-2"
                     >
-                      Очистить
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onAddItem}
-                      className="btn-primary text-sm"
-                      disabled={!itemForm.item_text.trim()}
-                    >
+                      <Plus className="w-4 h-4" />
                       Добавить пункт
                     </button>
-                  </div>
+                  ) : (
+                    <div className="p-4 bg-muted/50 rounded-lg space-y-3">
+                      <h5 className="font-medium text-foreground">Новый пункт</h5>
+                      
+                      <div>
+                        <label className="block text-sm text-muted-foreground mb-1">
+                          Проект
+                        </label>
+                        <select
+                          value={itemForm.project_id}
+                          onChange={(e) => setItemForm({ ...itemForm, project_id: e.target.value })}
+                          className="input-base w-full"
+                        >
+                          <option value="">Без проекта</option>
+                          {projects.map((project) => (
+                            <option key={project.id} value={project.id}>
+                              {project.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm text-muted-foreground mb-1">
+                          Текст пункта
+                        </label>
+                        <input
+                          type="text"
+                          value={itemForm.item_text}
+                          onChange={(e) => setItemForm({ ...itemForm, item_text: e.target.value })}
+                          className="input-base w-full"
+                          placeholder="Описание задачи/действия"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm text-muted-foreground mb-1">
+                            Ответственные
+                          </label>
+                          <EmployeeMultiSelect
+                            employees={employees}
+                            selectedIds={itemForm.responsible_ids}
+                            onChange={(ids) => setItemForm({ ...itemForm, responsible_ids: ids })}
+                            placeholder="Выберите ответственных"
+                            usePortal
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-muted-foreground mb-1">
+                            Срок
+                          </label>
+                          <input
+                            type="date"
+                            value={itemForm.due_date}
+                            onChange={(e) => setItemForm({ ...itemForm, due_date: e.target.value })}
+                            className="input-base w-full"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={itemForm.create_task}
+                            onChange={(e) => setItemForm({ ...itemForm, create_task: e.target.checked })}
+                            className="w-4 h-4 rounded border-input text-primary focus:ring-ring"
+                          />
+                          <span className="text-sm text-foreground">
+                            Создать задачу на канбан
+                          </span>
+                        </label>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            resetItemForm();
+                            setShowAddItemForm(false);
+                          }}
+                          className="btn-secondary text-sm"
+                        >
+                          Отмена
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onAddItem();
+                            setShowAddItemForm(false);
+                          }}
+                          className="btn-primary text-sm"
+                          disabled={!itemForm.item_text.trim()}
+                        >
+                          Добавить
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

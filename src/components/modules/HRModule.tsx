@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Modal } from "@/components/ui/Modal";
 import { Lightbox } from "@/components/ui/Lightbox";
+import { formatDisplayDate } from "@/utils/dateFormat";
 import {
   Users,
   Calendar,
@@ -232,7 +233,7 @@ function EmployeesTab() {
               </div>
               {selectedEmployee.birthday && (
                 <p className="text-sm text-muted-foreground mt-2">
-                  Текущее значение: {selectedEmployee.birthday}
+                  Текущее значение: {formatDisplayDate(selectedEmployee.birthday)}
                 </p>
               )}
             </div>
@@ -258,7 +259,7 @@ function VacationsTab() {
                   {emp?.name || "Сотрудник"}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {v.from} — {v.to}
+                  {formatDisplayDate(v.from)} — {formatDisplayDate(v.to)}
                 </p>
               </div>
             </div>
