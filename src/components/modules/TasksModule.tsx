@@ -428,6 +428,7 @@ export function TasksModule() {
               onChange={(ids) => setForm({ ...form, assignee_id: ids[0] || "" })}
               placeholder="Выберите исполнителя"
               single
+              usePortal
             />
           </div>
 
@@ -537,6 +538,7 @@ export function TasksModule() {
               onChange={(ids) => setForm({ ...form, assignee_id: ids[0] || "" })}
               placeholder="Выберите исполнителя"
               single
+              usePortal
             />
           </div>
 
