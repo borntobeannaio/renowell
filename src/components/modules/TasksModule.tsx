@@ -552,59 +552,82 @@ function TaskCard({
 }: TaskCardProps) {
   const assignee = task.assignee_id ? getEmployeeById(task.assignee_id) : null;
 
+  const priorityStyles = {
+    critical: { border: "border-red-500", bg: "bg-red-500", text: "text-white" },
+    high: { border: "border-orange-500", bg: "bg-orange-500", text: "text-white" },
+    normal: { border: "border-blue-500", bg: "bg-blue-500", text: "text-white" },
+    low: { border: "border-slate-400", bg: "bg-slate-400", text: "text-white" },
+  };
+
+  const style = priorityStyles[task.priority] || priorityStyles.normal;
+
   return (
     <div
       draggable
       onDragStart={(e) => onDragStart(e, task.id)}
-      className="bg-card border border-border rounded-lg p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow"
+      className={`relative bg-card border-2 ${style.border} rounded-lg p-3 pt-5 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow`}
     >
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <h4 
-          className="font-medium text-foreground text-sm flex-1 cursor-pointer hover:text-primary transition-colors"
-          onClick={() => onEdit(task)}
-        >
-          {task.title}
-        </h4>
-        <button
-          onClick={() => onEdit(task)}
-          className="p-1 hover:bg-muted rounded transition-colors shrink-0"
-        >
-          <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-        </button>
+      {/* Priority bookmark */}
+      <div className={`absolute -top-2 left-3 px-2 py-0.5 rounded text-xs font-semibold ${style.bg} ${style.text} shadow-sm`}>
+        {TASK_PRIORITY_LABELS[task.priority]}
       </div>
 
-      <div className="flex flex-wrap gap-1 mb-2">
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-          task.priority === 'critical' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-          task.priority === 'high' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
-          task.priority === 'low' ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' :
-          'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-        }`}>
-          {TASK_PRIORITY_LABELS[task.priority]}
-        </span>
-        {task.labels?.slice(0, 2).map((label) => (
-          <span key={label} className="chip text-xs">
-            {label}
-          </span>
-        ))}
-        {(task.labels?.length || 0) > 2 && (
-          <span className="chip text-xs">+{task.labels.length - 2}</span>
-        )}
-      </div>
+      {/* Edit button */}
+      <button
+        onClick={() => onEdit(task)}
+        className="absolute top-1 right-1 p-1 hover:bg-muted rounded transition-colors"
+      >
+        <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+      </button>
 
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <div className="flex items-center gap-1">
-          <User className="w-3 h-3" />
-          <span className="truncate max-w-[100px]">
-            {assignee?.full_name || "Не назначен"}
-          </span>
+      {/* Labels above title */}
+      {task.labels && task.labels.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {task.labels.slice(0, 3).map((label) => (
+            <span key={label} className="chip text-xs">
+              {label}
+            </span>
+          ))}
+          {task.labels.length > 3 && (
+            <span className="chip text-xs">+{task.labels.length - 3}</span>
+          )}
         </div>
-        {task.due_date && (
-          <div className="flex items-center gap-1">
-            <Calendar className="w-3 h-3" />
-            <span>{task.due_date}</span>
-          </div>
-        )}
+      )}
+
+      {/* Title */}
+      <h4 
+        className="font-medium text-foreground text-sm cursor-pointer hover:text-primary transition-colors mb-3"
+        onClick={() => onEdit(task)}
+      >
+        {task.title}
+      </h4>
+
+      {/* Assignee and deadline stacked */}
+      <div className="space-y-1.5 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <User className="w-3 h-3 shrink-0" />
+          <select
+            value={task.assignee_id || ""}
+            onChange={(e) => {
+              e.stopPropagation();
+              onAssigneeChange(task.id, e.target.value);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="flex-1 bg-transparent border-none p-0 text-xs text-foreground cursor-pointer focus:ring-0 focus:outline-none truncate"
+          >
+            <option value="">Не назначен</option>
+            {employees.map((emp) => (
+              <option key={emp.id} value={emp.id}>
+                {emp.full_name}
+              </option>
+            ))}
+          </select>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Calendar className="w-3 h-3 shrink-0" />
+          <span>{task.due_date || "Без срока"}</span>
+        </div>
       </div>
     </div>
   );
