@@ -38,34 +38,37 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
+    <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border/50 shadow-sm">
       <div className="flex items-center justify-between h-16 px-4 md:px-6">
         <div className="flex items-center gap-4">
-          <h2 className="text-lg font-semibold text-foreground">
+          <h2 className="text-lg font-bold text-foreground tracking-tight">
             {sectionTitles[currentSection] || "Портал"}
           </h2>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        <div className="flex items-center gap-3">
+          <div className="relative group">
             <input
               type="text"
               value={localQuery}
               onChange={(e) => setLocalQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Поиск..."
-              className="input-base w-40 md:w-64 pr-8"
+              className="input-base w-44 md:w-72 pr-9 group-hover:border-primary/30 transition-all duration-300"
             />
             {localQuery && (
               <button
                 onClick={clearSearch}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors duration-200"
               >
                 <X className="w-4 h-4" />
               </button>
             )}
           </div>
-          <button onClick={handleSearch} className="btn-primary flex items-center gap-2">
+          <button 
+            onClick={handleSearch} 
+            className="btn-primary flex items-center gap-2 shadow-md shadow-primary/20"
+          >
             <Search className="w-4 h-4" />
             <span className="hidden sm:inline">Поиск</span>
           </button>
@@ -74,7 +77,7 @@ export function Header() {
               variant="ghost"
               size="sm"
               onClick={signOut}
-              className="ml-2 text-muted-foreground hover:text-foreground"
+              className="ml-1 text-muted-foreground hover:text-foreground hover:bg-destructive/10 rounded-xl transition-all duration-300"
             >
               <LogOut className="w-4 h-4" />
               <span className="hidden sm:inline ml-2">Выйти</span>

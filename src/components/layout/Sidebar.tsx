@@ -10,6 +10,7 @@ import {
   Users,
   BookOpen,
 } from "lucide-react";
+import renowellLogo from "@/assets/renowell-logo-black.png";
 
 const navItems: { id: NavigationSection; label: string; icon: React.ElementType }[] = [
   { id: "news", label: "Новости", icon: Newspaper },
@@ -45,33 +46,49 @@ export function Sidebar() {
   const fullName = [firstName, lastName].filter(Boolean).join(' ') || 'Пользователь';
 
   return (
-    <aside className="hidden md:flex flex-col w-64 bg-sidebar border-r border-sidebar-border h-screen sticky top-0">
-      <div className="p-6 border-b border-sidebar-border">
-        <h1 className="text-xl font-bold text-sidebar-foreground">Портал</h1>
-        <p className="text-sm text-muted-foreground mt-1">Внутренняя система</p>
+    <aside className="hidden md:flex flex-col w-64 bg-gradient-to-b from-sidebar via-sidebar to-sidebar/95 border-r border-sidebar-border/50 h-screen sticky top-0 backdrop-blur-xl">
+      {/* Logo Section with subtle glow */}
+      <div className="p-6 border-b border-sidebar-border/30">
+        <div className="flex items-center gap-3">
+          <img 
+            src={renowellLogo} 
+            alt="Реновель" 
+            className="h-7 w-auto dark:invert transition-all duration-300 hover:scale-105"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground mt-2 tracking-wide uppercase">Внутренняя система</p>
       </div>
       
-      <nav className="flex-1 p-4 space-y-1">
+      {/* Navigation with improved styling */}
+      <nav className="flex-1 p-4 space-y-1.5">
         {navItems.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setCurrentSection(id)}
-            className={currentSection === id ? "nav-item-active w-full" : "nav-item w-full"}
+            className={`
+              w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
+              transition-all duration-300 ease-out
+              ${currentSection === id 
+                ? "bg-gradient-to-r from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/25 scale-[1.02]" 
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary/80 hover:translate-x-1"
+              }
+            `}
           >
-            <Icon className="w-5 h-5" />
+            <Icon className={`w-5 h-5 transition-transform duration-300 ${currentSection === id ? 'scale-110' : ''}`} />
             <span>{label}</span>
           </button>
         ))}
       </nav>
 
-      <div className="p-4 border-t border-sidebar-border">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-            <span className="text-sm font-medium text-primary">{initials}</span>
+      {/* User Profile with glass effect */}
+      <div className="p-4 border-t border-sidebar-border/30 bg-gradient-to-t from-sidebar-accent/20 to-transparent">
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-card/50 backdrop-blur-sm border border-border/30 hover:border-primary/30 transition-all duration-300">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-md shadow-primary/20">
+            <span className="text-sm font-semibold text-primary-foreground">{initials}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">{fullName}</p>
-            <p className="text-xs text-muted-foreground">{position}</p>
+            <p className="text-sm font-semibold text-sidebar-foreground truncate">{fullName}</p>
+            <p className="text-xs text-muted-foreground truncate">{position}</p>
           </div>
         </div>
       </div>
