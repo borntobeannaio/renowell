@@ -1,7 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { supabaseQuery } from "@/lib/api";
-import { toast } from "@/hooks/use-toast";
+import { proxySelect, proxyInsert, proxyUpdate } from "@/lib/dbProxy";
 
 export interface DbTask {
   id: string;
@@ -21,10 +19,11 @@ export function useTasks() {
   return useQuery({
     queryKey: ["tasks"],
     queryFn: async () => {
-      return supabaseQuery(
-        () => supabase.from("tasks").select("*").order("created_at", { ascending: false }),
-        'Загрузка задач'
-      ) as Promise<DbTask[]>;
+      const { data, error } = await proxySelect<DbTask>('tasks', {
+        order: [{ column: 'created_at', ascending: false }],
+      });
+      if (error) throw new Error(error.message);
+      return data || [];
     },
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
@@ -43,21 +42,17 @@ export function useCreateTask() {
       status?: "inbox" | "doing" | "done";
       labels?: string[];
     }) => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .insert({
-          title: task.title,
-          assignee_id: task.assignee_id || null,
-          project_id: task.project_id || null,
-          due_date: task.due_date || null,
-          status: task.status || "inbox",
-          labels: task.labels || [],
-        })
-        .select()
-        .single();
+      const { data, error } = await proxyInsert<DbTask>('tasks', {
+        title: task.title,
+        assignee_id: task.assignee_id || null,
+        project_id: task.project_id || null,
+        due_date: task.due_date || null,
+        status: task.status || "inbox",
+        labels: task.labels || [],
+      }, '*');
 
-      if (error) throw error;
-      return data;
+      if (error) throw new Error(error.message);
+      return data?.[0];
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -73,15 +68,15 @@ export function useUpdateTask() {
       id,
       ...updates
     }: Partial<DbTask> & { id: string }) => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
+      const { data, error } = await proxyUpdate<DbTask>(
+        'tasks',
+        updates,
+        [{ column: 'id', operator: 'eq', value: id }],
+        '*'
+      );
 
-      if (error) throw error;
-      return data;
+      if (error) throw new Error(error.message);
+      return data?.[0];
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });

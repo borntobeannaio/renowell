@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { supabaseQuery } from "@/lib/api";
+import { proxySelect, proxyInsert, proxyUpdate, proxyDelete } from "@/lib/dbProxy";
 import { useAuth } from "@/hooks/useAuth";
 
 export interface ChatConversation {
@@ -40,13 +39,11 @@ export function useConversations() {
     queryKey: ["conversations", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      return supabaseQuery(
-        () => supabase
-          .from("chat_conversations")
-          .select("*")
-          .order("updated_at", { ascending: false }),
-        'Загрузка чатов'
-      ) as Promise<ChatConversation[]>;
+      const { data, error } = await proxySelect<ChatConversation>('chat_conversations', {
+        order: [{ column: 'updated_at', ascending: false }],
+      });
+      if (error) throw new Error(error.message);
+      return data || [];
     },
     enabled: !!user,
     retry: 2,
@@ -60,17 +57,14 @@ export function useConversationMessages(conversationId: string | null) {
     queryKey: ["conversation-messages", conversationId],
     queryFn: async () => {
       if (!conversationId) return [];
-      return supabaseQuery(
-        () => supabase
-          .from("chat_messages")
-          .select(`
-            *,
-            sender:profiles!chat_messages_sender_id_fkey(first_name, last_name)
-          `)
-          .eq("conversation_id", conversationId)
-          .order("created_at", { ascending: true }),
-        'Загрузка сообщений'
-      ) as Promise<ChatMessage[]>;
+      // For joins we need a different approach - use select with join syntax
+      const { data, error } = await proxySelect<ChatMessage>('chat_messages', {
+        select: '*, sender:profiles!chat_messages_sender_id_fkey(first_name, last_name)',
+        filters: [{ column: 'conversation_id', operator: 'eq', value: conversationId }],
+        order: [{ column: 'created_at', ascending: true }],
+      });
+      if (error) throw new Error(error.message);
+      return data || [];
     },
     enabled: !!conversationId,
     retry: 2,
@@ -96,26 +90,26 @@ export function useCreateConversation() {
       if (!user) throw new Error("Not authenticated");
 
       // Get user's profile ID
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("user_id", user.id)
-        .single();
+      const { data: profiles, error: profileError } = await proxySelect<{ id: string }>('profiles', {
+        select: 'id',
+        filters: [{ column: 'user_id', operator: 'eq', value: user.id }],
+        limit: 1,
+      });
 
+      if (profileError) throw new Error(profileError.message);
+      const profile = profiles?.[0];
       if (!profile) throw new Error("Profile not found");
 
       // Create conversation
-      const { data: conversation, error: convError } = await supabase
-        .from("chat_conversations")
-        .insert({
-          title,
-          type,
-          created_by: profile.id,
-        })
-        .select()
-        .single();
+      const { data: conversations, error: convError } = await proxyInsert<ChatConversation>('chat_conversations', {
+        title,
+        type,
+        created_by: profile.id,
+      }, '*');
 
-      if (convError) throw convError;
+      if (convError) throw new Error(convError.message);
+      const conversation = conversations?.[0];
+      if (!conversation) throw new Error("Failed to create conversation");
 
       // Add creator as participant
       const participants = [profile.id, ...participantIds].map((userId) => ({
@@ -123,11 +117,8 @@ export function useCreateConversation() {
         user_id: userId,
       }));
 
-      const { error: partError } = await supabase
-        .from("chat_participants")
-        .insert(participants);
-
-      if (partError) throw partError;
+      const { error: partError } = await proxyInsert('chat_participants', participants);
+      if (partError) throw new Error(partError.message);
 
       return conversation;
     },
@@ -153,33 +144,31 @@ export function useSendMessage() {
       if (!user) throw new Error("Not authenticated");
 
       // Get user's profile ID
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("user_id", user.id)
-        .single();
+      const { data: profiles, error: profileError } = await proxySelect<{ id: string }>('profiles', {
+        select: 'id',
+        filters: [{ column: 'user_id', operator: 'eq', value: user.id }],
+        limit: 1,
+      });
 
+      if (profileError) throw new Error(profileError.message);
+      const profile = profiles?.[0];
       if (!profile) throw new Error("Profile not found");
 
-      const { data, error } = await supabase
-        .from("chat_messages")
-        .insert({
-          conversation_id: conversationId,
-          sender_id: profile.id,
-          content,
-        })
-        .select()
-        .single();
+      const { data, error } = await proxyInsert<ChatMessage>('chat_messages', {
+        conversation_id: conversationId,
+        sender_id: profile.id,
+        content,
+      }, '*');
 
-      if (error) throw error;
+      if (error) throw new Error(error.message);
 
       // Update conversation's updated_at
-      await supabase
-        .from("chat_conversations")
-        .update({ updated_at: new Date().toISOString() })
-        .eq("id", conversationId);
+      await proxyUpdate('chat_conversations', 
+        { updated_at: new Date().toISOString() },
+        [{ column: 'id', operator: 'eq', value: conversationId }]
+      );
 
-      return data;
+      return data?.[0];
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
@@ -198,14 +187,12 @@ export function useAIMessages() {
     queryKey: ["ai-messages", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      return supabaseQuery(
-        () => supabase
-          .from("ai_chat_messages")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: true }),
-        'Загрузка AI-сообщений'
-      ) as Promise<AIMessage[]>;
+      const { data, error } = await proxySelect<AIMessage>('ai_chat_messages', {
+        filters: [{ column: 'user_id', operator: 'eq', value: user.id }],
+        order: [{ column: 'created_at', ascending: true }],
+      });
+      if (error) throw new Error(error.message);
+      return data || [];
     },
     enabled: !!user,
     retry: 2,
@@ -228,18 +215,14 @@ export function useSaveAIMessage() {
     }) => {
       if (!user) throw new Error("Not authenticated");
 
-      const { data, error } = await supabase
-        .from("ai_chat_messages")
-        .insert({
-          user_id: user.id,
-          role,
-          content,
-        })
-        .select()
-        .single();
+      const { data, error } = await proxyInsert<AIMessage>('ai_chat_messages', {
+        user_id: user.id,
+        role,
+        content,
+      }, '*');
 
-      if (error) throw error;
-      return data;
+      if (error) throw new Error(error.message);
+      return data?.[0];
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai-messages"] });
@@ -256,12 +239,11 @@ export function useClearAIHistory() {
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
 
-      const { error } = await supabase
-        .from("ai_chat_messages")
-        .delete()
-        .eq("user_id", user.id);
+      const { error } = await proxyDelete('ai_chat_messages', [
+        { column: 'user_id', operator: 'eq', value: user.id },
+      ]);
 
-      if (error) throw error;
+      if (error) throw new Error(error.message);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai-messages"] });

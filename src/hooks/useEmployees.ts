@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabaseQuery } from "@/lib/api";
-import { supabase } from "@/integrations/supabase/client";
+import { proxySelect } from "@/lib/dbProxy";
 
 export interface DbEmployee {
   id: string;
@@ -17,10 +16,11 @@ export function useEmployees() {
   return useQuery({
     queryKey: ['employees'],
     queryFn: async () => {
-      return supabaseQuery(
-        () => supabase.from('employees').select('*').order('full_name'),
-        'Загрузка сотрудников'
-      ) as Promise<DbEmployee[]>;
+      const { data, error } = await proxySelect<DbEmployee>('employees', {
+        order: [{ column: 'full_name', ascending: true }],
+      });
+      if (error) throw new Error(error.message);
+      return data || [];
     },
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
