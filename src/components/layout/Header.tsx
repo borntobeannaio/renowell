@@ -4,6 +4,7 @@ import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/hooks/useAuth";
 import { Search, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function Header() {
   const location = useLocation();
@@ -52,7 +53,7 @@ export function Header() {
           </h2>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3">
           <div className="relative group">
             <input
               type="text"
@@ -60,7 +61,7 @@ export function Header() {
               onChange={(e) => setLocalQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Поиск..."
-              className="input-base w-44 md:w-72 pr-9 group-hover:border-primary/30 transition-all duration-300"
+              className="input-base w-36 md:w-64 pr-9 group-hover:border-primary/30 transition-all duration-300"
             />
             {localQuery && (
               <button
@@ -78,12 +79,15 @@ export function Header() {
             <Search className="w-4 h-4" />
             <span className="hidden sm:inline">Поиск</span>
           </button>
+          
+          <ThemeToggle />
+          
           {user && (
             <Button
               variant="ghost"
               size="sm"
               onClick={signOut}
-              className="ml-1 text-muted-foreground hover:text-foreground hover:bg-destructive/10 rounded-xl transition-all duration-300"
+              className="text-muted-foreground hover:text-foreground hover:bg-destructive/10 rounded-xl transition-all duration-300"
             >
               <LogOut className="w-4 h-4" />
               <span className="hidden sm:inline ml-2">Выйти</span>
