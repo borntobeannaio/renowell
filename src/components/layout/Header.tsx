@@ -4,7 +4,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { Search, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
-import { ProxySettings } from "@/components/ProxySettings";
 
 export function Header() {
   const { currentSection, setCurrentSection, searchQuery, setSearchQuery } = useApp();
@@ -72,7 +71,6 @@ export function Header() {
             <span className="hidden sm:inline">Поиск</span>
           </button>
           
-          <ProxySettings />
           <ConnectionStatus />
           
           {user && (

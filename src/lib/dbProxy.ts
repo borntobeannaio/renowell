@@ -28,37 +28,22 @@ interface ProxyResponse<T> {
 
 const RETRIES = 2;
 
-// External proxy URL (Yandex Cloud, etc.) - set via localStorage or env
-const getExternalProxyUrl = (): string | null => {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("EXTERNAL_PROXY_URL");
-  }
-  return null;
-};
-
-// Check if we should use external proxy (for problematic regions)
-const shouldUseExternalProxy = (): boolean => {
-  return !!getExternalProxyUrl();
-};
+// Always use Yandex Cloud proxy for better connectivity in RU region
+const EXTERNAL_PROXY_URL = "https://functions.yandexcloud.net/d4ed338dbl81ecrk8g0t";
 
 async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
 /**
- * Make request via external proxy (Yandex Cloud, etc.)
+ * Make request via external proxy (Yandex Cloud)
  */
 async function callExternalProxy<T>(request: ProxyRequest): Promise<ProxyResponse<T>> {
-  const proxyUrl = getExternalProxyUrl();
-  if (!proxyUrl) {
-    throw new Error("External proxy URL not configured");
-  }
-
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 20000);
 
   try {
-    const response = await fetch(proxyUrl, {
+    const response = await fetch(EXTERNAL_PROXY_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -83,39 +68,14 @@ async function callExternalProxy<T>(request: ProxyRequest): Promise<ProxyRespons
 }
 
 /**
- * Make request via Supabase edge function
- */
-async function callSupabaseProxy<T>(request: ProxyRequest): Promise<ProxyResponse<T>> {
-  const { data, error } = await supabase.functions.invoke("db-proxy", {
-    body: request,
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  if (data?.error) {
-    return { data: null, error: { message: data.error.message ?? "Proxy error" } };
-  }
-
-  return { data: data?.data as T, error: null };
-}
-
-/**
- * Database proxy client that routes requests through backend function.
- * Supports external proxy for problematic regions.
+ * Database proxy client that routes all requests through Yandex Cloud proxy.
  */
 export async function dbProxy<T = unknown>(request: ProxyRequest): Promise<ProxyResponse<T>> {
   let lastError: unknown = null;
-  const useExternal = shouldUseExternalProxy();
 
   for (let attempt = 0; attempt <= RETRIES; attempt++) {
     try {
-      if (useExternal) {
-        return await callExternalProxy<T>(request);
-      } else {
-        return await callSupabaseProxy<T>(request);
-      }
+      return await callExternalProxy<T>(request);
     } catch (err) {
       lastError = err;
       if (attempt < RETRIES) {
@@ -129,26 +89,6 @@ export async function dbProxy<T = unknown>(request: ProxyRequest): Promise<Proxy
 
   return { data: null, error: { message: "Ошибка прокси-запроса" } };
 }
-
-/**
- * Set external proxy URL (e.g., Yandex Cloud Function URL)
- */
-export const setExternalProxyUrl = (url: string | null) => {
-  if (typeof window !== "undefined") {
-    if (url) {
-      localStorage.setItem("EXTERNAL_PROXY_URL", url);
-    } else {
-      localStorage.removeItem("EXTERNAL_PROXY_URL");
-    }
-  }
-};
-
-/**
- * Get current external proxy URL
- */
-export const getConfiguredProxyUrl = (): string | null => {
-  return getExternalProxyUrl();
-};
 
 export const proxyPing = () => dbProxy<string>({ action: "ping" });
 
