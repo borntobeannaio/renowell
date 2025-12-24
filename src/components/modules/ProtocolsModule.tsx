@@ -423,28 +423,10 @@ function ProtocolCard({
 
             {/* Items grouped by project */}
             <div>
-              <div className="flex items-center justify-between mb-3">
+              <div className="mb-3">
                 <h4 className="text-sm font-medium text-muted-foreground">
                   Пункты по проектам
                 </h4>
-                {!isEditing ? (
-                  <button
-                    onClick={onStartEditing}
-                    className="text-sm text-primary hover:underline"
-                  >
-                    + Добавить пункты
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      onStopEditing();
-                      resetItemForm();
-                    }}
-                    className="text-sm text-muted-foreground hover:underline"
-                  >
-                    Готово
-                  </button>
-                )}
               </div>
 
               {Object.entries(itemsByProject).length === 0 && !isEditing && (
@@ -590,6 +572,28 @@ function ProtocolCard({
                     </button>
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* Edit/Done buttons at bottom */}
+            <div className="mt-4 pt-4 border-t border-border flex justify-end">
+              {!isEditing ? (
+                <button
+                  onClick={onStartEditing}
+                  className="btn-secondary text-sm"
+                >
+                  Редактировать
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    onStopEditing();
+                    resetItemForm();
+                  }}
+                  className="btn-primary text-sm"
+                >
+                  Готово
+                </button>
               )}
             </div>
           </div>
