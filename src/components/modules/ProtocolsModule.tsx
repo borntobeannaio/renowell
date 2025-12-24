@@ -35,8 +35,8 @@ export function ProtocolsModule() {
   const [form, setForm] = useState({
     date: new Date().toISOString().slice(0, 10),
     title: "",
-    organizer: "",
-    attendees: "",
+    organizer_id: "",
+    attendee_ids: [] as string[],
   });
 
   // Form for adding items to existing protocol
@@ -52,8 +52,8 @@ export function ProtocolsModule() {
     setForm({
       date: new Date().toISOString().slice(0, 10),
       title: "",
-      organizer: "",
-      attendees: "",
+      organizer_id: "",
+      attendee_ids: [],
     });
   };
 
@@ -71,14 +71,22 @@ export function ProtocolsModule() {
     e.preventDefault();
     if (!form.title.trim()) return;
 
+    // Convert employee IDs to names for storage
+    const organizerName = form.organizer_id
+      ? employees.find((e) => e.id === form.organizer_id)?.full_name || null
+      : null;
+    const attendeeNames = form.attendee_ids
+      .map((id) => employees.find((e) => e.id === id)?.full_name)
+      .filter(Boolean) as string[];
+
     try {
       const result = await createProtocol.mutateAsync({
         number: nextNumber,
         date: form.date,
         title: form.title,
-        organizer: form.organizer || null,
+        organizer: organizerName,
         meeting_type: form.title,
-        attendees: form.attendees.split(",").map((a) => a.trim()).filter(Boolean),
+        attendees: attendeeNames,
       });
       
       toast.success("Протокол создан");
@@ -237,25 +245,24 @@ export function ProtocolsModule() {
             <label className="block text-sm font-medium text-foreground mb-1.5">
               Организатор
             </label>
-            <input
-              type="text"
-              value={form.organizer}
-              onChange={(e) => setForm({ ...form, organizer: e.target.value })}
-              className="input-base w-full"
-              placeholder="ФИО организатора"
+            <EmployeeMultiSelect
+              employees={employees}
+              selectedIds={form.organizer_id ? [form.organizer_id] : []}
+              onChange={(ids) => setForm({ ...form, organizer_id: ids[0] || "" })}
+              placeholder="Выберите организатора"
+              single
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">
-              Участники (через запятую)
+              Участники
             </label>
-            <input
-              type="text"
-              value={form.attendees}
-              onChange={(e) => setForm({ ...form, attendees: e.target.value })}
-              className="input-base w-full"
-              placeholder="Иван И., Петр П."
+            <EmployeeMultiSelect
+              employees={employees}
+              selectedIds={form.attendee_ids}
+              onChange={(ids) => setForm({ ...form, attendee_ids: ids })}
+              placeholder="Выберите участников"
             />
           </div>
 
