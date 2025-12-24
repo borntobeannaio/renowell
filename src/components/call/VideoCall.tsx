@@ -89,12 +89,22 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
         setError(null);
 
         // Get Agora credentials
+        // IMPORTANT: token (if used) is bound to the same UID we pass to join()
+        const localUid = Math.floor(Math.random() * 1_000_000_000);
+
         const { data, error: fnError } = await supabase.functions.invoke("agora-token", {
-          body: { channelName, uid: 0 },
+          body: { channelName, uid: localUid },
         });
 
         if (fnError) throw fnError;
         if (!data?.appId) throw new Error("Failed to get Agora credentials");
+
+        console.log("Agora credentials:", {
+          appIdLength: String(data.appId).length,
+          hasToken: Boolean(data.token),
+          channelName,
+          uid: localUid,
+        });
 
         // Create client
         const agoraClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
@@ -107,8 +117,8 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
         agoraClient.on("user-unpublished", handleUserUnpublished);
 
         // Join channel
-        await agoraClient.join(data.appId, channelName, data.token, null);
-        console.log("Joined channel:", channelName);
+        await agoraClient.join(data.appId, channelName, data.token ?? null, localUid);
+        console.log("Joined channel:", channelName, "uid:", localUid);
 
         // Create and publish local tracks
         const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
