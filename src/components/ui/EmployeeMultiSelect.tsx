@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, X, User } from "lucide-react";
 import { DbEmployee } from "@/hooks/useEmployees";
 
@@ -19,11 +20,31 @@ export function EmployeeMultiSelect({
 }: EmployeeMultiSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Position dropdown relative to button
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: "fixed",
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+        zIndex: 9999,
+      });
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node) &&
+        !(event.target as HTMLElement).closest("[data-employee-dropdown]")
+      ) {
         setIsOpen(false);
       }
     }
@@ -89,8 +110,13 @@ export function EmployeeMultiSelect({
         <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
       </button>
 
-      {isOpen && (
-        <div className="absolute z-50 mt-1 w-full bg-popover border border-border rounded-lg shadow-lg max-h-60 overflow-hidden">
+      {isOpen &&
+        createPortal(
+          <div
+            data-employee-dropdown
+            style={dropdownStyle}
+            className="bg-popover border border-border rounded-lg shadow-lg max-h-60 overflow-hidden"
+          >
           <div className="p-2 border-b border-border">
             <input
               type="text"
@@ -135,8 +161,9 @@ export function EmployeeMultiSelect({
               })
             )}
           </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
