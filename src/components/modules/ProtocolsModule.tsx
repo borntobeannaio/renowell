@@ -188,7 +188,15 @@ export function ProtocolsModule() {
               employees={employees}
               isExpanded={expandedId === protocol.id}
               isEditing={editingProtocolId === protocol.id}
-              onToggleExpand={() => setExpandedId(expandedId === protocol.id ? null : protocol.id)}
+              onToggleExpand={() => {
+                const newExpandedId = expandedId === protocol.id ? null : protocol.id;
+                setExpandedId(newExpandedId);
+                // Reset editing mode when collapsing or switching to another protocol
+                if (newExpandedId !== protocol.id && editingProtocolId === protocol.id) {
+                  setEditingProtocolId(null);
+                  resetItemForm();
+                }
+              }}
               onStartEditing={() => setEditingProtocolId(protocol.id)}
               onStopEditing={() => setEditingProtocolId(null)}
               itemForm={itemForm}
@@ -455,7 +463,7 @@ function ProtocolCard({
                     {projectItems.map((item) => (
                       <div
                         key={item.id}
-                        className="p-3 bg-secondary/50 rounded-lg flex items-start justify-between gap-4"
+                        className="group p-3 bg-secondary/50 rounded-lg flex items-start justify-between gap-4"
                       >
                         <div className="flex-1">
                           <p className="text-foreground">{item.item_text}</p>
@@ -475,14 +483,12 @@ function ProtocolCard({
                               Задача
                             </span>
                           )}
-                          {isEditing && (
-                            <button
-                              onClick={() => onDeleteItem(item.id)}
-                              className="p-1 text-destructive hover:bg-destructive/10 rounded"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
+                          <button
+                            onClick={() => onDeleteItem(item.id)}
+                            className="p-1 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
                     ))}
