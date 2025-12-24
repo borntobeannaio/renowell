@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
-import { Search, X } from "lucide-react";
-
+import { useAuth } from "@/hooks/useAuth";
+import { Search, X, LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 export function Header() {
   const { currentSection, setCurrentSection, searchQuery, setSearchQuery } = useApp();
+  const { user, signOut } = useAuth();
   const [localQuery, setLocalQuery] = useState(searchQuery);
 
   const handleSearch = () => {
@@ -66,6 +68,18 @@ export function Header() {
             <Search className="w-4 h-4" />
             <span className="hidden sm:inline">Поиск</span>
           </button>
+          
+          {user && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={signOut}
+              className="ml-2 text-muted-foreground hover:text-foreground"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline ml-2">Выйти</span>
+            </Button>
+          )}
         </div>
       </div>
     </header>
