@@ -26,11 +26,14 @@ serve(async (req) => {
 
     // Fetch portal data for context
     const [tasksResult, protocolsResult, employeesResult, projectsResult] = await Promise.all([
-      supabase.from("tasks").select("id, title, status, priority, due_date, labels").order("created_at", { ascending: false }).limit(50),
+      supabase.from("tasks").select("id, title, status, priority, due_date, labels, project_id").order("created_at", { ascending: false }).limit(50),
       supabase.from("protocols").select("id, title, date, number, organizer, meeting_type, attendees").order("date", { ascending: false }).limit(20),
       supabase.from("employees").select("id, full_name, position, department, email, phone, birthday").limit(100),
       supabase.from("projects").select("id, name").limit(50),
     ]);
+
+    // Create project lookup map
+    const projectMap = new Map(projectsResult.data?.map(p => [p.id, p.name]) || []);
 
     const tasks = tasksResult.data || [];
     const protocols = protocolsResult.data || [];
@@ -56,7 +59,8 @@ ${tasks.map(t => {
   const priorityLabels: Record<string, string> = {
     critical: "Критический", high: "Высокий", normal: "Нормальный", low: "Низкий"
   };
-  return `- [${statusLabels[t.status] || t.status}] [${priorityLabels[t.priority] || t.priority}] ${t.title} | Срок: ${t.due_date || "не указан"} | Метки: ${t.labels?.join(", ") || "нет"}`;
+  const projectName = t.project_id ? projectMap.get(t.project_id) : null;
+  return `- [${statusLabels[t.status] || t.status}] [${priorityLabels[t.priority] || t.priority}] ${t.title} | Проект: ${projectName || "не указан"} | Срок: ${t.due_date || "не указан"} | Метки: ${t.labels?.join(", ") || "нет"}`;
 }).join("\n")}
 
 ### Протоколы совещаний (${protocols.length}):
