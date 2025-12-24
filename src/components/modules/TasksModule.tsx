@@ -224,15 +224,25 @@ export function TasksModule() {
         <div className="flex items-center gap-4">
           <p className="text-muted-foreground">Всего задач: {filteredTasks.length}</p>
           {currentEmployeeId && (
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showMyTasks}
-                onChange={(e) => setShowMyTasks(e.target.checked)}
-                className="w-4 h-4 rounded border-input text-primary focus:ring-ring"
-              />
-              <span className="text-sm text-foreground">Мои задачи</span>
-            </label>
+            <button
+              onClick={() => setShowMyTasks(!showMyTasks)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
+                showMyTasks 
+                  ? 'bg-primary text-primary-foreground shadow-md' 
+                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}
+            >
+              <div className={`w-8 h-4 rounded-full relative transition-colors duration-200 ${
+                showMyTasks ? 'bg-primary-foreground/30' : 'bg-muted'
+              }`}>
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all duration-200 ${
+                  showMyTasks 
+                    ? 'right-0.5 bg-primary-foreground' 
+                    : 'left-0.5 bg-muted-foreground'
+                }`} />
+              </div>
+              <span>Мои задачи</span>
+            </button>
           )}
         </div>
         <button
