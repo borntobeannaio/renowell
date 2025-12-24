@@ -1,4 +1,4 @@
-import { useState, DragEvent, useMemo } from "react";
+import { useState, DragEvent, useMemo, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight, Pencil } from "lucide-react";
@@ -34,7 +34,7 @@ export function TasksModule() {
   const [showMyTasks, setShowMyTasks] = useState(false);
 
   // Load current user's profile (for "Мои задачи")
-  const { data: profile } = useQuery({
+  const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["profile", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -73,6 +73,15 @@ export function TasksModule() {
 
   // When "Мои задачи" is enabled, fetch only tasks assigned to current profile_id
   const assigneeFilterId = showMyTasks ? currentAssigneeProfileId : null;
+
+  // Safety: never show ALL tasks under "Мои задачи" if we can't resolve current user
+  useEffect(() => {
+    if (showMyTasks && !profileLoading && !currentAssigneeProfileId) {
+      toast.error("Не удалось определить ваш профиль — фильтр 'Мои задачи' отключен");
+      setShowMyTasks(false);
+    }
+  }, [showMyTasks, profileLoading, currentAssigneeProfileId]);
+
   const { data: tasks = [], isLoading: tasksLoading } = useTasks({ assigneeId: assigneeFilterId });
   const { data: projects = [], isLoading: projectsLoading } = useProjects();
   const createTask = useCreateTask();
@@ -314,14 +323,19 @@ export function TasksModule() {
           </p>
           {user?.id && (
             <button
+              disabled={profileLoading}
               onClick={() => {
+                if (profileLoading) {
+                  toast.message("Загружаю профиль пользователя…");
+                  return;
+                }
                 if (!showMyTasks && !currentAssigneeProfileId) {
                   toast.error("Не удалось определить ваш профиль для фильтра 'Мои задачи'");
                   return;
                 }
                 setShowMyTasks((v) => !v);
               }}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 disabled:opacity-60 disabled:pointer-events-none ${
                 showMyTasks 
                   ? 'bg-primary text-primary-foreground shadow-md' 
                   : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
