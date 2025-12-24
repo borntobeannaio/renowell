@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Calendar as CalendarIcon, 
   Clock, 
@@ -13,14 +14,29 @@ import {
   ChevronLeft,
   ChevronRight,
   Video,
-  Phone
+  LayoutGrid,
+  CalendarDays
 } from "lucide-react";
-import { format, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths } from "date-fns";
+import { 
+  format, 
+  isSameDay, 
+  startOfMonth, 
+  endOfMonth, 
+  eachDayOfInterval, 
+  addMonths, 
+  subMonths,
+  startOfWeek,
+  endOfWeek,
+  addWeeks,
+  subWeeks,
+  isToday
+} from "date-fns";
 import { ru } from "date-fns/locale";
 import { formatDisplayDate } from "@/utils/dateFormat";
 
 // Типы календарей для цветовой дифференциации
 type CalendarType = "team" | "personal" | "project" | "external";
+type ViewMode = "month" | "week";
 
 interface CalendarEvent {
   id: string;
@@ -36,29 +52,33 @@ interface CalendarEvent {
 }
 
 // Цветовая схема для разных типов календарей
-const calendarColors: Record<CalendarType, { bg: string; text: string; dot: string; label: string }> = {
+const calendarColors: Record<CalendarType, { bg: string; text: string; dot: string; border: string; label: string }> = {
   team: { 
     bg: "bg-blue-500/10 dark:bg-blue-400/20", 
     text: "text-blue-700 dark:text-blue-300", 
     dot: "bg-blue-500",
+    border: "border-l-blue-500",
     label: "Командные" 
   },
   personal: { 
     bg: "bg-green-500/10 dark:bg-green-400/20", 
     text: "text-green-700 dark:text-green-300", 
     dot: "bg-green-500",
+    border: "border-l-green-500",
     label: "Личные" 
   },
   project: { 
     bg: "bg-purple-500/10 dark:bg-purple-400/20", 
     text: "text-purple-700 dark:text-purple-300", 
     dot: "bg-purple-500",
+    border: "border-l-purple-500",
     label: "Проектные" 
   },
   external: { 
     bg: "bg-orange-500/10 dark:bg-orange-400/20", 
     text: "text-orange-700 dark:text-orange-300", 
     dot: "bg-orange-500",
+    border: "border-l-orange-500",
     label: "Внешние" 
   },
 };
@@ -96,7 +116,7 @@ const mockEvents: CalendarEvent[] = [
   {
     id: "3",
     title: "Демо спринта",
-    date: new Date(Date.now() + 86400000), // завтра
+    date: new Date(Date.now() + 86400000),
     startTime: "15:00",
     endTime: "16:30",
     calendarType: "project",
@@ -113,7 +133,7 @@ const mockEvents: CalendarEvent[] = [
   {
     id: "4",
     title: "Встреча с клиентом",
-    date: new Date(Date.now() + 86400000 * 2), // послезавтра
+    date: new Date(Date.now() + 86400000 * 2),
     startTime: "11:00",
     endTime: "12:00",
     calendarType: "external",
@@ -190,10 +210,33 @@ const calendarFilters: { type: CalendarType; label: string }[] = [
   { type: "external", label: "Внешние" },
 ];
 
+// Часы для временной шкалы
+const timeSlots = Array.from({ length: 12 }, (_, i) => {
+  const hour = i + 8; // с 8:00 до 19:00
+  return `${hour.toString().padStart(2, '0')}:00`;
+});
+
+// Вспомогательная функция для расчёта позиции события
+const getEventPosition = (startTime: string, endTime: string) => {
+  const [startHour, startMin] = startTime.split(':').map(Number);
+  const [endHour, endMin] = endTime.split(':').map(Number);
+  
+  const startOffset = (startHour - 8) * 60 + startMin;
+  const endOffset = (endHour - 8) * 60 + endMin;
+  const duration = endOffset - startOffset;
+  
+  return {
+    top: (startOffset / 60) * 64, // 64px per hour
+    height: Math.max((duration / 60) * 64, 24), // minimum 24px
+  };
+};
+
 export function CalendarModule() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const [currentWeek, setCurrentWeek] = useState<Date>(new Date());
   const [activeFilters, setActiveFilters] = useState<CalendarType[]>(["team", "personal", "project", "external"]);
+  const [viewMode, setViewMode] = useState<ViewMode>("month");
 
   const filteredEvents = useMemo(() => {
     return mockEvents.filter(event => activeFilters.includes(event.calendarType));
@@ -219,6 +262,23 @@ export function CalendarModule() {
     }, {} as Record<string, CalendarType[]>);
   }, [filteredEvents, currentMonth]);
 
+  // Дни текущей недели
+  const weekDays = useMemo(() => {
+    const start = startOfWeek(currentWeek, { weekStartsOn: 1 });
+    const end = endOfWeek(currentWeek, { weekStartsOn: 1 });
+    return eachDayOfInterval({ start, end });
+  }, [currentWeek]);
+
+  // События по дням недели
+  const eventsByWeekDay = useMemo(() => {
+    return weekDays.reduce((acc, day) => {
+      acc[day.toISOString()] = filteredEvents
+        .filter(event => isSameDay(event.date, day))
+        .sort((a, b) => a.startTime.localeCompare(b.startTime));
+      return acc;
+    }, {} as Record<string, CalendarEvent[]>);
+  }, [weekDays, filteredEvents]);
+
   const toggleFilter = (type: CalendarType) => {
     setActiveFilters(prev => 
       prev.includes(type) 
@@ -229,15 +289,19 @@ export function CalendarModule() {
 
   const goToPreviousMonth = () => setCurrentMonth(prev => subMonths(prev, 1));
   const goToNextMonth = () => setCurrentMonth(prev => addMonths(prev, 1));
+  const goToPreviousWeek = () => setCurrentWeek(prev => subWeeks(prev, 1));
+  const goToNextWeek = () => setCurrentWeek(prev => addWeeks(prev, 1));
+  
   const goToToday = () => {
     setCurrentMonth(new Date());
+    setCurrentWeek(new Date());
     setSelectedDate(new Date());
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <CalendarIcon className="w-6 h-6 text-primary" />
@@ -245,9 +309,23 @@ export function CalendarModule() {
           </h1>
           <p className="text-muted-foreground mt-1">Встречи и события</p>
         </div>
-        <Button variant="outline" onClick={goToToday}>
-          Сегодня
-        </Button>
+        <div className="flex items-center gap-2">
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+            <TabsList>
+              <TabsTrigger value="month" className="gap-2">
+                <LayoutGrid className="w-4 h-4" />
+                <span className="hidden sm:inline">Месяц</span>
+              </TabsTrigger>
+              <TabsTrigger value="week" className="gap-2">
+                <CalendarDays className="w-4 h-4" />
+                <span className="hidden sm:inline">Неделя</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Button variant="outline" onClick={goToToday}>
+            Сегодня
+          </Button>
+        </div>
       </div>
 
       {/* Фильтры календарей */}
@@ -276,164 +354,284 @@ export function CalendarModule() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Календарь */}
-        <Card className="lg:col-span-1">
+      {viewMode === "month" ? (
+        // Месячный вид
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Календарь */}
+          <Card className="lg:col-span-1">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <Button variant="ghost" size="icon" onClick={goToPreviousMonth}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <CardTitle className="text-base font-medium">
+                  {format(currentMonth, "LLLL yyyy", { locale: ru })}
+                </CardTitle>
+                <Button variant="ghost" size="icon" onClick={goToNextMonth}>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => date && setSelectedDate(date)}
+                month={currentMonth}
+                onMonthChange={setCurrentMonth}
+                locale={ru}
+                className="pointer-events-auto"
+                modifiers={{
+                  hasEvents: (date) => {
+                    const key = date.toISOString().split('T')[0];
+                    return Object.keys(daysWithEvents).some(k => k.startsWith(key));
+                  }
+                }}
+                modifiersStyles={{
+                  hasEvents: {
+                    fontWeight: 'bold',
+                  }
+                }}
+                components={{
+                  DayContent: ({ date }) => {
+                    const key = date.toISOString();
+                    const eventTypes = daysWithEvents[key];
+                    return (
+                      <div className="relative flex flex-col items-center">
+                        <span>{date.getDate()}</span>
+                        {eventTypes && eventTypes.length > 0 && (
+                          <div className="absolute -bottom-1 flex gap-0.5">
+                            {[...new Set(eventTypes)].slice(0, 3).map((type, i) => (
+                              <span 
+                                key={i} 
+                                className={`w-1 h-1 rounded-full ${calendarColors[type].dot}`}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                }}
+              />
+            </CardContent>
+          </Card>
+
+          {/* События выбранного дня */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span>События на {formatDisplayDate(selectedDate.toISOString())}</span>
+                <Badge variant="secondary" className="ml-2">
+                  {eventsForSelectedDate.length}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[400px] pr-4">
+                {eventsForSelectedDate.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <CalendarIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>Нет событий на этот день</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {eventsForSelectedDate.map((event) => {
+                      const colors = calendarColors[event.calendarType];
+                      return (
+                        <div
+                          key={event.id}
+                          className={`p-4 rounded-xl border ${colors.bg} border-border/50 hover:shadow-md transition-all duration-200`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
+                                <span className={`text-xs font-medium ${colors.text}`}>
+                                  {calendarColors[event.calendarType].label}
+                                </span>
+                              </div>
+                              <h3 className="font-semibold text-foreground mb-2">
+                                {event.title}
+                              </h3>
+                              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                                <div className="flex items-center gap-1">
+                                  <Clock className="w-4 h-4" />
+                                  <span>{event.startTime} — {event.endTime}</span>
+                                </div>
+                                {event.location && (
+                                  <div className="flex items-center gap-1">
+                                    {event.isOnline ? (
+                                      <Video className="w-4 h-4" />
+                                    ) : (
+                                      <MapPin className="w-4 h-4" />
+                                    )}
+                                    <span>{event.location}</span>
+                                  </div>
+                                )}
+                                {event.isOnline && !event.location && (
+                                  <div className="flex items-center gap-1">
+                                    <Video className="w-4 h-4" />
+                                    <span>Онлайн</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Участники */}
+                          <div className="mt-4 pt-4 border-t border-border/50">
+                            <div className="flex items-center gap-2">
+                              <Users className="w-4 h-4 text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground">
+                                Участники:
+                              </span>
+                              <div className="flex -space-x-2">
+                                {event.participants.slice(0, 5).map((participant) => (
+                                  <Avatar 
+                                    key={participant.id} 
+                                    className="w-7 h-7 border-2 border-background"
+                                  >
+                                    <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                                      {participant.initials}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                ))}
+                                {event.participants.length > 5 && (
+                                  <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-medium border-2 border-background">
+                                    +{event.participants.length - 5}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        // Недельный вид
+        <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <Button variant="ghost" size="icon" onClick={goToPreviousMonth}>
+              <Button variant="ghost" size="icon" onClick={goToPreviousWeek}>
                 <ChevronLeft className="w-4 h-4" />
               </Button>
               <CardTitle className="text-base font-medium">
-                {format(currentMonth, "LLLL yyyy", { locale: ru })}
+                {format(weekDays[0], "d MMM", { locale: ru })} — {format(weekDays[6], "d MMM yyyy", { locale: ru })}
               </CardTitle>
-              <Button variant="ghost" size="icon" onClick={goToNextMonth}>
+              <Button variant="ghost" size="icon" onClick={goToNextWeek}>
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="pt-0">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={(date) => date && setSelectedDate(date)}
-              month={currentMonth}
-              onMonthChange={setCurrentMonth}
-              locale={ru}
-              className="pointer-events-auto"
-              modifiers={{
-                hasEvents: (date) => {
-                  const key = date.toISOString().split('T')[0];
-                  return Object.keys(daysWithEvents).some(k => k.startsWith(key));
-                }
-              }}
-              modifiersStyles={{
-                hasEvents: {
-                  fontWeight: 'bold',
-                }
-              }}
-              components={{
-                DayContent: ({ date }) => {
-                  const key = date.toISOString();
-                  const eventTypes = daysWithEvents[key];
-                  return (
-                    <div className="relative flex flex-col items-center">
-                      <span>{date.getDate()}</span>
-                      {eventTypes && eventTypes.length > 0 && (
-                        <div className="absolute -bottom-1 flex gap-0.5">
-                          {[...new Set(eventTypes)].slice(0, 3).map((type, i) => (
-                            <span 
-                              key={i} 
-                              className={`w-1 h-1 rounded-full ${calendarColors[type].dot}`}
-                            />
-                          ))}
-                        </div>
-                      )}
+          <CardContent className="p-0">
+            <ScrollArea className="h-[600px]">
+              <div className="min-w-[800px]">
+                {/* Заголовки дней */}
+                <div className="grid grid-cols-8 border-b border-border sticky top-0 bg-background z-10">
+                  <div className="p-3 text-center text-sm font-medium text-muted-foreground border-r border-border">
+                    Время
+                  </div>
+                  {weekDays.map((day) => (
+                    <div 
+                      key={day.toISOString()} 
+                      className={`p-3 text-center border-r border-border last:border-r-0 ${
+                        isToday(day) ? 'bg-primary/5' : ''
+                      }`}
+                    >
+                      <div className="text-xs text-muted-foreground uppercase">
+                        {format(day, "EEE", { locale: ru })}
+                      </div>
+                      <div className={`text-lg font-semibold ${
+                        isToday(day) ? 'text-primary' : 'text-foreground'
+                      }`}>
+                        {format(day, "d")}
+                      </div>
                     </div>
-                  );
-                }
-              }}
-            />
-          </CardContent>
-        </Card>
-
-        {/* События выбранного дня */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <span>События на {formatDisplayDate(selectedDate.toISOString())}</span>
-              <Badge variant="secondary" className="ml-2">
-                {eventsForSelectedDate.length}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[400px] pr-4">
-              {eventsForSelectedDate.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <CalendarIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>Нет событий на этот день</p>
+                  ))}
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {eventsForSelectedDate.map((event) => {
-                    const colors = calendarColors[event.calendarType];
-                    return (
-                      <div
-                        key={event.id}
-                        className={`p-4 rounded-xl border ${colors.bg} border-border/50 hover:shadow-md transition-all duration-200`}
+
+                {/* Временная шкала и события */}
+                <div className="grid grid-cols-8">
+                  {/* Временная шкала */}
+                  <div className="border-r border-border">
+                    {timeSlots.map((time) => (
+                      <div 
+                        key={time} 
+                        className="h-16 border-b border-border/50 px-2 py-1 text-xs text-muted-foreground"
                       >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
-                              <span className={`text-xs font-medium ${colors.text}`}>
-                                {calendarColors[event.calendarType].label}
-                              </span>
-                            </div>
-                            <h3 className="font-semibold text-foreground mb-2">
-                              {event.title}
-                            </h3>
-                            <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                              <div className="flex items-center gap-1">
-                                <Clock className="w-4 h-4" />
-                                <span>{event.startTime} — {event.endTime}</span>
+                        {time}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Колонки дней */}
+                  {weekDays.map((day) => {
+                    const dayEvents = eventsByWeekDay[day.toISOString()] || [];
+                    return (
+                      <div 
+                        key={day.toISOString()} 
+                        className={`relative border-r border-border last:border-r-0 ${
+                          isToday(day) ? 'bg-primary/5' : ''
+                        }`}
+                      >
+                        {/* Линии часов */}
+                        {timeSlots.map((time) => (
+                          <div 
+                            key={time} 
+                            className="h-16 border-b border-border/50"
+                          />
+                        ))}
+
+                        {/* События */}
+                        {dayEvents.map((event) => {
+                          const { top, height } = getEventPosition(event.startTime, event.endTime);
+                          const colors = calendarColors[event.calendarType];
+                          return (
+                            <div
+                              key={event.id}
+                              className={`absolute left-1 right-1 rounded-md px-2 py-1 text-xs overflow-hidden cursor-pointer hover:shadow-md transition-shadow border-l-2 ${colors.bg} ${colors.border}`}
+                              style={{ top: `${top}px`, height: `${height}px` }}
+                              onClick={() => {
+                                setSelectedDate(day);
+                                setViewMode("month");
+                              }}
+                            >
+                              <div className={`font-medium truncate ${colors.text}`}>
+                                {event.title}
                               </div>
-                              {event.location && (
-                                <div className="flex items-center gap-1">
-                                  {event.isOnline ? (
-                                    <Video className="w-4 h-4" />
-                                  ) : (
-                                    <MapPin className="w-4 h-4" />
-                                  )}
-                                  <span>{event.location}</span>
-                                </div>
-                              )}
-                              {event.isOnline && !event.location && (
-                                <div className="flex items-center gap-1">
-                                  <Video className="w-4 h-4" />
-                                  <span>Онлайн</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Участники */}
-                        <div className="mt-4 pt-4 border-t border-border/50">
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">
-                              Участники:
-                            </span>
-                            <div className="flex -space-x-2">
-                              {event.participants.slice(0, 5).map((participant) => (
-                                <Avatar 
-                                  key={participant.id} 
-                                  className="w-7 h-7 border-2 border-background"
-                                >
-                                  <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                                    {participant.initials}
-                                  </AvatarFallback>
-                                </Avatar>
-                              ))}
-                              {event.participants.length > 5 && (
-                                <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-medium border-2 border-background">
-                                  +{event.participants.length - 5}
+                              <div className="text-muted-foreground truncate">
+                                {event.startTime} — {event.endTime}
+                              </div>
+                              {height > 48 && (
+                                <div className="flex -space-x-1 mt-1">
+                                  {event.participants.slice(0, 3).map((p) => (
+                                    <Avatar key={p.id} className="w-4 h-4 border border-background">
+                                      <AvatarFallback className="text-[6px] bg-primary/10 text-primary">
+                                        {p.initials}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                  ))}
                                 </div>
                               )}
                             </div>
-                          </div>
-                        </div>
+                          );
+                        })}
                       </div>
                     );
                   })}
                 </div>
-              )}
+              </div>
             </ScrollArea>
           </CardContent>
         </Card>
-      </div>
+      )}
 
       {/* Ближайшие события */}
       <Card>
@@ -452,7 +650,10 @@ export function CalendarModule() {
                   <div
                     key={event.id}
                     className={`p-4 rounded-xl border ${colors.bg} border-border/50 hover:shadow-md transition-all duration-200 cursor-pointer`}
-                    onClick={() => setSelectedDate(event.date)}
+                    onClick={() => {
+                      setSelectedDate(event.date);
+                      setCurrentWeek(event.date);
+                    }}
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
