@@ -446,6 +446,7 @@ export type Database = {
           labels: string[] | null
           origin_id: string | null
           origin_type: string | null
+          priority: string | null
           project_id: string | null
           status: string
           title: string
@@ -459,6 +460,7 @@ export type Database = {
           labels?: string[] | null
           origin_id?: string | null
           origin_type?: string | null
+          priority?: string | null
           project_id?: string | null
           status?: string
           title: string
@@ -472,6 +474,7 @@ export type Database = {
           labels?: string[] | null
           origin_id?: string | null
           origin_type?: string | null
+          priority?: string | null
           project_id?: string | null
           status?: string
           title?: string

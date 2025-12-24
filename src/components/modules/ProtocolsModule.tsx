@@ -116,7 +116,7 @@ export function ProtocolsModule() {
           title: itemForm.item_text,
           project_id: itemForm.project_id || null,
           due_date: itemForm.due_date,
-          status: "inbox",
+          status: "new",
           labels: ["протокол"],
         });
         toast.success("Пункт и задача добавлены");
