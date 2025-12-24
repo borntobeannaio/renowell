@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseQuery } from "@/lib/api";
 
 export interface DbProtocol {
   id: string;
@@ -31,14 +32,13 @@ export function useProtocols() {
   return useQuery({
     queryKey: ["protocols"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("protocols")
-        .select("*")
-        .order("date", { ascending: false });
-
-      if (error) throw error;
-      return data as DbProtocol[];
+      return supabaseQuery(
+        () => supabase.from("protocols").select("*").order("date", { ascending: false }),
+        'Загрузка протоколов'
+      ) as Promise<DbProtocol[]>;
     },
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 }
 
@@ -47,16 +47,18 @@ export function useProtocolItems(protocolId: string | null) {
     queryKey: ["protocol_items", protocolId],
     queryFn: async () => {
       if (!protocolId) return [];
-      const { data, error } = await supabase
-        .from("protocol_items")
-        .select("*")
-        .eq("protocol_id", protocolId)
-        .order("sort_order", { ascending: true });
-
-      if (error) throw error;
-      return data as DbProtocolItem[];
+      return supabaseQuery(
+        () => supabase
+          .from("protocol_items")
+          .select("*")
+          .eq("protocol_id", protocolId)
+          .order("sort_order", { ascending: true }),
+        'Загрузка пунктов протокола'
+      ) as Promise<DbProtocolItem[]>;
     },
     enabled: !!protocolId,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 }
 

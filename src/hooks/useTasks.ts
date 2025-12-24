@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseQuery } from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
 
 export interface DbTask {
   id: string;
@@ -19,14 +21,13 @@ export function useTasks() {
   return useQuery({
     queryKey: ["tasks"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return data as DbTask[];
+      return supabaseQuery(
+        () => supabase.from("tasks").select("*").order("created_at", { ascending: false }),
+        'Загрузка задач'
+      ) as Promise<DbTask[]>;
     },
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 }
 
