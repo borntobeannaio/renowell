@@ -2,19 +2,28 @@ import { useState, DragEvent, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight } from "lucide-react";
-import { useTasks, useCreateTask, useUpdateTask, DbTask } from "@/hooks/useTasks";
+import { useTasks, useCreateTask, useUpdateTask, DbTask, TaskStatus, TaskPriority, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS, TASK_PRIORITY_COLORS } from "@/hooks/useTasks";
 import { useProjects, Project } from "@/hooks/useProjects";
 import { useEmployees, DbEmployee } from "@/hooks/useEmployees";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
-type TaskStatus = "inbox" | "doing" | "done";
-
 const columns: { id: TaskStatus; label: string }[] = [
-  { id: "inbox", label: "Входящие" },
-  { id: "doing", label: "В работе" },
+  { id: "new", label: "Новая" },
+  { id: "in_progress", label: "В работе" },
+  { id: "review", label: "На проверке" },
   { id: "done", label: "Готово" },
+  { id: "on_hold", label: "Отложено" },
+  { id: "blocked", label: "Заблокировано" },
+  { id: "cancelled", label: "Отменено" },
+];
+
+const priorities: { id: TaskPriority; label: string }[] = [
+  { id: "critical", label: "Критический" },
+  { id: "high", label: "Высокий" },
+  { id: "normal", label: "Нормальный" },
+  { id: "low", label: "Низкий" },
 ];
 
 export function TasksModule() {
@@ -44,7 +53,6 @@ export function TasksModule() {
   // Find employee matching the logged-in user profile
   const currentEmployeeId = useMemo(() => {
     if (!profile) return null;
-    const fullName = `${profile.last_name || ''} ${profile.first_name || ''}`.trim();
     const employee = employees.find(e => 
       e.full_name.toLowerCase().includes((profile.first_name || '').toLowerCase()) &&
       e.full_name.toLowerCase().includes((profile.last_name || '').toLowerCase())
@@ -61,6 +69,7 @@ export function TasksModule() {
     assignee_id: "",
     project: "",
     due: new Date().toISOString().slice(0, 10),
+    priority: "normal" as TaskPriority,
     labels: "",
   });
 
@@ -91,7 +100,8 @@ export function TasksModule() {
       assignee_id: form.assignee_id || null,
       project_id: form.project || null,
       due_date: form.due || null,
-      status: "inbox",
+      status: "new",
+      priority: form.priority,
       labels: form.labels.split(",").map((l) => l.trim()).filter(Boolean),
     });
 
@@ -100,6 +110,7 @@ export function TasksModule() {
       assignee_id: "",
       project: "",
       due: new Date().toISOString().slice(0, 10),
+      priority: "normal",
       labels: "",
     });
     setIsModalOpen(false);
@@ -210,7 +221,7 @@ export function TasksModule() {
           const isExpanded = expandedProjects.has(project.id);
 
           return (
-            <div key={project.id} className="border border-border rounded-lg overflow-hidden">
+            <div key={project.id} className="border border-border rounded-xl overflow-hidden">
               <button
                 onClick={() => toggleProject(project.id)}
                 className="w-full flex items-center gap-3 p-4 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
@@ -227,19 +238,19 @@ export function TasksModule() {
 
               {isExpanded && (
                 <div className="p-4">
-                  <div className="flex gap-4 overflow-x-auto pb-2">
+                  <div className="flex gap-3 overflow-x-auto pb-2">
                     {columns.map((column) => {
                       const columnTasks = getTasksByStatusAndProject(column.id, project.id);
                       return (
                         <div
                           key={column.id}
-                          className="kanban-column shrink-0"
+                          className="kanban-column shrink-0 min-w-[240px] max-w-[280px]"
                           onDragOver={handleDragOver}
                           onDrop={(e) => handleDrop(e, column.id)}
                         >
                           <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-semibold text-foreground">{column.label}</h3>
-                            <span className="chip">{columnTasks.length}</span>
+                            <h3 className="font-semibold text-foreground text-sm">{column.label}</h3>
+                            <span className="chip text-xs">{columnTasks.length}</span>
                           </div>
 
                           <div className="space-y-3">
@@ -251,6 +262,7 @@ export function TasksModule() {
                                 getEmployeeById={getEmployeeById}
                                 onDragStart={handleDragStart}
                                 onStatusChange={(id, status) => updateTask.mutate({ id, status })}
+                                onPriorityChange={(id, priority) => updateTask.mutate({ id, priority })}
                                 onAssigneeChange={(id, assignee_id) => updateTask.mutate({ id, assignee_id })}
                               />
                             ))}
@@ -299,6 +311,23 @@ export function TasksModule() {
               {projects.map((proj) => (
                 <option key={proj.id} value={proj.id}>
                   {proj.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Приоритет
+            </label>
+            <select
+              value={form.priority}
+              onChange={(e) => setForm({ ...form, priority: e.target.value as TaskPriority })}
+              className="input-base w-full"
+            >
+              {priorities.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
                 </option>
               ))}
             </select>
@@ -366,6 +395,7 @@ interface TaskCardProps {
   getEmployeeById: (id: string) => DbEmployee | undefined;
   onDragStart: (e: DragEvent, id: string) => void;
   onStatusChange: (id: string, status: TaskStatus) => void;
+  onPriorityChange: (id: string, priority: TaskPriority) => void;
   onAssigneeChange: (id: string, assignee: string) => void;
 }
 
@@ -375,33 +405,41 @@ function TaskCard({
   getEmployeeById,
   onDragStart,
   onStatusChange,
+  onPriorityChange,
   onAssigneeChange,
 }: TaskCardProps) {
   const assignee = task.assignee_id ? getEmployeeById(task.assignee_id) : null;
+  const priorityColor = TASK_PRIORITY_COLORS[task.priority] || TASK_PRIORITY_COLORS.normal;
 
   return (
     <div
       draggable
       onDragStart={(e) => onDragStart(e, task.id)}
-      className="kanban-card"
+      className={`kanban-card ${priorityColor}`}
     >
       <div className="flex items-start gap-2">
         <GripVertical className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
         <div className="flex-1 min-w-0">
           <h4 className="font-medium text-foreground text-sm mb-2">{task.title}</h4>
 
-          {task.labels.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-3">
-              {task.labels.slice(0, 2).map((label) => (
-                <span key={label} className="chip text-xs">
-                  {label}
-                </span>
-              ))}
-              {task.labels.length > 2 && (
-                <span className="chip text-xs">+{task.labels.length - 2}</span>
-              )}
-            </div>
-          )}
+          <div className="flex flex-wrap gap-1 mb-3">
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              task.priority === 'critical' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+              task.priority === 'high' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+              task.priority === 'low' ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' :
+              'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+            }`}>
+              {TASK_PRIORITY_LABELS[task.priority]}
+            </span>
+            {task.labels.slice(0, 2).map((label) => (
+              <span key={label} className="chip text-xs">
+                {label}
+              </span>
+            ))}
+            {task.labels.length > 2 && (
+              <span className="chip text-xs">+{task.labels.length - 2}</span>
+            )}
+          </div>
 
           {task.due_date && (
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -412,30 +450,34 @@ function TaskCard({
             </div>
           )}
 
-          <div className="mt-3 pt-3 border-t border-border flex items-center gap-2">
-            <User className="w-3 h-3 text-muted-foreground" />
-            <select
-              value={task.assignee_id || ""}
-              onChange={(e) => onAssigneeChange(task.id, e.target.value)}
-              className="text-xs bg-popover border-none p-0 focus:ring-0 text-foreground cursor-pointer flex-1"
-            >
-              <option value="">Не назначен</option>
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.full_name}
-                </option>
-              ))}
-            </select>
+          <div className="mt-3 pt-3 border-t border-border space-y-2">
+            <div className="flex items-center gap-2">
+              <User className="w-3 h-3 text-muted-foreground" />
+              <select
+                value={task.assignee_id || ""}
+                onChange={(e) => onAssigneeChange(task.id, e.target.value)}
+                className="text-xs bg-transparent border-none p-0 focus:ring-0 text-foreground cursor-pointer flex-1"
+              >
+                <option value="">Не назначен</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.full_name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            <select
-              value={task.status}
-              onChange={(e) => onStatusChange(task.id, e.target.value as TaskStatus)}
-              className="text-xs bg-popover border-none p-0 focus:ring-0 text-muted-foreground cursor-pointer"
-            >
-              <option value="inbox">Входящие</option>
-              <option value="doing">В работе</option>
-              <option value="done">Готово</option>
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={task.status}
+                onChange={(e) => onStatusChange(task.id, e.target.value as TaskStatus)}
+                className="text-xs bg-transparent border-none p-0 focus:ring-0 text-muted-foreground cursor-pointer flex-1"
+              >
+                {columns.map((col) => (
+                  <option key={col.id} value={col.id}>{col.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>
