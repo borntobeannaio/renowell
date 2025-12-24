@@ -126,7 +126,13 @@ export function useUpdateProtocolItem() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, protocol_id, ...updates }: { id: string; protocol_id: string; item_text?: string }) => {
+    mutationFn: async ({ id, protocol_id, ...updates }: { 
+      id: string; 
+      protocol_id: string; 
+      item_text?: string;
+      responsible?: string | null;
+      due_date?: string | null;
+    }) => {
       const { proxyUpdate } = await import("@/lib/dbProxy");
       const { data, error } = await proxyUpdate<DbProtocolItem>(
         'protocol_items',

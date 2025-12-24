@@ -1,11 +1,11 @@
 import { useState, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
-import { Plus, ChevronDown, ChevronUp, Trash2, FolderOpen, CheckCircle2, Download, Pencil, Check, X } from "lucide-react";
-import { useProtocols, useProtocolItems, useCreateProtocol, useCreateProtocolItem, useDeleteProtocolItem, useUpdateProtocolItem, useNextProtocolNumber } from "@/hooks/useProtocols";
+import { Plus, ChevronDown, ChevronUp, Trash2, FolderOpen, CheckCircle2, Download, Pencil, Check, X, Calendar, User } from "lucide-react";
+import { useProtocols, useProtocolItems, useCreateProtocol, useCreateProtocolItem, useDeleteProtocolItem, useUpdateProtocolItem, useNextProtocolNumber, DbProtocolItem } from "@/hooks/useProtocols";
 import { useProjects } from "@/hooks/useProjects";
 import { useEmployees } from "@/hooks/useEmployees";
-import { useCreateTask } from "@/hooks/useTasks";
+import { useCreateTask, useUpdateTask } from "@/hooks/useTasks";
 import { generateProtocolPdf } from "@/utils/protocolPdf";
 import { formatDisplayDate } from "@/utils/dateFormat";
 import { toast } from "sonner";
@@ -343,11 +343,27 @@ function ProtocolCard({
 }: ProtocolCardProps) {
   const { data: items = [] } = useProtocolItems(protocol.id);
   const updateProtocolItem = useUpdateProtocolItem();
+  const updateTask = useUpdateTask();
   
   // State for inline editing
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemText, setEditingItemText] = useState("");
   const [showAddItemForm, setShowAddItemForm] = useState(false);
+  
+  // State for editing responsible/due_date
+  const [editingResponsibleItemId, setEditingResponsibleItemId] = useState<string | null>(null);
+  const [editingResponsibleIds, setEditingResponsibleIds] = useState<string[]>([]);
+  const [editingDueDateItemId, setEditingDueDateItemId] = useState<string | null>(null);
+  const [editingDueDate, setEditingDueDate] = useState("");
+
+  // Helper to find employee IDs from responsible names string
+  const getEmployeeIdsFromResponsible = (responsible: string | null): string[] => {
+    if (!responsible) return [];
+    const names = responsible.split(", ").map(n => n.trim());
+    return names
+      .map(name => employees.find(e => e.full_name === name)?.id)
+      .filter(Boolean) as string[];
+  };
 
   const handleStartEditItem = (itemId: string, currentText: string) => {
     setEditingItemId(itemId);
@@ -373,6 +389,91 @@ function ProtocolCard({
   const handleCancelEditItem = () => {
     setEditingItemId(null);
     setEditingItemText("");
+  };
+
+  // Handlers for responsible editing
+  const handleStartEditResponsible = (item: DbProtocolItem) => {
+    setEditingResponsibleItemId(item.id);
+    setEditingResponsibleIds(getEmployeeIdsFromResponsible(item.responsible));
+  };
+
+  const handleSaveResponsible = async (item: DbProtocolItem) => {
+    const responsibleNames = editingResponsibleIds
+      .map(id => employees.find(e => e.id === id)?.full_name)
+      .filter(Boolean)
+      .join(", ");
+
+    try {
+      await updateProtocolItem.mutateAsync({
+        id: item.id,
+        protocol_id: protocol.id,
+        responsible: responsibleNames || null,
+      });
+
+      // If there's a linked task, update its assignee too
+      if (item.task_id) {
+        const firstResponsibleEmployeeId = editingResponsibleIds[0];
+        const firstResponsibleEmployee = firstResponsibleEmployeeId 
+          ? employees.find(e => e.id === firstResponsibleEmployeeId) 
+          : null;
+        const assigneeProfileId = firstResponsibleEmployee?.profile_id || null;
+
+        await updateTask.mutateAsync({
+          id: item.task_id,
+          assignee_id: assigneeProfileId,
+        });
+        toast.success("Ответственный обновлён в пункте и задаче");
+      } else {
+        toast.success("Ответственный обновлён");
+      }
+
+      setEditingResponsibleItemId(null);
+      setEditingResponsibleIds([]);
+    } catch (error) {
+      toast.error("Ошибка обновления");
+    }
+  };
+
+  const handleCancelEditResponsible = () => {
+    setEditingResponsibleItemId(null);
+    setEditingResponsibleIds([]);
+  };
+
+  // Handlers for due date editing
+  const handleStartEditDueDate = (item: DbProtocolItem) => {
+    setEditingDueDateItemId(item.id);
+    setEditingDueDate(item.due_date || "");
+  };
+
+  const handleSaveDueDate = async (item: DbProtocolItem) => {
+    try {
+      await updateProtocolItem.mutateAsync({
+        id: item.id,
+        protocol_id: protocol.id,
+        due_date: editingDueDate || null,
+      });
+
+      // If there's a linked task, update its due date too
+      if (item.task_id) {
+        await updateTask.mutateAsync({
+          id: item.task_id,
+          due_date: editingDueDate || null,
+        });
+        toast.success("Срок обновлён в пункте и задаче");
+      } else {
+        toast.success("Срок обновлён");
+      }
+
+      setEditingDueDateItemId(null);
+      setEditingDueDate("");
+    } catch (error) {
+      toast.error("Ошибка обновления");
+    }
+  };
+
+  const handleCancelEditDueDate = () => {
+    setEditingDueDateItemId(null);
+    setEditingDueDate("");
   };
 
   const handleExportPdf = async () => {
@@ -512,13 +613,82 @@ function ProtocolCard({
                           ) : (
                             <p className="text-foreground">{item.item_text}</p>
                           )}
-                          <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                            {item.responsible && (
-                              <span>Ответственный: {item.responsible}</span>
-                            )}
-                            {item.due_date && (
-                              <span>Срок: {formatDisplayDate(item.due_date)}</span>
-                            )}
+                          
+                          {/* Editable responsible and due date */}
+                          <div className="flex flex-wrap items-center gap-3 mt-2 text-sm">
+                            {/* Responsible field */}
+                            <div className="flex items-center gap-1">
+                              <User className="w-3.5 h-3.5 text-muted-foreground" />
+                              {editingResponsibleItemId === item.id ? (
+                                <div className="flex items-center gap-1">
+                                  <div className="min-w-[180px]">
+                                    <EmployeeMultiSelect
+                                      employees={employees}
+                                      selectedIds={editingResponsibleIds}
+                                      onChange={setEditingResponsibleIds}
+                                      placeholder="Выберите"
+                                      usePortal
+                                    />
+                                  </div>
+                                  <button
+                                    onClick={() => handleSaveResponsible(item)}
+                                    className="p-1 text-green-600 hover:bg-green-100 rounded"
+                                    disabled={updateProtocolItem.isPending}
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={handleCancelEditResponsible}
+                                    className="p-1 text-muted-foreground hover:bg-muted rounded"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span
+                                  className={`text-muted-foreground ${isEditing ? 'cursor-pointer hover:text-primary hover:underline' : ''}`}
+                                  onClick={() => isEditing && handleStartEditResponsible(item)}
+                                >
+                                  {item.responsible || (isEditing ? "Назначить" : "—")}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Due date field */}
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                              {editingDueDateItemId === item.id ? (
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="date"
+                                    value={editingDueDate}
+                                    onChange={(e) => setEditingDueDate(e.target.value)}
+                                    className="input-base text-sm py-1 px-2"
+                                    autoFocus
+                                  />
+                                  <button
+                                    onClick={() => handleSaveDueDate(item)}
+                                    className="p-1 text-green-600 hover:bg-green-100 rounded"
+                                    disabled={updateProtocolItem.isPending}
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={handleCancelEditDueDate}
+                                    className="p-1 text-muted-foreground hover:bg-muted rounded"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span
+                                  className={`text-muted-foreground ${isEditing ? 'cursor-pointer hover:text-primary hover:underline' : ''}`}
+                                  onClick={() => isEditing && handleStartEditDueDate(item)}
+                                >
+                                  {item.due_date ? formatDisplayDate(item.due_date) : (isEditing ? "Установить" : "—")}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -532,6 +702,7 @@ function ProtocolCard({
                             <button
                               onClick={() => handleStartEditItem(item.id, item.item_text)}
                               className="p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded"
+                              title="Редактировать текст"
                             >
                               <Pencil className="w-4 h-4" />
                             </button>
