@@ -48,11 +48,20 @@ export function TasksModule() {
     },
     enabled: !!user?.id,
   });
+  const currentAssigneeProfileId = useMemo(() => {
+    // Primary: profile row linked to auth user
+    if (profile?.id) return profile.id;
 
-  // When "Мои задачи" is enabled, fetch only tasks assigned to the current profile
-  const assigneeFilterId = showMyTasks ? profile?.id ?? null : null;
+    // Fallback: match employee by login email and use employee.profile_id
+    const email = (user?.email || "").toLowerCase().trim();
+    if (!email) return null;
+    const emp = employees.find((e) => (e.email || "").toLowerCase().trim() === email);
+    return emp?.profile_id || null;
+  }, [profile?.id, user?.email, employees]);
+
+  // When "Мои задачи" is enabled, fetch only tasks assigned to current profile_id
+  const assigneeFilterId = showMyTasks ? currentAssigneeProfileId : null;
   const { data: tasks = [], isLoading: tasksLoading } = useTasks({ assigneeId: assigneeFilterId });
-
   const { data: projects = [], isLoading: projectsLoading } = useProjects();
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
