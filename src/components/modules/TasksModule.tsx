@@ -81,12 +81,18 @@ export function TasksModule() {
     return { employeeToProfile, profileToEmployee };
   }, [employees]);
 
-  // Find employee matching the logged-in user profile using profile_id
+  // Find employee matching the logged-in user profile (by profile_id or name fallback)
   const currentEmployeeId = useMemo(() => {
     if (!profile?.id) return null;
-    const employee = employees.find((e) => e.profile_id === profile.id);
-    return employee?.id || null;
-  }, [profile?.id, employees]);
+    // First try direct link via profile_id
+    const byProfileId = employees.find((e) => e.profile_id === profile.id);
+    if (byProfileId) return byProfileId.id;
+    // Fallback: match by name
+    const fullName = `${profile.first_name || ""} ${profile.last_name || ""}`.toLowerCase().trim();
+    if (!fullName) return null;
+    const byName = employees.find((e) => e.full_name.toLowerCase().includes(fullName));
+    return byName?.id || null;
+  }, [profile, employees]);
 
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
