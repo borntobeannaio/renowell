@@ -8,6 +8,7 @@ import { useEmployees, DbEmployee } from "@/hooks/useEmployees";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 const columns: { id: TaskStatus; label: string }[] = [
   { id: "new", label: "Новая" },
@@ -34,15 +35,15 @@ export function TasksModule() {
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
 
-  // Get current user's profile to match with employee
+  // Load current user's profile (for "Мои задачи")
   const { data: profile } = useQuery({
-    queryKey: ['profile', user?.id],
+    queryKey: ["profile", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
       const { data, error } = await supabase
-        .from('profiles')
-        .select('first_name, last_name')
-        .eq('user_id', user.id)
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("user_id", user.id)
         .maybeSingle();
       if (error) throw error;
       return data;
@@ -50,13 +51,46 @@ export function TasksModule() {
     enabled: !!user?.id,
   });
 
+  // Load profiles to correctly assign tasks (tasks.assignee_id references profiles.id)
+  const { data: profiles = [] } = useQuery({
+    queryKey: ["profiles"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .limit(500);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+
+  const employeeProfileMaps = useMemo(() => {
+    const employeeToProfile = new Map<string, string>();
+    const profileToEmployee = new Map<string, string>();
+
+    for (const emp of employees) {
+      const empName = norm(emp.full_name);
+      const matched = profiles.find((p) => {
+        const full = norm(`${p.first_name || ""} ${p.last_name || ""}`);
+        return full && (empName.includes(full) || full.includes(empName));
+      });
+      if (matched?.id) {
+        employeeToProfile.set(emp.id, matched.id);
+        // Prefer first match; don't override an existing reverse mapping
+        if (!profileToEmployee.has(matched.id)) profileToEmployee.set(matched.id, emp.id);
+      }
+    }
+
+    return { employeeToProfile, profileToEmployee };
+  }, [employees, profiles]);
+
   // Find employee matching the logged-in user profile
   const currentEmployeeId = useMemo(() => {
     if (!profile) return null;
-    const employee = employees.find(e => 
-      e.full_name.toLowerCase().includes((profile.first_name || '').toLowerCase()) &&
-      e.full_name.toLowerCase().includes((profile.last_name || '').toLowerCase())
-    );
+    const full = norm(`${profile.first_name || ""} ${profile.last_name || ""}`);
+    const employee = employees.find((e) => norm(e.full_name).includes(full));
     return employee?.id || null;
   }, [profile, employees]);
 
@@ -96,9 +130,18 @@ export function TasksModule() {
     e.preventDefault();
     if (!form.title.trim()) return;
 
+    const profileId = form.assignee_id
+      ? employeeProfileMaps.employeeToProfile.get(form.assignee_id) || null
+      : null;
+
+    if (form.assignee_id && !profileId) {
+      toast.error("Не удалось назначить исполнителя: нет связанного профиля пользователя");
+      return;
+    }
+
     createTask.mutate({
       title: form.title,
-      assignee_id: form.assignee_id || null,
+      assignee_id: profileId,
       project_id: form.project || null,
       due_date: form.due || null,
       status: "new",
@@ -121,10 +164,19 @@ export function TasksModule() {
     e.preventDefault();
     if (!editingTask || !form.title.trim()) return;
 
+    const profileId = form.assignee_id
+      ? employeeProfileMaps.employeeToProfile.get(form.assignee_id) || null
+      : null;
+
+    if (form.assignee_id && !profileId) {
+      toast.error("Не удалось назначить исполнителя: нет связанного профиля пользователя");
+      return;
+    }
+
     updateTask.mutate({
       id: editingTask.id,
       title: form.title,
-      assignee_id: form.assignee_id || null,
+      assignee_id: profileId,
       project_id: form.project || null,
       due_date: form.due || null,
       priority: form.priority,
@@ -135,10 +187,14 @@ export function TasksModule() {
   };
 
   const openEditModal = (task: DbTask) => {
+    const employeeId = task.assignee_id
+      ? employeeProfileMaps.profileToEmployee.get(task.assignee_id) || ""
+      : "";
+
     setEditingTask(task);
     setForm({
       title: task.title,
-      assignee_id: task.assignee_id || "",
+      assignee_id: employeeId,
       project: task.project_id || "",
       due: task.due_date || new Date().toISOString().slice(0, 10),
       priority: task.priority,
@@ -158,11 +214,11 @@ export function TasksModule() {
     });
   };
 
-  // Filter tasks based on showMyTasks toggle
+  // Filter tasks based on showMyTasks toggle (tasks.assignee_id is profile_id)
   const filteredTasks = useMemo(() => {
-    if (!showMyTasks || !currentEmployeeId) return tasks;
-    return tasks.filter(t => t.assignee_id === currentEmployeeId);
-  }, [tasks, showMyTasks, currentEmployeeId]);
+    if (!showMyTasks || !profile?.id) return tasks;
+    return tasks.filter((t) => t.assignee_id === profile.id);
+  }, [tasks, showMyTasks, profile?.id]);
 
   // Group tasks by project
   const tasksByProject = useMemo(() => {
@@ -183,7 +239,23 @@ export function TasksModule() {
   const getTasksByStatusAndProject = (status: TaskStatus, projectId: string) =>
     (tasksByProject[projectId] || []).filter((t) => t.status === status);
 
-  const getEmployeeById = (id: string) => employees.find(e => e.id === id);
+  const getEmployeeById = (id: string) => employees.find((e) => e.id === id);
+
+  const getAssigneeEmployeeId = (profileId: string | null) =>
+    profileId ? employeeProfileMaps.profileToEmployee.get(profileId) || "" : "";
+
+  const handleAssigneeChange = (taskId: string, employeeId: string) => {
+    const profileId = employeeId
+      ? employeeProfileMaps.employeeToProfile.get(employeeId) || null
+      : null;
+
+    if (employeeId && !profileId) {
+      toast.error("Не удалось назначить исполнителя: нет связанного профиля пользователя");
+      return;
+    }
+
+    updateTask.mutate({ id: taskId, assignee_id: profileId });
+  };
 
   const projectsWithTasks = useMemo(() => {
     const result: (Project | { id: "no-project"; name: string })[] = [];
@@ -294,19 +366,25 @@ export function TasksModule() {
                           </div>
 
                           <div className="space-y-2">
-                            {columnTasks.map((task) => (
-                              <TaskCard
-                                key={task.id}
-                                task={task}
-                                employees={employees}
-                                getEmployeeById={getEmployeeById}
-                                onDragStart={handleDragStart}
-                                onEdit={openEditModal}
-                                onStatusChange={(id, status) => updateTask.mutate({ id, status })}
-                                onPriorityChange={(id, priority) => updateTask.mutate({ id, priority })}
-                                onAssigneeChange={(id, assignee_id) => updateTask.mutate({ id, assignee_id })}
-                              />
-                            ))}
+                            {columnTasks.map((task) => {
+                              const assigneeEmployeeId = getAssigneeEmployeeId(task.assignee_id);
+                              const assigneeEmployee = assigneeEmployeeId ? getEmployeeById(assigneeEmployeeId) : null;
+
+                              return (
+                                <TaskCard
+                                  key={task.id}
+                                  task={task}
+                                  employees={employees}
+                                  assigneeEmployeeId={assigneeEmployeeId}
+                                  assigneeLabel={assigneeEmployee?.full_name || "Не назначен"}
+                                  onDragStart={handleDragStart}
+                                  onEdit={openEditModal}
+                                  onStatusChange={(id, status) => updateTask.mutate({ id, status })}
+                                  onPriorityChange={(id, priority) => updateTask.mutate({ id, priority })}
+                                  onAssigneeChange={handleAssigneeChange}
+                                />
+                              );
+                            })}
                           </div>
                         </div>
                       );
@@ -542,26 +620,26 @@ export function TasksModule() {
 interface TaskCardProps {
   task: DbTask;
   employees: DbEmployee[];
-  getEmployeeById: (id: string) => DbEmployee | undefined;
+  assigneeEmployeeId: string;
+  assigneeLabel: string;
   onDragStart: (e: DragEvent, id: string) => void;
   onEdit: (task: DbTask) => void;
   onStatusChange: (id: string, status: TaskStatus) => void;
   onPriorityChange: (id: string, priority: TaskPriority) => void;
-  onAssigneeChange: (id: string, assignee: string) => void;
+  onAssigneeChange: (id: string, employeeId: string) => void;
 }
 
 function TaskCard({
   task,
   employees,
-  getEmployeeById,
+  assigneeEmployeeId,
+  assigneeLabel,
   onDragStart,
   onEdit,
   onStatusChange,
   onPriorityChange,
   onAssigneeChange,
 }: TaskCardProps) {
-  const assignee = task.assignee_id ? getEmployeeById(task.assignee_id) : null;
-
   const priorityStyles = {
     critical: { border: "border-red-500", bg: "bg-red-500", text: "text-white" },
     high: { border: "border-orange-500", bg: "bg-orange-500", text: "text-white" },
@@ -617,7 +695,8 @@ function TaskCard({
         <div className="flex items-center gap-2">
           <User className="w-3 h-3 shrink-0" />
           <select
-            value={task.assignee_id || ""}
+            value={assigneeEmployeeId}
+            title={assigneeLabel}
             onChange={(e) => {
               e.stopPropagation();
               onAssigneeChange(task.id, e.target.value);
