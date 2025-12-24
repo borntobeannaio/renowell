@@ -52,12 +52,24 @@ export function TasksModule() {
     // Primary: profile row linked to auth user
     if (profile?.id) return profile.id;
 
-    // Fallback: match employee by login email and use employee.profile_id
+    // Fallback #1: match employee by login email and use employee.profile_id
     const email = (user?.email || "").toLowerCase().trim();
-    if (!email) return null;
-    const emp = employees.find((e) => (e.email || "").toLowerCase().trim() === email);
-    return emp?.profile_id || null;
-  }, [profile?.id, user?.email, employees]);
+    if (email) {
+      const empByEmail = employees.find((e) => (e.email || "").toLowerCase().trim() === email);
+      if (empByEmail?.profile_id) return empByEmail.profile_id;
+    }
+
+    // Fallback #2: match employee by auth metadata name (first_name/last_name)
+    const firstName = String((user?.user_metadata as any)?.first_name || "").trim();
+    const lastName = String((user?.user_metadata as any)?.last_name || "").trim();
+    const fullName = `${firstName} ${lastName}`.toLowerCase().trim();
+    if (fullName) {
+      const empByName = employees.find((e) => e.full_name.toLowerCase().includes(fullName));
+      if (empByName?.profile_id) return empByName.profile_id;
+    }
+
+    return null;
+  }, [profile?.id, user?.email, user?.user_metadata, employees]);
 
   // When "Мои задачи" is enabled, fetch only tasks assigned to current profile_id
   const assigneeFilterId = showMyTasks ? currentAssigneeProfileId : null;
@@ -302,7 +314,13 @@ export function TasksModule() {
           </p>
           {user?.id && (
             <button
-              onClick={() => setShowMyTasks((v) => !v)}
+              onClick={() => {
+                if (!showMyTasks && !currentAssigneeProfileId) {
+                  toast.error("Не удалось определить ваш профиль для фильтра 'Мои задачи'");
+                  return;
+                }
+                setShowMyTasks((v) => !v);
+              }}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                 showMyTasks 
                   ? 'bg-primary text-primary-foreground shadow-md' 
