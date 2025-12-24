@@ -27,22 +27,29 @@ interface ProxyRequest {
   limit?: number;
 }
 
+// Create client once at module level for connection reuse
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: { persistSession: false },
+  db: { schema: 'public' },
+});
+
+console.log('[db-proxy] Module initialized');
+
 serve(async (req) => {
+  const startTime = Date.now();
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
     const body: ProxyRequest = await req.json();
     const { action, table, data, filters, select, order, limit } = body;
     
-    console.log(`[db-proxy] Action: ${action}, Table: ${table}`);
+    console.log(`[db-proxy] ${action} ${table}`);
     
     // deno-lint-ignore no-explicit-any
     let result: any;
@@ -56,16 +63,18 @@ serve(async (req) => {
         if (filters) {
           for (const filter of filters) {
             const { column, operator, value } = filter;
-            if (operator === 'eq') query = query.eq(column, value);
-            else if (operator === 'neq') query = query.neq(column, value);
-            else if (operator === 'gt') query = query.gt(column, value);
-            else if (operator === 'gte') query = query.gte(column, value);
-            else if (operator === 'lt') query = query.lt(column, value);
-            else if (operator === 'lte') query = query.lte(column, value);
-            else if (operator === 'like') query = query.like(column, value);
-            else if (operator === 'ilike') query = query.ilike(column, value);
-            else if (operator === 'in') query = query.in(column, value);
-            else if (operator === 'is') query = query.is(column, value);
+            switch (operator) {
+              case 'eq': query = query.eq(column, value); break;
+              case 'neq': query = query.neq(column, value); break;
+              case 'gt': query = query.gt(column, value); break;
+              case 'gte': query = query.gte(column, value); break;
+              case 'lt': query = query.lt(column, value); break;
+              case 'lte': query = query.lte(column, value); break;
+              case 'like': query = query.like(column, value); break;
+              case 'ilike': query = query.ilike(column, value); break;
+              case 'in': query = query.in(column, value); break;
+              case 'is': query = query.is(column, value); break;
+            }
           }
         }
         
@@ -146,15 +155,17 @@ serve(async (req) => {
         throw new Error(`Unknown action: ${action}`);
     }
     
+    const duration = Date.now() - startTime;
+    
     if (result.error) {
-      console.error(`[db-proxy] Error:`, result.error);
+      console.error(`[db-proxy] Error (${duration}ms):`, result.error);
       return new Response(JSON.stringify({ error: result.error }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     
-    console.log(`[db-proxy] Success`);
+    console.log(`[db-proxy] OK ${action} ${table} (${duration}ms, ${result.data?.length || 0} rows)`);
     
     return new Response(JSON.stringify({ data: result.data }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -162,7 +173,8 @@ serve(async (req) => {
     
   } catch (err) {
     const error = err as Error;
-    console.error('[db-proxy] Error:', error.message);
+    const duration = Date.now() - startTime;
+    console.error(`[db-proxy] Error (${duration}ms):`, error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
