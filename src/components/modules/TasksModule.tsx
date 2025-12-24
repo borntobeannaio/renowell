@@ -1,13 +1,10 @@
-import { useState, DragEvent, useMemo, useEffect } from "react";
+import { useState, DragEvent, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight, Pencil } from "lucide-react";
 import { useTasks, useCreateTask, useUpdateTask, DbTask, TaskStatus, TaskPriority, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS, TASK_PRIORITY_COLORS } from "@/hooks/useTasks";
 import { useProjects, Project } from "@/hooks/useProjects";
 import { useEmployees, DbEmployee } from "@/hooks/useEmployees";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 const columns: { id: TaskStatus; label: string }[] = [
@@ -28,83 +25,15 @@ const priorities: { id: TaskPriority; label: string }[] = [
 ];
 
 export function TasksModule() {
-  const { user } = useAuth();
-  const { data: employees = [], isLoading: employeesLoading } = useEmployees();
+  const { data: employees = [] } = useEmployees();
 
-  const [showMyTasks, setShowMyTasks] = useState(false);
+  // Filter tasks by assignee (employee -> profile_id)
+  const [assigneeEmployeeFilterId, setAssigneeEmployeeFilterId] = useState<string>("");
 
-  // Load current user's profile (for "Мои задачи")
-  const {
-    data: profile,
-    isPending: profilePending,
-    isFetching: profileFetching,
-    error: profileError,
-  } = useQuery({
-    queryKey: ["profile", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-
-      // Prefer backend function (uses current auth user) to avoid any mismatch
-      const { data: profileId, error: rpcError } = await supabase.rpc("get_user_profile_id");
-      if (rpcError) throw rpcError;
-      if (!profileId) return null;
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .eq("id", profileId)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user?.id,
-  });
-  const currentAssigneeProfileId = useMemo(() => {
-    // Primary: profile row linked to auth user
-    if (profile?.id) return profile.id;
-
-    // Fallback #1: match employee by login email and use employee.profile_id
-    const email = (user?.email || "").toLowerCase().trim();
-    if (email) {
-      const empByEmail = employees.find((e) => (e.email || "").toLowerCase().trim() === email);
-      if (empByEmail?.profile_id) return empByEmail.profile_id;
-    }
-
-    // Fallback #2: match employee by auth metadata name (first_name/last_name)
-    const firstName = String((user?.user_metadata as any)?.first_name || "").trim();
-    const lastName = String((user?.user_metadata as any)?.last_name || "").trim();
-    const fullName = `${firstName} ${lastName}`.toLowerCase().trim();
-    if (fullName) {
-      const empByName = employees.find((e) => e.full_name.toLowerCase().includes(fullName));
-      if (empByName?.profile_id) return empByName.profile_id;
-    }
-
-    return null;
-  }, [profile?.id, user?.email, user?.user_metadata, employees]);
-
-  // When "Мои задачи" is enabled, fetch only tasks assigned to current profile_id
-  const assigneeFilterId = showMyTasks ? currentAssigneeProfileId : null;
-
-  const profileBusy = profilePending || profileFetching || employeesLoading;
-
-  // Safety: never show ALL tasks under "Мои задачи" if we can't resolve current user
-  useEffect(() => {
-    if (showMyTasks && !profileBusy && !currentAssigneeProfileId) {
-      toast.error("Не удалось определить ваш профиль — фильтр 'Мои задачи' отключен");
-      setShowMyTasks(false);
-    }
-  }, [showMyTasks, profileBusy, currentAssigneeProfileId]);
-
-  useEffect(() => {
-    if (profileError) {
-      toast.error("Ошибка загрузки профиля пользователя");
-    }
-  }, [profileError]);
-
-  const { data: tasks = [], isLoading: tasksLoading } = useTasks({ assigneeId: assigneeFilterId });
   const { data: projects = [], isLoading: projectsLoading } = useProjects();
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
+
   // Build maps using direct profile_id from employees table
   const employeeProfileMaps = useMemo(() => {
     const employeeToProfile = new Map<string, string>();
@@ -122,18 +51,18 @@ export function TasksModule() {
     return { employeeToProfile, profileToEmployee };
   }, [employees]);
 
-  // Find employee matching the logged-in user profile (by profile_id or name fallback)
-  const currentEmployeeId = useMemo(() => {
-    if (!profile?.id) return null;
-    // First try direct link via profile_id
-    const byProfileId = employees.find((e) => e.profile_id === profile.id);
-    if (byProfileId) return byProfileId.id;
-    // Fallback: match by name
-    const fullName = `${profile.first_name || ""} ${profile.last_name || ""}`.toLowerCase().trim();
-    if (!fullName) return null;
-    const byName = employees.find((e) => e.full_name.toLowerCase().includes(fullName));
-    return byName?.id || null;
-  }, [profile, employees]);
+  const assigneeProfileFilterId = useMemo(() => {
+    if (!assigneeEmployeeFilterId) return null;
+    const profileId = employeeProfileMaps.employeeToProfile.get(assigneeEmployeeFilterId) || null;
+    if (!profileId) {
+      // Should not happen if all employees are linked, but keep UX safe
+      toast.error("У выбранного сотрудника нет связанного профиля");
+      return null;
+    }
+    return profileId;
+  }, [assigneeEmployeeFilterId, employeeProfileMaps]);
+
+  const { data: tasks = [], isLoading: tasksLoading } = useTasks({ assigneeId: assigneeProfileFilterId });
 
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -329,46 +258,30 @@ export function TasksModule() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-4">
-          <p className="text-muted-foreground">
-            {showMyTasks ? (
-              <>Назначенные мне: {filteredTasks.length}</>
-            ) : (
-              <>Всего задач: {filteredTasks.length}</>
+        <div className="flex items-center gap-4 flex-wrap">
+          <p className="text-muted-foreground">Задач: {filteredTasks.length}</p>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-muted-foreground">Исполнитель:</span>
+            <div className="min-w-[240px]">
+              <EmployeeMultiSelect
+                employees={employees}
+                selectedIds={assigneeEmployeeFilterId ? [assigneeEmployeeFilterId] : []}
+                onChange={(ids) => setAssigneeEmployeeFilterId(ids[0] || "")}
+                placeholder="Все исполнители"
+                single
+              />
+            </div>
+            {assigneeEmployeeFilterId && (
+              <button
+                type="button"
+                onClick={() => setAssigneeEmployeeFilterId("")}
+                className="btn-secondary h-9 px-3 py-1.5"
+              >
+                Сбросить
+              </button>
             )}
-          </p>
-          {user?.id && (
-            <button
-              disabled={profileBusy}
-              onClick={() => {
-                if (profileBusy) {
-                  toast.message("Загружаю профиль пользователя…");
-                  return;
-                }
-                if (!showMyTasks && !currentAssigneeProfileId) {
-                  toast.error("Не удалось определить ваш профиль для фильтра 'Мои задачи'");
-                  return;
-                }
-                setShowMyTasks((v) => !v);
-              }}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 disabled:opacity-60 disabled:pointer-events-none ${
-                showMyTasks 
-                  ? 'bg-primary text-primary-foreground shadow-md' 
-                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-              }`}
-            >
-              <div className={`w-8 h-4 rounded-full relative transition-colors duration-200 ${
-                showMyTasks ? 'bg-primary-foreground/30' : 'bg-muted'
-              }`}>
-                <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all duration-200 ${
-                  showMyTasks 
-                    ? 'right-0.5 bg-primary-foreground' 
-                    : 'left-0.5 bg-muted-foreground'
-                }`} />
-              </div>
-              <span>Назначенные мне</span>
-            </button>
-          )}
+          </div>
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
