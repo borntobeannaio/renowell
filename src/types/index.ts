@@ -118,5 +118,6 @@ export type NavigationSection =
   | "tasks"
   | "hr"
   | "knowledge"
+  | "calendar"
   | "chats"
   | "search";

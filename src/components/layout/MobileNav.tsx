@@ -6,14 +6,15 @@ import {
   CheckSquare,
   Users,
   BookOpen,
+  Calendar,
 } from "lucide-react";
 
 const navItems: { id: NavigationSection; path: string; label: string; icon: React.ElementType }[] = [
   { id: "news", path: "/news", label: "Новости", icon: Newspaper },
   { id: "protocols", path: "/protocols", label: "Протоколы", icon: FileText },
   { id: "tasks", path: "/tasks", label: "Задачи", icon: CheckSquare },
+  { id: "calendar", path: "/calendar", label: "Календарь", icon: Calendar },
   { id: "hr", path: "/hr", label: "HR", icon: Users },
-  { id: "knowledge", path: "/knowledge", label: "База", icon: BookOpen },
 ];
 
 export function MobileNav() {

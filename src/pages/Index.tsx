@@ -9,6 +9,7 @@ import { ProtocolsModule } from "@/components/modules/ProtocolsModule";
 import { TasksModule } from "@/components/modules/TasksModule";
 import { HRModule } from "@/components/modules/HRModule";
 import { KnowledgeModule } from "@/components/modules/KnowledgeModule";
+import { CalendarModule } from "@/components/modules/CalendarModule";
 import { ChatModule } from "@/components/modules/ChatModule";
 import { SearchModule } from "@/components/modules/SearchModule";
 import { FloatingChat } from "@/components/chat/FloatingChat";
@@ -17,7 +18,7 @@ import { NavigationSection } from "@/types";
 
 const sectionFromPath = (pathname: string): NavigationSection => {
   const path = pathname.slice(1) || "news";
-  const validSections: NavigationSection[] = ["news", "protocols", "tasks", "hr", "knowledge", "chats", "search"];
+  const validSections: NavigationSection[] = ["news", "protocols", "tasks", "hr", "knowledge", "calendar", "chats", "search"];
   return validSections.includes(path as NavigationSection) ? (path as NavigationSection) : "news";
 };
 
@@ -51,6 +52,8 @@ function PortalContent() {
         return <ProtocolsModule />;
       case "tasks":
         return <TasksModule />;
+      case "calendar":
+        return <CalendarModule />;
       case "hr":
         return <HRModule />;
       case "knowledge":
