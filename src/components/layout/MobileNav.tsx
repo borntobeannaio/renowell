@@ -6,7 +6,6 @@ import {
   CheckSquare,
   Users,
   BookOpen,
-  MessageCircle,
 } from "lucide-react";
 
 const navItems: { id: NavigationSection; label: string; icon: React.ElementType }[] = [
@@ -15,7 +14,6 @@ const navItems: { id: NavigationSection; label: string; icon: React.ElementType 
   { id: "tasks", label: "Задачи", icon: CheckSquare },
   { id: "hr", label: "HR", icon: Users },
   { id: "knowledge", label: "База", icon: BookOpen },
-  { id: "chats", label: "Чаты", icon: MessageCircle },
 ];
 
 export function MobileNav() {

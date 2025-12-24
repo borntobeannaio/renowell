@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
-import { MessageCircle, X, Send, Users, Bot, ChevronLeft, Loader2 } from "lucide-react";
+import { MessageCircle, X, Send, Users, Bot, ChevronLeft, Loader2, Maximize2, Minimize2, Plus } from "lucide-react";
 import { useApp } from "@/context/AppContext";
-import { supabase } from "@/integrations/supabase/client";
+import { Modal } from "@/components/ui/Modal";
 
 type ChatTab = "general" | "ai";
 
@@ -11,17 +11,20 @@ interface AIMessage {
 }
 
 export function FloatingChat() {
-  const { chats, employees, addMessage, getEmployeeById } = useApp();
+  const { chats, employees, addChat, addMessage, getEmployeeById } = useApp();
   const [isOpen, setIsOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeTab, setActiveTab] = useState<ChatTab>("general");
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [aiMessages, setAiMessages] = useState<AIMessage[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
+  const [newChatType, setNewChatType] = useState<"direct" | "group">("direct");
+  const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
+  const [groupTitle, setGroupTitle] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Find general chat (group chat or first chat)
-  const generalChat = chats.find(c => c.type === "group") || chats[0];
   const selectedChat = selectedChatId ? chats.find(c => c.id === selectedChatId) : null;
 
   useEffect(() => {
@@ -141,8 +144,49 @@ export function FloatingChat() {
     }
   };
 
+  const handleCreateChat = () => {
+    if (selectedParticipants.length === 0) return;
+
+    const title =
+      newChatType === "group"
+        ? groupTitle || "Групповой чат"
+        : getEmployeeById(selectedParticipants[0])?.name || "Чат";
+
+    addChat({
+      title,
+      type: newChatType,
+      participants: ["e1", ...selectedParticipants],
+    });
+
+    setIsNewChatModalOpen(false);
+    setSelectedParticipants([]);
+    setGroupTitle("");
+    setNewChatType("direct");
+  };
+
+  const toggleParticipant = (id: string) => {
+    if (newChatType === "direct") {
+      setSelectedParticipants([id]);
+    } else {
+      setSelectedParticipants((prev) =>
+        prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
+      );
+    }
+  };
+
   const renderChatList = () => (
     <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      {/* New chat button */}
+      <button
+        onClick={() => setIsNewChatModalOpen(true)}
+        className="w-full p-3 rounded-lg text-left transition-colors bg-primary/10 hover:bg-primary/20 border border-dashed border-primary/30 text-sm"
+      >
+        <div className="flex items-center gap-2 text-primary">
+          <Plus className="w-4 h-4" />
+          <span className="font-medium">Начать новый чат</span>
+        </div>
+      </button>
+
       {chats.map((chat) => (
         <button
           key={chat.id}
@@ -167,6 +211,13 @@ export function FloatingChat() {
           </div>
         </button>
       ))}
+
+      {chats.length === 0 && (
+        <div className="text-center py-8 text-muted-foreground text-sm">
+          <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+          <p>Нет чатов</p>
+        </div>
+      )}
     </div>
   );
 
@@ -249,6 +300,10 @@ export function FloatingChat() {
     );
   };
 
+  const panelClasses = isFullscreen
+    ? "fixed inset-4 md:inset-8 z-50"
+    : "fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 w-[340px] h-[480px]";
+
   return (
     <>
       {/* Floating button */}
@@ -263,7 +318,7 @@ export function FloatingChat() {
 
       {/* Chat panel */}
       {isOpen && (
-        <div className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 w-[340px] h-[480px] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4">
+        <div className={`${panelClasses} bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4`}>
           {/* Header with tabs */}
           <div className="bg-card border-b border-border">
             <div className="flex items-center justify-between p-3">
@@ -280,12 +335,28 @@ export function FloatingChat() {
                   {activeTab === "ai" ? "AI Ассистент" : "Чаты"}
                 </span>
               )}
-              <button
-                onClick={() => setIsOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
+                  title={isFullscreen ? "Свернуть" : "На весь экран"}
+                >
+                  {isFullscreen ? (
+                    <Minimize2 className="w-4 h-4" />
+                  ) : (
+                    <Maximize2 className="w-4 h-4" />
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    setIsOpen(false);
+                    setIsFullscreen(false);
+                  }}
+                  className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Pinned tabs */}
@@ -346,6 +417,117 @@ export function FloatingChat() {
           )}
         </div>
       )}
+
+      {/* New chat modal */}
+      <Modal
+        isOpen={isNewChatModalOpen}
+        onClose={() => {
+          setIsNewChatModalOpen(false);
+          setSelectedParticipants([]);
+          setGroupTitle("");
+        }}
+        title="Новый чат"
+      >
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setNewChatType("direct");
+                setSelectedParticipants([]);
+              }}
+              className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
+                newChatType === "direct"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              }`}
+            >
+              Личный
+            </button>
+            <button
+              onClick={() => {
+                setNewChatType("group");
+                setSelectedParticipants([]);
+              }}
+              className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
+                newChatType === "group"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              }`}
+            >
+              Групповой
+            </button>
+          </div>
+
+          {newChatType === "group" && (
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Название группы
+              </label>
+              <input
+                type="text"
+                value={groupTitle}
+                onChange={(e) => setGroupTitle(e.target.value)}
+                className="input-base w-full"
+                placeholder="Введите название"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">
+              {newChatType === "direct"
+                ? "Выберите собеседника"
+                : "Выберите участников"}
+            </label>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {employees
+                .filter((e) => e.id !== "e1")
+                .map((emp) => (
+                  <label
+                    key={emp.id}
+                    className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                      selectedParticipants.includes(emp.id)
+                        ? "bg-primary/10 border border-primary/30"
+                        : "bg-secondary hover:bg-secondary/80"
+                    }`}
+                  >
+                    <input
+                      type={newChatType === "direct" ? "radio" : "checkbox"}
+                      checked={selectedParticipants.includes(emp.id)}
+                      onChange={() => toggleParticipant(emp.id)}
+                      className="w-4 h-4 text-primary"
+                    />
+                    <img
+                      src={emp.avatar}
+                      alt={emp.name}
+                      className="w-8 h-8 rounded-full"
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium text-foreground">{emp.name}</p>
+                      <p className="text-sm text-muted-foreground">{emp.role}</p>
+                    </div>
+                  </label>
+                ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              onClick={() => setIsNewChatModalOpen(false)}
+              className="btn-secondary"
+            >
+              Отмена
+            </button>
+            <button
+              onClick={handleCreateChat}
+              disabled={selectedParticipants.length === 0}
+              className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Создать
+            </button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }
