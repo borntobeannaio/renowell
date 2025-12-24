@@ -18,8 +18,8 @@ interface OrderBy {
 }
 
 interface ProxyRequest {
-  action: 'select' | 'insert' | 'update' | 'delete' | 'upsert';
-  table: string;
+  action: 'ping' | 'select' | 'insert' | 'update' | 'delete' | 'upsert';
+  table?: string;
   data?: Record<string, unknown> | Record<string, unknown>[];
   filters?: Filter[];
   select?: string;
@@ -48,7 +48,15 @@ serve(async (req) => {
   try {
     const body: ProxyRequest = await req.json();
     const { action, table, data, filters, select, order, limit } = body;
-    
+
+    if (action === 'ping') {
+      return new Response(JSON.stringify({ data: 'ok' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!table) throw new Error('Missing table');
+
     console.log(`[db-proxy] ${action} ${table}`);
     
     // deno-lint-ignore no-explicit-any

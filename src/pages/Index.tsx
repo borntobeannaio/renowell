@@ -10,7 +10,9 @@ import { KnowledgeModule } from "@/components/modules/KnowledgeModule";
 import { ChatModule } from "@/components/modules/ChatModule";
 import { SearchModule } from "@/components/modules/SearchModule";
 import { FloatingChat } from "@/components/chat/FloatingChat";
+import { useDbProxyWarmup } from "@/hooks/useDbProxyWarmup";
 function PortalContent() {
+  useDbProxyWarmup();
   const { currentSection } = useApp();
 
   const renderModule = () => {
