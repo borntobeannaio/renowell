@@ -1,58 +1,132 @@
-import { useState } from "react";
-import { useApp } from "@/context/AppContext";
+import { useState, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { Plus, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
-import { Decision } from "@/types";
+import { Plus, ChevronDown, ChevronUp, Trash2, FolderOpen, CheckCircle2 } from "lucide-react";
+import { useProtocols, useProtocolItems, useCreateProtocol, useCreateProtocolItem, useDeleteProtocolItem, useNextProtocolNumber } from "@/hooks/useProtocols";
+import { useProjects } from "@/hooks/useProjects";
+import { useCreateTask } from "@/hooks/useTasks";
+import { toast } from "sonner";
+
+interface ProtocolItemForm {
+  project_id: string;
+  item_text: string;
+  responsible: string;
+  due_date: string;
+  create_task: boolean;
+}
 
 export function ProtocolsModule() {
-  const { protocols, addProtocol, employees } = useApp();
+  const { data: protocols = [], isLoading } = useProtocols();
+  const { data: projects = [] } = useProjects();
+  const { data: nextNumber = 1 } = useNextProtocolNumber();
+  const createProtocol = useCreateProtocol();
+  const createProtocolItem = useCreateProtocolItem();
+  const deleteProtocolItem = useDeleteProtocolItem();
+  const createTask = useCreateTask();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingProtocolId, setEditingProtocolId] = useState<string | null>(null);
+  
+  // Form for new protocol
   const [form, setForm] = useState({
     date: new Date().toISOString().slice(0, 10),
     title: "",
+    organizer: "",
     attendees: "",
-    agenda: "",
   });
-  const [decisions, setDecisions] = useState<Decision[]>([
-    { text: "", responsible: "", createTask: false },
-  ]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.title.trim()) return;
+  // Form for adding items to existing protocol
+  const [itemForm, setItemForm] = useState<ProtocolItemForm>({
+    project_id: "",
+    item_text: "",
+    responsible: "",
+    due_date: "",
+    create_task: false,
+  });
 
-    addProtocol({
-      date: form.date,
-      title: form.title,
-      attendees: form.attendees.split(",").map((a) => a.trim()).filter(Boolean),
-      agenda: form.agenda.split(",").map((a) => a.trim()).filter(Boolean),
-      decisions: decisions.filter((d) => d.text.trim()),
-      links: [],
-    });
-
+  const resetForm = () => {
     setForm({
       date: new Date().toISOString().slice(0, 10),
       title: "",
+      organizer: "",
       attendees: "",
-      agenda: "",
     });
-    setDecisions([{ text: "", responsible: "", createTask: false }]);
-    setIsModalOpen(false);
   };
 
-  const updateDecision = (index: number, updates: Partial<Decision>) => {
-    setDecisions((prev) =>
-      prev.map((d, i) => (i === index ? { ...d, ...updates } : d))
-    );
+  const resetItemForm = () => {
+    setItemForm({
+      project_id: "",
+      item_text: "",
+      responsible: "",
+      due_date: "",
+      create_task: false,
+    });
   };
 
-  const addDecision = () => {
-    setDecisions((prev) => [...prev, { text: "", responsible: "", createTask: false }]);
+  const handleCreateProtocol = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.title.trim()) return;
+
+    try {
+      const result = await createProtocol.mutateAsync({
+        number: nextNumber,
+        date: form.date,
+        title: form.title,
+        organizer: form.organizer || null,
+        meeting_type: form.title,
+        attendees: form.attendees.split(",").map((a) => a.trim()).filter(Boolean),
+      });
+      
+      toast.success("Протокол создан");
+      resetForm();
+      setIsModalOpen(false);
+      setEditingProtocolId(result.id);
+      setExpandedId(result.id);
+    } catch (error) {
+      toast.error("Ошибка при создании протокола");
+    }
   };
 
-  const removeDecision = (index: number) => {
-    setDecisions((prev) => prev.filter((_, i) => i !== index));
+  const handleAddItem = async (protocolId: string) => {
+    if (!itemForm.item_text.trim()) return;
+
+    try {
+      const item = await createProtocolItem.mutateAsync({
+        protocol_id: protocolId,
+        project_id: itemForm.project_id || null,
+        item_text: itemForm.item_text,
+        responsible: itemForm.responsible || null,
+        due_date: itemForm.due_date || null,
+        create_task: itemForm.create_task,
+      });
+
+      // If create_task is true, create the task
+      if (itemForm.create_task && itemForm.due_date) {
+        await createTask.mutateAsync({
+          title: itemForm.item_text,
+          project_id: itemForm.project_id || null,
+          due_date: itemForm.due_date,
+          status: "inbox",
+          labels: ["протокол"],
+        });
+        toast.success("Пункт и задача добавлены");
+      } else {
+        toast.success("Пункт добавлен");
+      }
+
+      resetItemForm();
+    } catch (error) {
+      toast.error("Ошибка при добавлении пункта");
+    }
+  };
+
+  const handleDeleteItem = async (itemId: string, protocolId: string) => {
+    try {
+      await deleteProtocolItem.mutateAsync({ id: itemId, protocol_id: protocolId });
+      toast.success("Пункт удален");
+    } catch (error) {
+      toast.error("Ошибка при удалении");
+    }
   };
 
   return (
@@ -71,104 +145,55 @@ export function ProtocolsModule() {
       </div>
 
       <div className="space-y-4">
-        {protocols.map((protocol) => (
-          <div key={protocol.id} className="card-base overflow-hidden animate-fade-in">
-            <button
-              onClick={() =>
-                setExpandedId(expandedId === protocol.id ? null : protocol.id)
-              }
-              className="w-full p-4 flex items-center justify-between hover:bg-secondary/50 transition-colors"
-            >
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-muted-foreground">
-                  {protocol.date}
-                </span>
-                <h3 className="font-medium text-foreground">{protocol.title}</h3>
-                <span className="chip">
-                  {protocol.attendees.length} участников
-                </span>
-              </div>
-              {expandedId === protocol.id ? (
-                <ChevronUp className="w-5 h-5 text-muted-foreground" />
-              ) : (
-                <ChevronDown className="w-5 h-5 text-muted-foreground" />
-              )}
-            </button>
-
-            {expandedId === protocol.id && (
-              <div className="px-4 pb-4 border-t border-border animate-slide-up">
-                <div className="pt-4 space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                      Участники
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {protocol.attendees.map((a, i) => (
-                        <span key={i} className="chip">
-                          {a}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                      Повестка
-                    </h4>
-                    <ul className="list-disc list-inside text-foreground space-y-1">
-                      {protocol.agenda.map((item, i) => (
-                        <li key={i}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                      Решения
-                    </h4>
-                    <div className="space-y-2">
-                      {protocol.decisions.map((d, i) => (
-                        <div
-                          key={i}
-                          className="p-3 bg-secondary/50 rounded-lg flex items-start justify-between gap-4"
-                        >
-                          <div>
-                            <p className="text-foreground">{d.text}</p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Ответственный: {d.responsible}
-                              {d.createTask && d.due && ` • Срок: ${d.due}`}
-                            </p>
-                          </div>
-                          {d.createTask && (
-                            <span className="chip-success shrink-0">
-                              Задача создана
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+        {isLoading ? (
+          <div className="text-center py-12 text-muted-foreground">
+            Загрузка...
           </div>
-        ))}
-
-        {protocols.length === 0 && (
+        ) : protocols.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             Нет протоколов
           </div>
+        ) : (
+          protocols.map((protocol) => (
+            <ProtocolCard
+              key={protocol.id}
+              protocol={protocol}
+              projects={projects}
+              isExpanded={expandedId === protocol.id}
+              isEditing={editingProtocolId === protocol.id}
+              onToggleExpand={() => setExpandedId(expandedId === protocol.id ? null : protocol.id)}
+              onStartEditing={() => setEditingProtocolId(protocol.id)}
+              onStopEditing={() => setEditingProtocolId(null)}
+              itemForm={itemForm}
+              setItemForm={setItemForm}
+              onAddItem={() => handleAddItem(protocol.id)}
+              onDeleteItem={(itemId) => handleDeleteItem(itemId, protocol.id)}
+              resetItemForm={resetItemForm}
+            />
+          ))
         )}
       </div>
 
+      {/* Modal for creating new protocol */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title="Новый протокол"
-        size="lg"
+        size="md"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleCreateProtocol} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Номер
+              </label>
+              <input
+                type="number"
+                value={nextNumber}
+                disabled
+                className="input-base w-full bg-muted"
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">
                 Дата
@@ -181,20 +206,33 @@ export function ProtocolsModule() {
                 required
               />
             </div>
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">
-                Тема совещания
-              </label>
-              <input
-                type="text"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                className="input-base w-full"
-                placeholder="Введите тему"
-                required
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Тема совещания
+            </label>
+            <input
+              type="text"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              className="input-base w-full"
+              placeholder="Введите тему"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Организатор
+            </label>
+            <input
+              type="text"
+              value={form.organizer}
+              onChange={(e) => setForm({ ...form, organizer: e.target.value })}
+              className="input-base w-full"
+              placeholder="ФИО организатора"
+            />
           </div>
 
           <div>
@@ -206,121 +244,8 @@ export function ProtocolsModule() {
               value={form.attendees}
               onChange={(e) => setForm({ ...form, attendees: e.target.value })}
               className="input-base w-full"
-              placeholder="Иван Иванов, Петр Петров"
+              placeholder="Иван И., Петр П."
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              Повестка (через запятую)
-            </label>
-            <input
-              type="text"
-              value={form.agenda}
-              onChange={(e) => setForm({ ...form, agenda: e.target.value })}
-              className="input-base w-full"
-              placeholder="Пункт 1, Пункт 2"
-            />
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-medium text-foreground">
-                Решения
-              </label>
-              <button
-                type="button"
-                onClick={addDecision}
-                className="text-sm text-primary hover:underline"
-              >
-                + Добавить решение
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {decisions.map((decision, index) => (
-                <div
-                  key={index}
-                  className="p-4 bg-secondary/50 rounded-lg space-y-3"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1 space-y-3">
-                      <input
-                        type="text"
-                        value={decision.text}
-                        onChange={(e) =>
-                          updateDecision(index, { text: e.target.value })
-                        }
-                        className="input-base w-full"
-                        placeholder="Текст решения"
-                      />
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <select
-                          value={decision.responsible}
-                          onChange={(e) =>
-                            updateDecision(index, { responsible: e.target.value })
-                          }
-                          className="input-base w-full"
-                        >
-                          <option value="">Выберите ответственного</option>
-                          {employees.map((emp) => (
-                            <option key={emp.id} value={emp.name}>
-                              {emp.name}
-                            </option>
-                          ))}
-                        </select>
-
-                        <div className="flex items-center gap-4">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={decision.createTask}
-                              onChange={(e) =>
-                                updateDecision(index, {
-                                  createTask: e.target.checked,
-                                  due: e.target.checked ? decision.due : undefined,
-                                })
-                              }
-                              className="w-4 h-4 rounded border-input text-primary focus:ring-ring"
-                            />
-                            <span className="text-sm text-foreground">
-                              Создать задачу
-                            </span>
-                          </label>
-                        </div>
-                      </div>
-
-                      {decision.createTask && (
-                        <div className="animate-slide-up">
-                          <label className="block text-sm font-medium text-foreground mb-1.5">
-                            Срок выполнения
-                          </label>
-                          <input
-                            type="date"
-                            value={decision.due || ""}
-                            onChange={(e) =>
-                              updateDecision(index, { due: e.target.value })
-                            }
-                            className="input-base w-full md:w-auto"
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {decisions.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeDecision(index)}
-                        className="p-2 text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
@@ -331,12 +256,290 @@ export function ProtocolsModule() {
             >
               Отмена
             </button>
-            <button type="submit" className="btn-primary">
-              Сохранить
+            <button type="submit" className="btn-primary" disabled={createProtocol.isPending}>
+              {createProtocol.isPending ? "Создание..." : "Создать протокол"}
             </button>
           </div>
         </form>
       </Modal>
+    </div>
+  );
+}
+
+interface ProtocolCardProps {
+  protocol: {
+    id: string;
+    number: number;
+    date: string;
+    title: string;
+    organizer: string | null;
+    attendees: string[];
+  };
+  projects: { id: string; name: string }[];
+  isExpanded: boolean;
+  isEditing: boolean;
+  onToggleExpand: () => void;
+  onStartEditing: () => void;
+  onStopEditing: () => void;
+  itemForm: ProtocolItemForm;
+  setItemForm: React.Dispatch<React.SetStateAction<ProtocolItemForm>>;
+  onAddItem: () => void;
+  onDeleteItem: (itemId: string) => void;
+  resetItemForm: () => void;
+}
+
+function ProtocolCard({
+  protocol,
+  projects,
+  isExpanded,
+  isEditing,
+  onToggleExpand,
+  onStartEditing,
+  onStopEditing,
+  itemForm,
+  setItemForm,
+  onAddItem,
+  onDeleteItem,
+  resetItemForm,
+}: ProtocolCardProps) {
+  const { data: items = [] } = useProtocolItems(isExpanded ? protocol.id : null);
+
+  // Group items by project
+  const itemsByProject = useMemo(() => {
+    const groups: Record<string, typeof items> = {};
+    items.forEach((item) => {
+      const key = item.project_id || "no_project";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    });
+    return groups;
+  }, [items]);
+
+  const getProjectName = (projectId: string | null) => {
+    if (!projectId) return "Без проекта";
+    return projects.find((p) => p.id === projectId)?.name || "Неизвестный проект";
+  };
+
+  return (
+    <div className="card-base overflow-hidden animate-fade-in">
+      <button
+        onClick={onToggleExpand}
+        className="w-full p-4 flex items-center justify-between hover:bg-secondary/50 transition-colors"
+      >
+        <div className="flex items-center gap-4">
+          <span className="text-sm font-medium text-primary">
+            №{protocol.number}
+          </span>
+          <span className="text-sm text-muted-foreground">
+            {protocol.date}
+          </span>
+          <h3 className="font-medium text-foreground">{protocol.title}</h3>
+          <span className="chip">
+            {protocol.attendees.length} участников
+          </span>
+        </div>
+        {isExpanded ? (
+          <ChevronUp className="w-5 h-5 text-muted-foreground" />
+        ) : (
+          <ChevronDown className="w-5 h-5 text-muted-foreground" />
+        )}
+      </button>
+
+      {isExpanded && (
+        <div className="px-4 pb-4 border-t border-border animate-slide-up">
+          <div className="pt-4 space-y-4">
+            {/* Attendees */}
+            {protocol.attendees.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                  Участники
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {protocol.attendees.map((a, i) => (
+                    <span key={i} className="chip">
+                      {a}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Items grouped by project */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-medium text-muted-foreground">
+                  Пункты по проектам
+                </h4>
+                {!isEditing ? (
+                  <button
+                    onClick={onStartEditing}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    + Добавить пункты
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      onStopEditing();
+                      resetItemForm();
+                    }}
+                    className="text-sm text-muted-foreground hover:underline"
+                  >
+                    Готово
+                  </button>
+                )}
+              </div>
+
+              {Object.entries(itemsByProject).length === 0 && !isEditing && (
+                <p className="text-sm text-muted-foreground">Нет пунктов</p>
+              )}
+
+              {Object.entries(itemsByProject).map(([projectId, projectItems]) => (
+                <div key={projectId} className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FolderOpen className="w-4 h-4 text-primary" />
+                    <span className="font-medium text-foreground">
+                      {getProjectName(projectId === "no_project" ? null : projectId)}
+                    </span>
+                  </div>
+                  <div className="ml-6 space-y-2">
+                    {projectItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-3 bg-secondary/50 rounded-lg flex items-start justify-between gap-4"
+                      >
+                        <div className="flex-1">
+                          <p className="text-foreground">{item.item_text}</p>
+                          <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                            {item.responsible && (
+                              <span>Ответственный: {item.responsible}</span>
+                            )}
+                            {item.due_date && (
+                              <span>Срок: {item.due_date}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {item.create_task && (
+                            <span className="chip-success shrink-0 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Задача
+                            </span>
+                          )}
+                          {isEditing && (
+                            <button
+                              onClick={() => onDeleteItem(item.id)}
+                              className="p-1 text-destructive hover:bg-destructive/10 rounded"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {/* Add item form */}
+              {isEditing && (
+                <div className="mt-4 p-4 bg-muted/50 rounded-lg space-y-3">
+                  <h5 className="font-medium text-foreground">Новый пункт</h5>
+                  
+                  <div>
+                    <label className="block text-sm text-muted-foreground mb-1">
+                      Проект
+                    </label>
+                    <select
+                      value={itemForm.project_id}
+                      onChange={(e) => setItemForm({ ...itemForm, project_id: e.target.value })}
+                      className="input-base w-full"
+                    >
+                      <option value="">Без проекта</option>
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-muted-foreground mb-1">
+                      Текст пункта
+                    </label>
+                    <input
+                      type="text"
+                      value={itemForm.item_text}
+                      onChange={(e) => setItemForm({ ...itemForm, item_text: e.target.value })}
+                      className="input-base w-full"
+                      placeholder="Описание задачи/действия"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm text-muted-foreground mb-1">
+                        Ответственный
+                      </label>
+                      <input
+                        type="text"
+                        value={itemForm.responsible}
+                        onChange={(e) => setItemForm({ ...itemForm, responsible: e.target.value })}
+                        className="input-base w-full"
+                        placeholder="ФИО"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-muted-foreground mb-1">
+                        Срок
+                      </label>
+                      <input
+                        type="date"
+                        value={itemForm.due_date}
+                        onChange={(e) => setItemForm({ ...itemForm, due_date: e.target.value })}
+                        className="input-base w-full"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={itemForm.create_task}
+                        onChange={(e) => setItemForm({ ...itemForm, create_task: e.target.checked })}
+                        className="w-4 h-4 rounded border-input text-primary focus:ring-ring"
+                      />
+                      <span className="text-sm text-foreground">
+                        Создать задачу на канбан
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={resetItemForm}
+                      className="btn-secondary text-sm"
+                    >
+                      Очистить
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onAddItem}
+                      className="btn-primary text-sm"
+                      disabled={!itemForm.item_text.trim()}
+                    >
+                      Добавить пункт
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
