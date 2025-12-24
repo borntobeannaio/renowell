@@ -9,7 +9,7 @@ import { HRModule } from "@/components/modules/HRModule";
 import { KnowledgeModule } from "@/components/modules/KnowledgeModule";
 import { ChatModule } from "@/components/modules/ChatModule";
 import { SearchModule } from "@/components/modules/SearchModule";
-
+import { FloatingChat } from "@/components/chat/FloatingChat";
 function PortalContent() {
   const { currentSection } = useApp();
 
@@ -44,6 +44,7 @@ function PortalContent() {
         </main>
       </div>
       <MobileNav />
+      <FloatingChat />
     </div>
   );
 }
