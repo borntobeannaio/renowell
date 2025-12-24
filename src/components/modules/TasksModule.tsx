@@ -64,35 +64,29 @@ export function TasksModule() {
     },
   });
 
-  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
-
+  // Build maps using direct profile_id from employees table
   const employeeProfileMaps = useMemo(() => {
     const employeeToProfile = new Map<string, string>();
     const profileToEmployee = new Map<string, string>();
 
     for (const emp of employees) {
-      const empName = norm(emp.full_name);
-      const matched = profiles.find((p) => {
-        const full = norm(`${p.first_name || ""} ${p.last_name || ""}`);
-        return full && (empName.includes(full) || full.includes(empName));
-      });
-      if (matched?.id) {
-        employeeToProfile.set(emp.id, matched.id);
-        // Prefer first match; don't override an existing reverse mapping
-        if (!profileToEmployee.has(matched.id)) profileToEmployee.set(matched.id, emp.id);
+      if (emp.profile_id) {
+        employeeToProfile.set(emp.id, emp.profile_id);
+        if (!profileToEmployee.has(emp.profile_id)) {
+          profileToEmployee.set(emp.profile_id, emp.id);
+        }
       }
     }
 
     return { employeeToProfile, profileToEmployee };
-  }, [employees, profiles]);
+  }, [employees]);
 
-  // Find employee matching the logged-in user profile
+  // Find employee matching the logged-in user profile using profile_id
   const currentEmployeeId = useMemo(() => {
-    if (!profile) return null;
-    const full = norm(`${profile.first_name || ""} ${profile.last_name || ""}`);
-    const employee = employees.find((e) => norm(e.full_name).includes(full));
+    if (!profile?.id) return null;
+    const employee = employees.find((e) => e.profile_id === profile.id);
     return employee?.id || null;
-  }, [profile, employees]);
+  }, [profile?.id, employees]);
 
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
