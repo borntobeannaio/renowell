@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
-import { Plus, ChevronDown, ChevronUp, Trash2, FolderOpen, CheckCircle2 } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp, Trash2, FolderOpen, CheckCircle2, Download } from "lucide-react";
 import { useProtocols, useProtocolItems, useCreateProtocol, useCreateProtocolItem, useDeleteProtocolItem, useNextProtocolNumber } from "@/hooks/useProtocols";
 import { useProjects } from "@/hooks/useProjects";
 import { useEmployees } from "@/hooks/useEmployees";
 import { useCreateTask } from "@/hooks/useTasks";
+import { generateProtocolPdf } from "@/utils/protocolPdf";
 import { toast } from "sonner";
 
 interface ProtocolItemForm {
@@ -314,7 +315,17 @@ function ProtocolCard({
   onDeleteItem,
   resetItemForm,
 }: ProtocolCardProps) {
-  const { data: items = [] } = useProtocolItems(isExpanded ? protocol.id : null);
+  const { data: items = [] } = useProtocolItems(protocol.id);
+
+  const handleExportPdf = async () => {
+    try {
+      await generateProtocolPdf(protocol, items, projects);
+      toast.success("PDF экспортирован");
+    } catch (error) {
+      console.error("PDF export error:", error);
+      toast.error("Ошибка экспорта PDF");
+    }
+  };
 
   // Group items by project
   const itemsByProject = useMemo(() => {
@@ -334,11 +345,11 @@ function ProtocolCard({
 
   return (
     <div className="card-base overflow-hidden animate-fade-in">
-      <button
-        onClick={onToggleExpand}
-        className="w-full p-4 flex items-center justify-between hover:bg-secondary/50 transition-colors"
-      >
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between p-4 hover:bg-secondary/50 transition-colors">
+        <button
+          onClick={onToggleExpand}
+          className="flex items-center gap-4 flex-1 text-left"
+        >
           <span className="text-sm font-medium text-primary">
             №{protocol.number}
           </span>
@@ -349,13 +360,22 @@ function ProtocolCard({
           <span className="chip">
             {protocol.attendees.length} участников
           </span>
+        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportPdf}
+            className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+            title="Экспорт в PDF"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+          {isExpanded ? (
+            <ChevronUp className="w-5 h-5 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-muted-foreground" />
+          )}
         </div>
-        {isExpanded ? (
-          <ChevronUp className="w-5 h-5 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="w-5 h-5 text-muted-foreground" />
-        )}
-      </button>
+      </div>
 
       {isExpanded && (
         <div className="px-4 pb-4 border-t border-border animate-slide-up">
