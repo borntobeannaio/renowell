@@ -36,7 +36,8 @@ export function TasksModule() {
   // Load current user's profile (for "Мои задачи")
   const {
     data: profile,
-    isLoading: profileLoading,
+    isPending: profilePending,
+    isFetching: profileFetching,
     error: profileError,
   } = useQuery({
     queryKey: ["profile", user?.id],
@@ -84,13 +85,15 @@ export function TasksModule() {
   // When "Мои задачи" is enabled, fetch only tasks assigned to current profile_id
   const assigneeFilterId = showMyTasks ? currentAssigneeProfileId : null;
 
+  const profileBusy = profilePending || profileFetching;
+
   // Safety: never show ALL tasks under "Мои задачи" if we can't resolve current user
   useEffect(() => {
-    if (showMyTasks && !profileLoading && !currentAssigneeProfileId) {
+    if (showMyTasks && !profileBusy && !currentAssigneeProfileId) {
       toast.error("Не удалось определить ваш профиль — фильтр 'Мои задачи' отключен");
       setShowMyTasks(false);
     }
-  }, [showMyTasks, profileLoading, currentAssigneeProfileId]);
+  }, [showMyTasks, profileBusy, currentAssigneeProfileId]);
 
   useEffect(() => {
     if (profileError) {
@@ -336,9 +339,9 @@ export function TasksModule() {
           </p>
           {user?.id && (
             <button
-              disabled={profileLoading}
+              disabled={profileBusy}
               onClick={() => {
-                if (profileLoading) {
+                if (profileBusy) {
                   toast.message("Загружаю профиль пользователя…");
                   return;
                 }
