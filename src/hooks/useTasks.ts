@@ -43,12 +43,15 @@ export interface DbTask {
   updated_at: string;
 }
 
-export function useTasks() {
+export function useTasks(options?: { assigneeId?: string | null }) {
+  const assigneeId = options?.assigneeId ?? null;
+
   return useQuery({
-    queryKey: ["tasks"],
+    queryKey: ["tasks", { assigneeId }],
     queryFn: async () => {
-      const { data, error } = await proxySelect<DbTask>('tasks', {
-        order: [{ column: 'created_at', ascending: false }],
+      const { data, error } = await proxySelect<DbTask>("tasks", {
+        order: [{ column: "created_at", ascending: false }],
+        filters: assigneeId ? [{ column: "assignee_id", operator: "eq", value: assigneeId }] : undefined,
       });
       if (error) throw new Error(error.message);
       return data || [];
