@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Modal } from "@/components/ui/Modal";
 import { Lightbox } from "@/components/ui/Lightbox";
 import {
@@ -10,9 +12,19 @@ import {
   Mail,
   Phone,
   Cake,
-  X,
+  User,
 } from "lucide-react";
-import { Employee } from "@/types";
+
+interface DbEmployee {
+  id: string;
+  full_name: string;
+  position: string;
+  phone: string | null;
+  email: string | null;
+  department: string | null;
+  avatar_url: string | null;
+  birthday: string | null;
+}
 
 type HRTab = "employees" | "vacations" | "docs" | "photos";
 
@@ -54,21 +66,54 @@ export function HRModule() {
 }
 
 function EmployeesTab() {
-  const { employees, getEmployeeById, updateEmployeeBirthday } = useApp();
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const queryClient = useQueryClient();
+  const [selectedEmployee, setSelectedEmployee] = useState<DbEmployee | null>(null);
   const [birthdayInput, setBirthdayInput] = useState("");
 
-  const openEmployeeCard = (emp: Employee) => {
+  const { data: employees = [], isLoading } = useQuery({
+    queryKey: ['employees'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('*')
+        .order('full_name');
+      if (error) throw error;
+      return data as DbEmployee[];
+    },
+  });
+
+  const updateBirthdayMutation = useMutation({
+    mutationFn: async ({ id, birthday }: { id: string; birthday: string }) => {
+      const { error } = await supabase
+        .from('employees')
+        .update({ birthday })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+    },
+  });
+
+  const openEmployeeCard = (emp: DbEmployee) => {
     setSelectedEmployee(emp);
     setBirthdayInput(emp.birthday || "");
   };
 
   const handleSaveBirthday = () => {
     if (selectedEmployee && birthdayInput) {
-      updateEmployeeBirthday(selectedEmployee.id, birthdayInput);
+      updateBirthdayMutation.mutate({ id: selectedEmployee.id, birthday: birthdayInput });
       setSelectedEmployee({ ...selectedEmployee, birthday: birthdayInput });
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        Загрузка сотрудников...
+      </div>
+    );
+  }
 
   return (
     <>
@@ -80,24 +125,35 @@ function EmployeesTab() {
             className="card-base p-4 text-left hover:border-primary/30 transition-colors"
           >
             <div className="flex items-center gap-3">
-              <img
-                src={emp.avatar}
-                alt={emp.name}
-                className="w-12 h-12 rounded-full bg-secondary"
-              />
+              {emp.avatar_url ? (
+                <img
+                  src={emp.avatar_url}
+                  alt={emp.full_name}
+                  className="w-12 h-12 rounded-full bg-secondary object-cover"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="w-6 h-6 text-primary" />
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <h4 className="font-medium text-foreground truncate">
-                  {emp.name}
+                  {emp.full_name}
                 </h4>
                 <p className="text-sm text-muted-foreground truncate">
-                  {emp.role}
+                  {emp.position}
                 </p>
-                <p className="text-xs text-muted-foreground">{emp.dept}</p>
               </div>
             </div>
           </button>
         ))}
       </div>
+
+      {employees.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          Нет сотрудников
+        </div>
+      )}
 
       <Modal
         isOpen={!!selectedEmployee}
@@ -107,39 +163,51 @@ function EmployeesTab() {
         {selectedEmployee && (
           <div className="space-y-6">
             <div className="flex items-center gap-4">
-              <img
-                src={selectedEmployee.avatar}
-                alt={selectedEmployee.name}
-                className="w-20 h-20 rounded-full bg-secondary"
-              />
+              {selectedEmployee.avatar_url ? (
+                <img
+                  src={selectedEmployee.avatar_url}
+                  alt={selectedEmployee.full_name}
+                  className="w-20 h-20 rounded-full bg-secondary object-cover"
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="w-10 h-10 text-primary" />
+                </div>
+              )}
               <div>
                 <h3 className="text-xl font-semibold text-foreground">
-                  {selectedEmployee.name}
+                  {selectedEmployee.full_name}
                 </h3>
-                <p className="text-muted-foreground">{selectedEmployee.role}</p>
-                <span className="chip mt-2">{selectedEmployee.dept}</span>
+                <p className="text-muted-foreground">{selectedEmployee.position}</p>
+                {selectedEmployee.department && (
+                  <span className="chip mt-2">{selectedEmployee.department}</span>
+                )}
               </div>
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center gap-3 text-foreground">
-                <Mail className="w-4 h-4 text-muted-foreground" />
-                <a
-                  href={`mailto:${selectedEmployee.email}`}
-                  className="hover:text-primary transition-colors"
-                >
-                  {selectedEmployee.email}
-                </a>
-              </div>
-              <div className="flex items-center gap-3 text-foreground">
-                <Phone className="w-4 h-4 text-muted-foreground" />
-                <a
-                  href={`tel:${selectedEmployee.phone}`}
-                  className="hover:text-primary transition-colors"
-                >
-                  {selectedEmployee.phone}
-                </a>
-              </div>
+              {selectedEmployee.email && (
+                <div className="flex items-center gap-3 text-foreground">
+                  <Mail className="w-4 h-4 text-muted-foreground" />
+                  <a
+                    href={`mailto:${selectedEmployee.email}`}
+                    className="hover:text-primary transition-colors"
+                  >
+                    {selectedEmployee.email}
+                  </a>
+                </div>
+              )}
+              {selectedEmployee.phone && (
+                <div className="flex items-center gap-3 text-foreground">
+                  <Phone className="w-4 h-4 text-muted-foreground" />
+                  <a
+                    href={`tel:${selectedEmployee.phone}`}
+                    className="hover:text-primary transition-colors"
+                  >
+                    {selectedEmployee.phone}
+                  </a>
+                </div>
+              )}
             </div>
 
             <div className="pt-4 border-t border-border">
@@ -157,9 +225,9 @@ function EmployeesTab() {
                 <button
                   onClick={handleSaveBirthday}
                   className="btn-primary"
-                  disabled={!birthdayInput}
+                  disabled={!birthdayInput || updateBirthdayMutation.isPending}
                 >
-                  Сохранить
+                  {updateBirthdayMutation.isPending ? 'Сохранение...' : 'Сохранить'}
                 </button>
               </div>
               {selectedEmployee.birthday && (
@@ -174,7 +242,6 @@ function EmployeesTab() {
     </>
   );
 }
-
 function VacationsTab() {
   const { vacations, getEmployeeById } = useApp();
 
