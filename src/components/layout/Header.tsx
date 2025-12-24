@@ -1,11 +1,14 @@
 import { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/hooks/useAuth";
 import { Search, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function Header() {
-  const { currentSection, setCurrentSection, searchQuery, setSearchQuery } = useApp();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { searchQuery, setSearchQuery, setCurrentSection } = useApp();
   const { user, signOut } = useAuth();
   const [localQuery, setLocalQuery] = useState(searchQuery);
 
@@ -13,6 +16,7 @@ export function Header() {
     if (localQuery.trim()) {
       setSearchQuery(localQuery.trim());
       setCurrentSection("search");
+      navigate("/search");
     }
   };
 
@@ -28,21 +32,23 @@ export function Header() {
   };
 
   const sectionTitles: Record<string, string> = {
-    news: "Новости",
-    protocols: "Протоколы совещаний",
-    tasks: "Задачи",
-    hr: "HR и Офис",
-    knowledge: "База знаний",
-    chats: "Чаты",
-    search: "Результаты поиска",
+    "/news": "Новости",
+    "/protocols": "Протоколы совещаний",
+    "/tasks": "Задачи",
+    "/hr": "HR и Офис",
+    "/knowledge": "База знаний",
+    "/chats": "Чаты",
+    "/search": "Результаты поиска",
   };
+
+  const currentTitle = sectionTitles[location.pathname] || "Портал";
 
   return (
     <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border/50 shadow-sm">
       <div className="flex items-center justify-between h-16 px-4 md:px-6">
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-bold text-foreground tracking-tight">
-            {sectionTitles[currentSection] || "Портал"}
+            {currentTitle}
           </h2>
         </div>
 
