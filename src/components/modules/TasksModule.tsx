@@ -1,7 +1,7 @@
 import { useState, DragEvent, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
-import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight, Pencil } from "lucide-react";
 import { useTasks, useCreateTask, useUpdateTask, DbTask, TaskStatus, TaskPriority, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS, TASK_PRIORITY_COLORS } from "@/hooks/useTasks";
 import { useProjects, Project } from "@/hooks/useProjects";
 import { useEmployees, DbEmployee } from "@/hooks/useEmployees";
@@ -62,6 +62,7 @@ export function TasksModule() {
 
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<DbTask | null>(null);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set(["no-project"]));
   const [showMyTasks, setShowMyTasks] = useState(false);
   const [form, setForm] = useState({
@@ -114,6 +115,35 @@ export function TasksModule() {
       labels: "",
     });
     setIsModalOpen(false);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTask || !form.title.trim()) return;
+
+    updateTask.mutate({
+      id: editingTask.id,
+      title: form.title,
+      assignee_id: form.assignee_id || null,
+      project_id: form.project || null,
+      due_date: form.due || null,
+      priority: form.priority,
+      labels: form.labels.split(",").map((l) => l.trim()).filter(Boolean),
+    });
+
+    setEditingTask(null);
+  };
+
+  const openEditModal = (task: DbTask) => {
+    setEditingTask(task);
+    setForm({
+      title: task.title,
+      assignee_id: task.assignee_id || "",
+      project: task.project_id || "",
+      due: task.due_date || new Date().toISOString().slice(0, 10),
+      priority: task.priority,
+      labels: task.labels?.join(", ") || "",
+    });
   };
 
   const toggleProject = (projectId: string) => {
@@ -253,7 +283,7 @@ export function TasksModule() {
                             <span className="chip text-xs">{columnTasks.length}</span>
                           </div>
 
-                          <div className="space-y-3">
+                          <div className="space-y-2">
                             {columnTasks.map((task) => (
                               <TaskCard
                                 key={task.id}
@@ -261,6 +291,7 @@ export function TasksModule() {
                                 employees={employees}
                                 getEmployeeById={getEmployeeById}
                                 onDragStart={handleDragStart}
+                                onEdit={openEditModal}
                                 onStatusChange={(id, status) => updateTask.mutate({ id, status })}
                                 onPriorityChange={(id, priority) => updateTask.mutate({ id, priority })}
                                 onAssigneeChange={(id, assignee_id) => updateTask.mutate({ id, assignee_id })}
@@ -385,6 +416,115 @@ export function TasksModule() {
           </div>
         </form>
       </Modal>
+
+      {/* Edit Task Modal */}
+      <Modal
+        isOpen={!!editingTask}
+        onClose={() => setEditingTask(null)}
+        title="Редактировать задачу"
+      >
+        <form onSubmit={handleEditSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Название
+            </label>
+            <input
+              type="text"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              className="input-base w-full"
+              placeholder="Введите название задачи"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Проект
+            </label>
+            <select
+              value={form.project}
+              onChange={(e) => setForm({ ...form, project: e.target.value })}
+              className="input-base w-full"
+            >
+              <option value="">Без проекта</option>
+              {projects.map((proj) => (
+                <option key={proj.id} value={proj.id}>
+                  {proj.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Приоритет
+            </label>
+            <select
+              value={form.priority}
+              onChange={(e) => setForm({ ...form, priority: e.target.value as TaskPriority })}
+              className="input-base w-full"
+            >
+              {priorities.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Исполнитель
+            </label>
+            <EmployeeMultiSelect
+              employees={employees}
+              selectedIds={form.assignee_id ? [form.assignee_id] : []}
+              onChange={(ids) => setForm({ ...form, assignee_id: ids[0] || "" })}
+              placeholder="Выберите исполнителя"
+              single
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Срок
+            </label>
+            <input
+              type="date"
+              value={form.due}
+              onChange={(e) => setForm({ ...form, due: e.target.value })}
+              className="input-base w-full"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Метки (через запятую)
+            </label>
+            <input
+              type="text"
+              value={form.labels}
+              onChange={(e) => setForm({ ...form, labels: e.target.value })}
+              className="input-base w-full"
+              placeholder="метка1, метка2"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={() => setEditingTask(null)}
+              className="btn-secondary"
+            >
+              Отмена
+            </button>
+            <button type="submit" className="btn-primary">
+              Сохранить
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
@@ -394,6 +534,7 @@ interface TaskCardProps {
   employees: DbEmployee[];
   getEmployeeById: (id: string) => DbEmployee | undefined;
   onDragStart: (e: DragEvent, id: string) => void;
+  onEdit: (task: DbTask) => void;
   onStatusChange: (id: string, status: TaskStatus) => void;
   onPriorityChange: (id: string, priority: TaskPriority) => void;
   onAssigneeChange: (id: string, assignee: string) => void;
@@ -404,82 +545,66 @@ function TaskCard({
   employees,
   getEmployeeById,
   onDragStart,
+  onEdit,
   onStatusChange,
   onPriorityChange,
   onAssigneeChange,
 }: TaskCardProps) {
   const assignee = task.assignee_id ? getEmployeeById(task.assignee_id) : null;
-  const priorityColor = TASK_PRIORITY_COLORS[task.priority] || TASK_PRIORITY_COLORS.normal;
 
   return (
     <div
       draggable
       onDragStart={(e) => onDragStart(e, task.id)}
-      className={`kanban-card ${priorityColor}`}
+      className="bg-card border border-border rounded-lg p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow"
     >
-      <div className="flex items-start gap-2">
-        <GripVertical className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-        <div className="flex-1 min-w-0">
-          <h4 className="font-medium text-foreground text-sm mb-2">{task.title}</h4>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <h4 
+          className="font-medium text-foreground text-sm flex-1 cursor-pointer hover:text-primary transition-colors"
+          onClick={() => onEdit(task)}
+        >
+          {task.title}
+        </h4>
+        <button
+          onClick={() => onEdit(task)}
+          className="p-1 hover:bg-muted rounded transition-colors shrink-0"
+        >
+          <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+        </button>
+      </div>
 
-          <div className="flex flex-wrap gap-1 mb-3">
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-              task.priority === 'critical' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-              task.priority === 'high' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
-              task.priority === 'low' ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' :
-              'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-            }`}>
-              {TASK_PRIORITY_LABELS[task.priority]}
-            </span>
-            {task.labels.slice(0, 2).map((label) => (
-              <span key={label} className="chip text-xs">
-                {label}
-              </span>
-            ))}
-            {task.labels.length > 2 && (
-              <span className="chip text-xs">+{task.labels.length - 2}</span>
-            )}
-          </div>
+      <div className="flex flex-wrap gap-1 mb-2">
+        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+          task.priority === 'critical' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+          task.priority === 'high' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+          task.priority === 'low' ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' :
+          'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+        }`}>
+          {TASK_PRIORITY_LABELS[task.priority]}
+        </span>
+        {task.labels?.slice(0, 2).map((label) => (
+          <span key={label} className="chip text-xs">
+            {label}
+          </span>
+        ))}
+        {(task.labels?.length || 0) > 2 && (
+          <span className="chip text-xs">+{task.labels.length - 2}</span>
+        )}
+      </div>
 
-          {task.due_date && (
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
-                <span>{task.due_date}</span>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-3 pt-3 border-t border-border space-y-2">
-            <div className="flex items-center gap-2">
-              <User className="w-3 h-3 text-muted-foreground" />
-              <select
-                value={task.assignee_id || ""}
-                onChange={(e) => onAssigneeChange(task.id, e.target.value)}
-                className="text-xs bg-transparent border-none p-0 focus:ring-0 text-foreground cursor-pointer flex-1"
-              >
-                <option value="">Не назначен</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.full_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <select
-                value={task.status}
-                onChange={(e) => onStatusChange(task.id, e.target.value as TaskStatus)}
-                className="text-xs bg-transparent border-none p-0 focus:ring-0 text-muted-foreground cursor-pointer flex-1"
-              >
-                {columns.map((col) => (
-                  <option key={col.id} value={col.id}>{col.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <div className="flex items-center gap-1">
+          <User className="w-3 h-3" />
+          <span className="truncate max-w-[100px]">
+            {assignee?.full_name || "Не назначен"}
+          </span>
         </div>
+        {task.due_date && (
+          <div className="flex items-center gap-1">
+            <Calendar className="w-3 h-3" />
+            <span>{task.due_date}</span>
+          </div>
+        )}
       </div>
     </div>
   );
