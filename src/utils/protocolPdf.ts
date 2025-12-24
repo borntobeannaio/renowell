@@ -23,22 +23,7 @@ interface Project {
   name: string;
 }
 
-// PTSans font in base64 - supports Cyrillic
-const PTSANS_REGULAR_BASE64 = "PLACEHOLDER_WILL_LOAD_FROM_CDN";
-
-async function loadFont(): Promise<string> {
-  // Load PTSans font from CDN
-  const response = await fetch(
-    'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-cyrillic-400-normal.woff'
-  );
-  const arrayBuffer = await response.arrayBuffer();
-  const base64 = btoa(
-    new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-  );
-  return base64;
-}
-
-export async function generateProtocolPdf(
+export function generateProtocolPdf(
   protocol: Protocol,
   items: ProtocolItem[],
   projects: Project[]
@@ -49,74 +34,45 @@ export async function generateProtocolPdf(
     format: 'a4',
   });
 
-  // Load and add Cyrillic font
-  try {
-    const fontBase64 = await loadFont();
-    doc.addFileToVFS('PTSans-Regular.ttf', fontBase64);
-    doc.addFont('PTSans-Regular.ttf', 'PTSans', 'normal');
-    doc.setFont('PTSans', 'normal');
-  } catch (e) {
-    console.warn('Failed to load Cyrillic font, using fallback');
-    // Fallback will use default font with transliteration
-  }
+  // Use transliteration for Cyrillic text since jsPDF default fonts don't support it
   
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 20;
   let yPos = 20;
 
-  // Check if Cyrillic font is available
-  const hasCyrillicFont = doc.getFontList()['PTSans'] !== undefined;
-
-  // Header - Company name
+  // Header - Company name (transliterated for PDF compatibility)
   doc.setFontSize(12);
-  if (hasCyrillicFont) {
-    doc.setFont('PTSans', 'normal');
-  }
-  doc.text(hasCyrillicFont ? 'Компания Реновелл' : 'KOMPANIYA RENOVELL', pageWidth / 2, yPos, { align: 'center' });
+  doc.text('KOMPANIYA RENOVELL', pageWidth / 2, yPos, { align: 'center' });
   
   yPos += 15;
 
   // Protocol title
   doc.setFontSize(18);
-  doc.text(
-    hasCyrillicFont 
-      ? `Протокол совещания № ${protocol.number}` 
-      : `Protokol soveshchaniya № ${protocol.number}`, 
-    pageWidth / 2, 
-    yPos, 
-    { align: 'center' }
-  );
+  doc.text(`Protokol soveshchaniya № ${protocol.number}`, pageWidth / 2, yPos, { align: 'center' });
   
   yPos += 15;
 
   // Date
   doc.setFontSize(11);
   const formattedDate = new Date(protocol.date).toLocaleDateString('ru-RU');
-  doc.text(hasCyrillicFont ? `Дата: ${formattedDate}` : `Data: ${formattedDate}`, margin, yPos);
+  doc.text(`Data: ${formattedDate}`, margin, yPos);
   
   yPos += 8;
 
   // Organizer
   if (protocol.organizer) {
-    const label = hasCyrillicFont ? 'Организатор' : 'Organizator';
-    const value = hasCyrillicFont ? protocol.organizer : transliterate(protocol.organizer);
-    doc.text(`${label}: ${value}`, margin, yPos);
+    doc.text(`Organizator: ${transliterate(protocol.organizer)}`, margin, yPos);
     yPos += 8;
   }
 
   // Meeting type
-  const typeLabel = hasCyrillicFont ? 'Тип совещания' : 'Tip soveshchaniya';
-  const typeValue = hasCyrillicFont ? protocol.title : transliterate(protocol.title);
-  doc.text(`${typeLabel}: ${typeValue}`, margin, yPos);
+  doc.text(`Tip soveshchaniya: ${transliterate(protocol.title)}`, margin, yPos);
   yPos += 8;
 
   // Attendees
   if (protocol.attendees.length > 0) {
-    const attendeesLabel = hasCyrillicFont ? 'Участники' : 'Uchastniki';
-    const attendeesText = hasCyrillicFont 
-      ? protocol.attendees.join(', ')
-      : protocol.attendees.map(a => transliterate(a)).join(', ');
-    const lines = doc.splitTextToSize(`${attendeesLabel}: ${attendeesText}`, pageWidth - margin * 2);
+    const attendeesText = protocol.attendees.map(a => transliterate(a)).join(', ');
+    const lines = doc.splitTextToSize(`Uchastniki: ${attendeesText}`, pageWidth - margin * 2);
     doc.text(lines, margin, yPos);
     yPos += lines.length * 6 + 5;
   }
@@ -132,10 +88,10 @@ export async function generateProtocolPdf(
   });
 
   const getProjectName = (projectId: string | null) => {
-    if (!projectId) return hasCyrillicFont ? 'Без проекта' : 'Bez proekta';
+    if (!projectId) return 'Bez proekta';
     const project = projects.find(p => p.id === projectId);
-    if (!project) return hasCyrillicFont ? 'Неизвестный проект' : 'Neizvestnyy proekt';
-    return hasCyrillicFont ? project.name : transliterate(project.name);
+    if (!project) return 'Neizvestnyy proekt';
+    return transliterate(project.name);
   };
 
   // Create table data
@@ -150,12 +106,8 @@ export async function generateProtocolPdf(
     
     // Add items
     projectItems.forEach((item, idx) => {
-      const itemText = hasCyrillicFont 
-        ? `${itemNumber}.${idx + 1}. ${item.item_text}`
-        : `${itemNumber}.${idx + 1}. ${transliterate(item.item_text)}`;
-      const responsible = item.responsible 
-        ? (hasCyrillicFont ? item.responsible : transliterate(item.responsible))
-        : '';
+      const itemText = `${itemNumber}.${idx + 1}. ${transliterate(item.item_text)}`;
+      const responsible = item.responsible ? transliterate(item.responsible) : '';
       const dueDate = item.due_date || '';
       tableData.push([itemText, responsible, dueDate]);
     });
@@ -163,10 +115,8 @@ export async function generateProtocolPdf(
     itemNumber++;
   });
 
-  // Table headers
-  const tableHeaders = hasCyrillicFont 
-    ? ['Задачи/действия', 'Ответственные', 'Сроки']
-    : ['Zadachi/deystviya', 'Otvetstvennyye', 'Sroki'];
+  // Table headers (transliterated)
+  const tableHeaders = ['Zadachi/deystviya', 'Otvetstvennyye', 'Sroki'];
 
   // Add table
   autoTable(doc, {
@@ -175,7 +125,7 @@ export async function generateProtocolPdf(
     body: tableData,
     margin: { left: margin, right: margin },
     styles: {
-      font: hasCyrillicFont ? 'PTSans' : 'helvetica',
+      font: 'helvetica',
     },
     headStyles: {
       fillColor: [5, 42, 110], // Primary color #052A6E
@@ -212,14 +162,8 @@ export async function generateProtocolPdf(
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFontSize(9);
-    if (hasCyrillicFont) {
-      doc.setFont('PTSans', 'normal');
-    }
-    const pageText = hasCyrillicFont 
-      ? `Страница ${i} из ${pageCount}`
-      : `Stranitsa ${i} iz ${pageCount}`;
     doc.text(
-      pageText,
+      `Stranitsa ${i} iz ${pageCount}`,
       pageWidth / 2,
       doc.internal.pageSize.getHeight() - 10,
       { align: 'center' }
