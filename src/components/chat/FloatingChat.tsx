@@ -1,23 +1,26 @@
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
-import { MessageCircle, X, Send, Users, Bot, ChevronLeft, Loader2, Maximize2, Minimize2, Plus } from "lucide-react";
-import { useApp } from "@/context/AppContext";
+import { MessageCircle, X, Send, Users, Bot, ChevronLeft, Loader2, Maximize2, Minimize2, Plus, Trash2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useConversations, useConversationMessages, useCreateConversation, useSendMessage, useAIMessages, useSaveAIMessage, useClearAIHistory } from "@/hooks/useChat";
 import { Modal } from "@/components/ui/Modal";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
 type ChatTab = "general" | "ai";
 
-interface AIMessage {
+interface StreamingAIMessage {
   role: "user" | "assistant";
   content: string;
 }
 
 export function FloatingChat() {
-  const { chats, employees, addChat, addMessage, getEmployeeById } = useApp();
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [activeTab, setActiveTab] = useState<ChatTab>("general");
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<ChatTab>("ai");
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const [aiMessages, setAiMessages] = useState<AIMessage[]>([]);
+  const [streamingMessages, setStreamingMessages] = useState<StreamingAIMessage[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
   const [newChatType, setNewChatType] = useState<"direct" | "group">("direct");
@@ -25,14 +28,36 @@ export function FloatingChat() {
   const [groupTitle, setGroupTitle] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const selectedChat = selectedChatId ? chats.find(c => c.id === selectedChatId) : null;
+  // Database hooks
+  const { data: conversations = [] } = useConversations();
+  const { data: conversationMessages = [] } = useConversationMessages(selectedConversationId);
+  const { data: aiMessages = [] } = useAIMessages();
+  const createConversation = useCreateConversation();
+  const sendMessage = useSendMessage();
+  const saveAIMessage = useSaveAIMessage();
+  const clearAIHistory = useClearAIHistory();
+
+  // Fetch profiles for participant selection
+  const { data: profiles = [] } = useQuery({
+    queryKey: ["profiles"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, avatar_url, user_id");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Get current user's profile
+  const currentProfile = profiles.find(p => p.user_id === user?.id);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [selectedChat?.messages, aiMessages]);
+  }, [conversationMessages, aiMessages, streamingMessages]);
 
-  const formatTime = (ts: number) => {
-    const date = new Date(ts);
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr);
     return date.toLocaleTimeString("ru-RU", {
       hour: "2-digit",
       minute: "2-digit",
@@ -44,23 +69,28 @@ export function FloatingChat() {
 
     if (activeTab === "ai") {
       handleSendAiMessage();
-    } else if (selectedChatId) {
-      addMessage(selectedChatId, {
-        author: "e1",
-        text: message.trim(),
-        ts: Date.now(),
+    } else if (selectedConversationId) {
+      sendMessage.mutate({
+        conversationId: selectedConversationId,
+        content: message.trim(),
       });
       setMessage("");
     }
   };
 
   const handleSendAiMessage = async () => {
-    if (!message.trim() || isAiLoading) return;
+    if (!message.trim() || isAiLoading || !user) return;
 
-    const userMessage: AIMessage = { role: "user", content: message.trim() };
-    setAiMessages(prev => [...prev, userMessage]);
+    const userContent = message.trim();
     setMessage("");
     setIsAiLoading(true);
+
+    // Save user message to DB
+    await saveAIMessage.mutateAsync({ role: "user", content: userContent });
+
+    // Add to streaming messages for immediate UI feedback
+    const allMessages = [...aiMessages.map(m => ({ role: m.role, content: m.content })), { role: "user" as const, content: userContent }];
+    setStreamingMessages([{ role: "assistant", content: "" }]);
 
     let assistantContent = "";
 
@@ -73,7 +103,7 @@ export function FloatingChat() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
-          body: JSON.stringify({ messages: [...aiMessages, userMessage] }),
+          body: JSON.stringify({ messages: allMessages }),
         }
       );
 
@@ -111,29 +141,25 @@ export function FloatingChat() {
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) {
               assistantContent += content;
-              setAiMessages(prev => {
-                const last = prev[prev.length - 1];
-                if (last?.role === "assistant") {
-                  return prev.map((m, i) =>
-                    i === prev.length - 1 ? { ...m, content: assistantContent } : m
-                  );
-                }
-                return [...prev, { role: "assistant", content: assistantContent }];
-              });
+              setStreamingMessages([{ role: "assistant", content: assistantContent }]);
             }
           } catch {
             // Partial JSON, continue
           }
         }
       }
+
+      // Save assistant response to DB
+      if (assistantContent) {
+        await saveAIMessage.mutateAsync({ role: "assistant", content: assistantContent });
+      }
     } catch (error) {
       console.error("AI error:", error);
-      setAiMessages(prev => [
-        ...prev,
-        { role: "assistant", content: "Извините, произошла ошибка. Попробуйте позже." },
-      ]);
+      const errorContent = "Извините, произошла ошибка. Попробуйте позже.";
+      await saveAIMessage.mutateAsync({ role: "assistant", content: errorContent });
     } finally {
       setIsAiLoading(false);
+      setStreamingMessages([]);
     }
   };
 
@@ -144,18 +170,19 @@ export function FloatingChat() {
     }
   };
 
-  const handleCreateChat = () => {
+  const handleCreateChat = async () => {
     if (selectedParticipants.length === 0) return;
 
+    const selectedProfile = profiles.find(p => p.id === selectedParticipants[0]);
     const title =
       newChatType === "group"
         ? groupTitle || "Групповой чат"
-        : getEmployeeById(selectedParticipants[0])?.name || "Чат";
+        : `${selectedProfile?.first_name || ""} ${selectedProfile?.last_name || ""}`.trim() || "Чат";
 
-    addChat({
+    await createConversation.mutateAsync({
       title,
       type: newChatType,
-      participants: ["e1", ...selectedParticipants],
+      participantIds: selectedParticipants,
     });
 
     setIsNewChatModalOpen(false);
@@ -174,6 +201,8 @@ export function FloatingChat() {
     }
   };
 
+  const selectedConversation = conversations.find(c => c.id === selectedConversationId);
+
   const renderChatList = () => (
     <div className="flex-1 overflow-y-auto p-3 space-y-2">
       {/* New chat button */}
@@ -187,11 +216,11 @@ export function FloatingChat() {
         </div>
       </button>
 
-      {chats.map((chat) => (
+      {conversations.map((conv) => (
         <button
-          key={chat.id}
+          key={conv.id}
           onClick={() => {
-            setSelectedChatId(chat.id);
+            setSelectedConversationId(conv.id);
             setActiveTab("general");
           }}
           className="w-full p-2 rounded-lg text-left transition-colors bg-secondary/50 hover:bg-secondary text-sm"
@@ -201,18 +230,16 @@ export function FloatingChat() {
               <Users className="w-4 h-4 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-foreground truncate">{chat.title}</p>
-              {chat.messages.length > 0 && (
-                <p className="text-xs text-muted-foreground truncate">
-                  {chat.messages[chat.messages.length - 1].text}
-                </p>
-              )}
+              <p className="font-medium text-foreground truncate">{conv.title}</p>
+              <p className="text-xs text-muted-foreground">
+                {formatTime(conv.updated_at)}
+              </p>
             </div>
           </div>
         </button>
       ))}
 
-      {chats.length === 0 && (
+      {conversations.length === 0 && (
         <div className="text-center py-8 text-muted-foreground text-sm">
           <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p>Нет чатов</p>
@@ -223,18 +250,22 @@ export function FloatingChat() {
 
   const renderMessages = () => {
     if (activeTab === "ai") {
+      const displayMessages = isAiLoading && streamingMessages.length > 0
+        ? [...aiMessages.map(m => ({ role: m.role, content: m.content, id: m.id })), ...streamingMessages.map((m, i) => ({ ...m, id: `streaming-${i}` }))]
+        : aiMessages;
+
       return (
         <div className="flex-1 overflow-y-auto p-3 space-y-3">
-          {aiMessages.length === 0 && (
+          {displayMessages.length === 0 && !isAiLoading && (
             <div className="text-center text-muted-foreground text-sm py-8">
               <Bot className="w-10 h-10 mx-auto mb-2 opacity-50" />
               <p>Привет! Я AI-ассистент.</p>
               <p>Задайте мне любой вопрос.</p>
             </div>
           )}
-          {aiMessages.map((msg, idx) => (
+          {displayMessages.map((msg, idx) => (
             <div
-              key={idx}
+              key={msg.id || idx}
               className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
@@ -248,7 +279,7 @@ export function FloatingChat() {
               </div>
             </div>
           ))}
-          {isAiLoading && aiMessages[aiMessages.length - 1]?.role !== "assistant" && (
+          {isAiLoading && streamingMessages.length === 0 && (
             <div className="flex justify-start">
               <div className="bg-secondary rounded-xl px-3 py-2">
                 <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
@@ -260,15 +291,14 @@ export function FloatingChat() {
       );
     }
 
-    if (!selectedChat) {
+    if (!selectedConversationId) {
       return renderChatList();
     }
 
     return (
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        {selectedChat.messages.map((msg) => {
-          const isOwn = msg.author === "e1";
-          const author = getEmployeeById(msg.author);
+        {conversationMessages.map((msg) => {
+          const isOwn = msg.sender_id === currentProfile?.id;
 
           return (
             <div
@@ -282,19 +312,25 @@ export function FloatingChat() {
                     : "bg-secondary text-secondary-foreground"
                 }`}
               >
-                {!isOwn && (
+                {!isOwn && msg.sender && (
                   <p className="text-xs font-medium mb-1 opacity-70">
-                    {author?.name || "Пользователь"}
+                    {msg.sender.first_name} {msg.sender.last_name}
                   </p>
                 )}
-                <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                 <p className={`text-xs mt-1 ${isOwn ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                  {formatTime(msg.ts)}
+                  {formatTime(msg.created_at)}
                 </p>
               </div>
             </div>
           );
         })}
+        {conversationMessages.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground text-sm">
+            <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p>Начните диалог</p>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
     );
@@ -322,13 +358,13 @@ export function FloatingChat() {
           {/* Header with tabs */}
           <div className="bg-card border-b border-border">
             <div className="flex items-center justify-between p-3">
-              {selectedChatId && activeTab === "general" ? (
+              {selectedConversationId && activeTab === "general" ? (
                 <button
-                  onClick={() => setSelectedChatId(null)}
+                  onClick={() => setSelectedConversationId(null)}
                   className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" />
-                  {selectedChat?.title}
+                  {selectedConversation?.title}
                 </button>
               ) : (
                 <span className="text-sm font-semibold text-foreground">
@@ -336,6 +372,15 @@ export function FloatingChat() {
                 </span>
               )}
               <div className="flex items-center gap-1">
+                {activeTab === "ai" && aiMessages.length > 0 && (
+                  <button
+                    onClick={() => clearAIHistory.mutate()}
+                    className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-destructive"
+                    title="Очистить историю"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
                 <button
                   onClick={() => setIsFullscreen(!isFullscreen)}
                   className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
@@ -364,7 +409,7 @@ export function FloatingChat() {
               <button
                 onClick={() => {
                   setActiveTab("general");
-                  setSelectedChatId(null);
+                  setSelectedConversationId(null);
                 }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                   activeTab === "general"
@@ -373,7 +418,7 @@ export function FloatingChat() {
                 }`}
               >
                 <Users className="w-3 h-3" />
-                Общий чат
+                Чаты
               </button>
               <button
                 onClick={() => setActiveTab("ai")}
@@ -393,7 +438,7 @@ export function FloatingChat() {
           {renderMessages()}
 
           {/* Input */}
-          {(activeTab === "ai" || selectedChatId) && (
+          {(activeTab === "ai" || selectedConversationId) && (
             <div className="p-3 border-t border-border">
               <div className="flex gap-2">
                 <textarea
@@ -480,34 +525,38 @@ export function FloatingChat() {
                 : "Выберите участников"}
             </label>
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {employees
-                .filter((e) => e.id !== "e1")
-                .map((emp) => (
+              {profiles
+                .filter((p) => p.id !== currentProfile?.id)
+                .map((profile) => (
                   <label
-                    key={emp.id}
+                    key={profile.id}
                     className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                      selectedParticipants.includes(emp.id)
+                      selectedParticipants.includes(profile.id)
                         ? "bg-primary/10 border border-primary/30"
                         : "bg-secondary hover:bg-secondary/80"
                     }`}
                   >
                     <input
                       type={newChatType === "direct" ? "radio" : "checkbox"}
-                      checked={selectedParticipants.includes(emp.id)}
-                      onChange={() => toggleParticipant(emp.id)}
+                      checked={selectedParticipants.includes(profile.id)}
+                      onChange={() => toggleParticipant(profile.id)}
                       className="w-4 h-4 text-primary"
                     />
-                    <img
-                      src={emp.avatar}
-                      alt={emp.name}
-                      className="w-8 h-8 rounded-full"
-                    />
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-medium">
+                      {profile.first_name?.[0] || profile.last_name?.[0] || "?"}
+                    </div>
                     <div className="flex-1">
-                      <p className="font-medium text-foreground">{emp.name}</p>
-                      <p className="text-sm text-muted-foreground">{emp.role}</p>
+                      <p className="font-medium text-foreground">
+                        {profile.first_name} {profile.last_name}
+                      </p>
                     </div>
                   </label>
                 ))}
+              {profiles.filter((p) => p.id !== currentProfile?.id).length === 0 && (
+                <p className="text-center text-muted-foreground py-4">
+                  Нет доступных пользователей
+                </p>
+              )}
             </div>
           </div>
 
@@ -520,10 +569,10 @@ export function FloatingChat() {
             </button>
             <button
               onClick={handleCreateChat}
-              disabled={selectedParticipants.length === 0}
+              disabled={selectedParticipants.length === 0 || createConversation.isPending}
               className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Создать
+              {createConversation.isPending ? "Создание..." : "Создать"}
             </button>
           </div>
         </div>
