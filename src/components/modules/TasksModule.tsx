@@ -34,14 +34,24 @@ export function TasksModule() {
   const [showMyTasks, setShowMyTasks] = useState(false);
 
   // Load current user's profile (for "Мои задачи")
-  const { data: profile, isLoading: profileLoading } = useQuery({
+  const {
+    data: profile,
+    isLoading: profileLoading,
+    error: profileError,
+  } = useQuery({
     queryKey: ["profile", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
+
+      // Prefer backend function (uses current auth user) to avoid any mismatch
+      const { data: profileId, error: rpcError } = await supabase.rpc("get_user_profile_id");
+      if (rpcError) throw rpcError;
+      if (!profileId) return null;
+
       const { data, error } = await supabase
         .from("profiles")
         .select("id, first_name, last_name")
-        .eq("user_id", user.id)
+        .eq("id", profileId)
         .maybeSingle();
       if (error) throw error;
       return data;
@@ -81,6 +91,12 @@ export function TasksModule() {
       setShowMyTasks(false);
     }
   }, [showMyTasks, profileLoading, currentAssigneeProfileId]);
+
+  useEffect(() => {
+    if (profileError) {
+      toast.error("Ошибка загрузки профиля пользователя");
+    }
+  }, [profileError]);
 
   const { data: tasks = [], isLoading: tasksLoading } = useTasks({ assigneeId: assigneeFilterId });
   const { data: projects = [], isLoading: projectsLoading } = useProjects();
