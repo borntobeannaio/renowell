@@ -29,7 +29,7 @@ const priorities: { id: TaskPriority; label: string }[] = [
 
 export function TasksModule() {
   const { user } = useAuth();
-  const { data: employees = [] } = useEmployees();
+  const { data: employees = [], isLoading: employeesLoading } = useEmployees();
 
   const [showMyTasks, setShowMyTasks] = useState(false);
 
@@ -85,7 +85,7 @@ export function TasksModule() {
   // When "Мои задачи" is enabled, fetch only tasks assigned to current profile_id
   const assigneeFilterId = showMyTasks ? currentAssigneeProfileId : null;
 
-  const profileBusy = profilePending || profileFetching;
+  const profileBusy = profilePending || profileFetching || employeesLoading;
 
   // Safety: never show ALL tasks under "Мои задачи" if we can't resolve current user
   useEffect(() => {
