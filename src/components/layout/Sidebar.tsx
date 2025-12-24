@@ -10,7 +10,7 @@ import {
   Users,
   BookOpen,
 } from "lucide-react";
-import renowellLogo from "@/assets/renowell-logo-black.png";
+import renowellLogo from "@/assets/renowell-logo-text.png";
 
 const navItems: { id: NavigationSection; path: string; label: string; icon: React.ElementType }[] = [
   { id: "news", path: "/news", label: "Новости", icon: Newspaper },
