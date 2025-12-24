@@ -329,10 +329,7 @@ export function TasksModule() {
         <div className="flex items-center gap-4">
           <p className="text-muted-foreground">
             {showMyTasks ? (
-              <>
-                Мои задачи: {filteredTasks.length}
-                <span className="text-muted-foreground/70"> из {tasks.length}</span>
-              </>
+              <>Назначенные мне: {filteredTasks.length}</>
             ) : (
               <>Всего задач: {filteredTasks.length}</>
             )}
@@ -366,7 +363,7 @@ export function TasksModule() {
                     : 'left-0.5 bg-muted-foreground'
                 }`} />
               </div>
-              <span>Мои задачи</span>
+              <span>Назначенные мне</span>
             </button>
           )}
         </div>
