@@ -1,12 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import AgoraRTC, {
-  IAgoraRTCClient,
-  IAgoraRTCRemoteUser,
-  ICameraVideoTrack,
-  IMicrophoneAudioTrack,
-  ILocalVideoTrack,
-} from "agora-rtc-sdk-ng";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useRef, useState } from "react";
 import { useEndCall } from "@/hooks/useCalls";
 import {
   PhoneOff,
@@ -21,6 +13,61 @@ import {
   MonitorOff,
 } from "lucide-react";
 
+declare global {
+  interface Window {
+    JitsiMeetExternalAPI: new (domain: string, options: JitsiMeetOptions) => JitsiMeetAPI;
+  }
+}
+
+interface JitsiMeetOptions {
+  roomName: string;
+  width?: string | number;
+  height?: string | number;
+  parentNode?: HTMLElement;
+  userInfo?: {
+    displayName?: string;
+    email?: string;
+  };
+  configOverwrite?: {
+    startWithAudioMuted?: boolean;
+    startWithVideoMuted?: boolean;
+    prejoinPageEnabled?: boolean;
+    disableDeepLinking?: boolean;
+    enableClosePage?: boolean;
+    hideConferenceSubject?: boolean;
+    hideConferenceTimer?: boolean;
+    toolbarButtons?: string[];
+    enableLobby?: boolean;
+    disableInviteFunctions?: boolean;
+    enableNoisyMicDetection?: boolean;
+    remoteVideoMenu?: {
+      disableKick?: boolean;
+    };
+  };
+  interfaceConfigOverwrite?: {
+    SHOW_JITSI_WATERMARK?: boolean;
+    SHOW_WATERMARK_FOR_GUESTS?: boolean;
+    SHOW_BRAND_WATERMARK?: boolean;
+    TOOLBAR_BUTTONS?: string[];
+    DISABLE_JOIN_LEAVE_NOTIFICATIONS?: boolean;
+    HIDE_INVITE_MORE_HEADER?: boolean;
+    MOBILE_APP_PROMO?: boolean;
+    SHOW_CHROME_EXTENSION_BANNER?: boolean;
+    FILM_STRIP_MAX_HEIGHT?: number;
+  };
+  lang?: string;
+}
+
+interface JitsiMeetAPI {
+  dispose: () => void;
+  executeCommand: (command: string, ...args: unknown[]) => void;
+  isAudioMuted: () => Promise<boolean>;
+  isVideoMuted: () => Promise<boolean>;
+  getNumberOfParticipants: () => number;
+  addListener: (event: string, callback: (...args: unknown[]) => void) => void;
+  removeListener: (event: string, callback: (...args: unknown[]) => void) => void;
+}
+
 interface VideoCallProps {
   channelName: string;
   callId: string;
@@ -29,239 +76,133 @@ interface VideoCallProps {
 }
 
 export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallProps) {
-  const [client, setClient] = useState<IAgoraRTCClient | null>(null);
-  const [localAudioTrack, setLocalAudioTrack] = useState<IMicrophoneAudioTrack | null>(null);
-  const [localVideoTrack, setLocalVideoTrack] = useState<ICameraVideoTrack | null>(null);
-  const [screenTrack, setScreenTrack] = useState<ILocalVideoTrack | null>(null);
-  const [remoteUsers, setRemoteUsers] = useState<IAgoraRTCRemoteUser[]>([]);
+  const [jitsiApi, setJitsiApi] = useState<JitsiMeetAPI | null>(null);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isVideoMuted, setIsVideoMuted] = useState(callType === "audio");
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isConnecting, setIsConnecting] = useState(true);
+  const [participantCount, setParticipantCount] = useState(1);
   const [error, setError] = useState<string | null>(null);
 
-  const localVideoRef = useRef<HTMLDivElement>(null);
-  const screenShareRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const endCall = useEndCall();
 
-  const handleUserJoined = useCallback((user: IAgoraRTCRemoteUser) => {
-    console.log("User joined:", user.uid);
-    setRemoteUsers((prev) => [...prev.filter((u) => u.uid !== user.uid), user]);
-  }, []);
-
-  const handleUserLeft = useCallback((user: IAgoraRTCRemoteUser) => {
-    console.log("User left:", user.uid);
-    setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
-  }, []);
-
-  const handleUserPublished = useCallback(
-    async (user: IAgoraRTCRemoteUser, mediaType: "video" | "audio") => {
-      if (!client) return;
-      
-      await client.subscribe(user, mediaType);
-      console.log("Subscribed to", user.uid, mediaType);
-
-      if (mediaType === "video") {
-        setRemoteUsers((prev) => [...prev.filter((u) => u.uid !== user.uid), user]);
-      }
-      if (mediaType === "audio") {
-        user.audioTrack?.play();
-      }
-    },
-    [client]
-  );
-
-  const handleUserUnpublished = useCallback(
-    (user: IAgoraRTCRemoteUser, mediaType: "video" | "audio") => {
-      console.log("User unpublished:", user.uid, mediaType);
-      if (mediaType === "video") {
-        setRemoteUsers((prev) => [...prev]);
-      }
-    },
-    []
-  );
-
   useEffect(() => {
-    const initAgora = async () => {
-      try {
-        setIsConnecting(true);
-        setError(null);
-
-        // Get Agora credentials
-        // IMPORTANT: token (if used) is bound to the same UID we pass to join()
-        const localUid = Math.floor(Math.random() * 1_000_000_000);
-
-        const { data, error: fnError } = await supabase.functions.invoke("agora-token", {
-          body: { channelName, uid: localUid },
-        });
-
-        if (fnError) throw fnError;
-        if (!data?.appId) throw new Error("Failed to get Agora credentials");
-
-        const appId = String(data.appId).trim();
-        if (!/^[0-9a-f]{32}$/i.test(appId)) {
-          throw new Error("Некорректный Agora App ID (ожидается 32 символа hex)");
-        }
-
-        console.log("Agora credentials:", {
-          appIdLength: appId.length,
-          appIdPrefix: appId.slice(0, 4),
-          appIdSuffix: appId.slice(-4),
-          hasToken: Boolean(data.token),
-          channelName,
-          uid: localUid,
-        });
-
-        // Create client
-        const agoraClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-        setClient(agoraClient);
-
-        // Set up event handlers
-        agoraClient.on("user-joined", handleUserJoined);
-        agoraClient.on("user-left", handleUserLeft);
-        agoraClient.on("user-published", handleUserPublished);
-        agoraClient.on("user-unpublished", handleUserUnpublished);
-
-        // Join channel
-        await agoraClient.join(appId, channelName, data.token ?? null, localUid);
-        console.log("Joined channel:", channelName, "uid:", localUid);
-
-        // Create and publish local tracks
-        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-        setLocalAudioTrack(audioTrack);
-
-        if (callType === "video") {
-          const videoTrack = await AgoraRTC.createCameraVideoTrack();
-          setLocalVideoTrack(videoTrack);
-          await agoraClient.publish([audioTrack, videoTrack]);
-        } else {
-          await agoraClient.publish([audioTrack]);
-        }
-
-        setIsConnecting(false);
-      } catch (err) {
-        console.error("Agora init error:", err);
-        setError(err instanceof Error ? err.message : "Failed to connect");
+    if (!containerRef.current || !window.JitsiMeetExternalAPI) {
+      if (!window.JitsiMeetExternalAPI) {
+        setError("Jitsi API не загружен");
         setIsConnecting(false);
       }
-    };
-
-    initAgora();
-
-    return () => {
-      localAudioTrack?.close();
-      localVideoTrack?.close();
-      screenTrack?.close();
-      client?.leave();
-    };
-  }, [channelName, callType]);
-
-  // Play local video
-  useEffect(() => {
-    if (localVideoTrack && localVideoRef.current && !isVideoMuted && !isScreenSharing) {
-      localVideoTrack.play(localVideoRef.current);
+      return;
     }
-  }, [localVideoTrack, isVideoMuted, isScreenSharing]);
-
-  // Play screen share
-  useEffect(() => {
-    if (screenTrack && screenShareRef.current && isScreenSharing) {
-      screenTrack.play(screenShareRef.current);
-    }
-  }, [screenTrack, isScreenSharing]);
-
-  const toggleAudio = async () => {
-    if (localAudioTrack) {
-      await localAudioTrack.setEnabled(!isAudioMuted);
-      setIsAudioMuted(!isAudioMuted);
-    }
-  };
-
-  const toggleVideo = async () => {
-    if (localVideoTrack) {
-      await localVideoTrack.setEnabled(isVideoMuted);
-      setIsVideoMuted(!isVideoMuted);
-    } else if (isVideoMuted && client) {
-      // Create video track if switching to video
-      const videoTrack = await AgoraRTC.createCameraVideoTrack();
-      setLocalVideoTrack(videoTrack);
-      await client.publish([videoTrack]);
-      setIsVideoMuted(false);
-    }
-  };
-
-  const toggleScreenShare = async () => {
-    if (!client) return;
 
     try {
-      if (isScreenSharing && screenTrack) {
-        // Stop screen sharing
-        await client.unpublish([screenTrack]);
-        screenTrack.close();
-        setScreenTrack(null);
-        setIsScreenSharing(false);
+      setIsConnecting(true);
+      setError(null);
 
-        // Re-publish camera if it was enabled
-        if (localVideoTrack && !isVideoMuted) {
-          await client.publish([localVideoTrack]);
-        }
-      } else {
-        // Start screen sharing
-        const screenVideoTrack = await AgoraRTC.createScreenVideoTrack(
-          {
-            encoderConfig: "1080p_1",
-            optimizationMode: "detail",
+      const domain = "meet.jit.si";
+      const options: JitsiMeetOptions = {
+        roomName: `renowell_${channelName}`,
+        width: "100%",
+        height: "100%",
+        parentNode: containerRef.current,
+        userInfo: {
+          displayName: "Участник",
+        },
+        configOverwrite: {
+          startWithAudioMuted: false,
+          startWithVideoMuted: callType === "audio",
+          prejoinPageEnabled: false,
+          disableDeepLinking: true,
+          enableClosePage: false,
+          hideConferenceSubject: true,
+          hideConferenceTimer: true,
+          enableLobby: false,
+          disableInviteFunctions: true,
+          enableNoisyMicDetection: false,
+          remoteVideoMenu: {
+            disableKick: true,
           },
-          "disable" // Don't capture audio from screen
-        );
+          toolbarButtons: [],
+        },
+        interfaceConfigOverwrite: {
+          SHOW_JITSI_WATERMARK: false,
+          SHOW_WATERMARK_FOR_GUESTS: false,
+          SHOW_BRAND_WATERMARK: false,
+          TOOLBAR_BUTTONS: [],
+          DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
+          HIDE_INVITE_MORE_HEADER: true,
+          MOBILE_APP_PROMO: false,
+          SHOW_CHROME_EXTENSION_BANNER: false,
+          FILM_STRIP_MAX_HEIGHT: 0,
+        },
+        lang: "ru",
+      };
 
-        // Handle if user cancels screen share picker
-        if (!screenVideoTrack) {
-          return;
-        }
+      const api = new window.JitsiMeetExternalAPI(domain, options);
+      setJitsiApi(api);
 
-        // screenVideoTrack could be an array [videoTrack, audioTrack] or just videoTrack
-        const videoTrack = Array.isArray(screenVideoTrack) ? screenVideoTrack[0] : screenVideoTrack;
+      api.addListener("videoConferenceJoined", () => {
+        console.log("Joined Jitsi conference");
+        setIsConnecting(false);
+        setParticipantCount(api.getNumberOfParticipants());
+      });
 
-        // Unpublish camera video first
-        if (localVideoTrack) {
-          await client.unpublish([localVideoTrack]);
-        }
+      api.addListener("participantJoined", () => {
+        setParticipantCount(api.getNumberOfParticipants());
+      });
 
-        // Listen for when user stops sharing via browser UI
-        videoTrack.on("track-ended", async () => {
-          console.log("Screen sharing stopped by user");
-          await client.unpublish([videoTrack]);
-          videoTrack.close();
-          setScreenTrack(null);
-          setIsScreenSharing(false);
+      api.addListener("participantLeft", () => {
+        setParticipantCount(api.getNumberOfParticipants());
+      });
 
-          // Re-publish camera
-          if (localVideoTrack && !isVideoMuted) {
-            await client.publish([localVideoTrack]);
-          }
-        });
+      api.addListener("audioMuteStatusChanged", (data: { muted: boolean }) => {
+        setIsAudioMuted(data.muted);
+      });
 
-        await client.publish([videoTrack]);
-        setScreenTrack(videoTrack);
-        setIsScreenSharing(true);
-      }
+      api.addListener("videoMuteStatusChanged", (data: { muted: boolean }) => {
+        setIsVideoMuted(data.muted);
+      });
+
+      api.addListener("screenSharingStatusChanged", (data: { on: boolean }) => {
+        setIsScreenSharing(data.on);
+      });
+
+      api.addListener("readyToClose", () => {
+        handleEndCall();
+      });
+
+      return () => {
+        api.dispose();
+      };
     } catch (err) {
-      console.error("Screen share error:", err);
-      // User cancelled or browser doesn't support
-      if (err instanceof Error && err.message.includes("Permission denied")) {
-        setError("Доступ к экрану отклонён");
-        setTimeout(() => setError(null), 3000);
-      }
+      console.error("Jitsi init error:", err);
+      setError(err instanceof Error ? err.message : "Ошибка подключения");
+      setIsConnecting(false);
+    }
+  }, [channelName, callType]);
+
+  const toggleAudio = () => {
+    if (jitsiApi) {
+      jitsiApi.executeCommand("toggleAudio");
+    }
+  };
+
+  const toggleVideo = () => {
+    if (jitsiApi) {
+      jitsiApi.executeCommand("toggleVideo");
+    }
+  };
+
+  const toggleScreenShare = () => {
+    if (jitsiApi) {
+      jitsiApi.executeCommand("toggleShareScreen");
     }
   };
 
   const handleEndCall = async () => {
-    localAudioTrack?.close();
-    localVideoTrack?.close();
-    screenTrack?.close();
-    await client?.leave();
+    jitsiApi?.dispose();
     await endCall.mutateAsync(callId);
     onEnd();
   };
@@ -277,7 +218,7 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
         <div className="flex items-center gap-2 text-white">
           <Users className="w-5 h-5" />
           <span className="font-medium">
-            {isConnecting ? "Подключение..." : `${remoteUsers.length + 1} участников`}
+            {isConnecting ? "Подключение..." : `${participantCount} участников`}
           </span>
           {isScreenSharing && (
             <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
@@ -293,34 +234,17 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
         </button>
       </div>
 
-      {/* Video grid */}
-      <div className="flex-1 p-2 grid gap-2" style={{
-        gridTemplateColumns: remoteUsers.length === 0 ? "1fr" : remoteUsers.length === 1 ? "1fr 1fr" : "repeat(2, 1fr)",
-        gridTemplateRows: remoteUsers.length <= 2 ? "1fr" : "repeat(2, 1fr)",
-      }}>
-        {/* Local video / Screen share */}
-        <div className="relative bg-gray-800 rounded-lg overflow-hidden">
-          {isScreenSharing ? (
-            <div ref={screenShareRef} className="absolute inset-0" />
-          ) : callType === "video" && !isVideoMuted ? (
-            <div ref={localVideoRef} className="absolute inset-0" />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center">
-                <span className="text-2xl font-bold text-white">Вы</span>
-              </div>
+      {/* Jitsi container */}
+      <div className="flex-1 relative">
+        <div ref={containerRef} className="absolute inset-0" />
+        {isConnecting && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+            <div className="text-white text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2" />
+              <p>Подключение к звонку...</p>
             </div>
-          )}
-          <div className="absolute bottom-2 left-2 text-white text-xs bg-black/50 px-2 py-1 rounded flex items-center gap-1">
-            {isScreenSharing && <Monitor className="w-3 h-3" />}
-            Вы {isAudioMuted && "(микрофон выкл)"}
           </div>
-        </div>
-
-        {/* Remote users */}
-        {remoteUsers.map((user) => (
-          <RemoteUser key={user.uid} user={user} />
-        ))}
+        )}
       </div>
 
       {/* Error message */}
@@ -349,10 +273,9 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
         {callType === "video" && (
           <button
             onClick={toggleVideo}
-            disabled={isScreenSharing}
             className={`p-3 rounded-full transition-colors ${
-              isVideoMuted || isScreenSharing ? "bg-red-500 hover:bg-red-600" : "bg-gray-600 hover:bg-gray-500"
-            } ${isScreenSharing ? "opacity-50 cursor-not-allowed" : ""}`}
+              isVideoMuted ? "bg-red-500 hover:bg-red-600" : "bg-gray-600 hover:bg-gray-500"
+            }`}
             title={isVideoMuted ? "Включить камеру" : "Выключить камеру"}
           >
             {isVideoMuted ? (
@@ -385,33 +308,6 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
         >
           <PhoneOff className="w-5 h-5 text-white" />
         </button>
-      </div>
-    </div>
-  );
-}
-
-function RemoteUser({ user }: { user: IAgoraRTCRemoteUser }) {
-  const videoRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (user.videoTrack && videoRef.current) {
-      user.videoTrack.play(videoRef.current);
-    }
-  }, [user.videoTrack]);
-
-  return (
-    <div className="relative bg-gray-800 rounded-lg overflow-hidden">
-      {user.videoTrack ? (
-        <div ref={videoRef} className="absolute inset-0" />
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-20 h-20 rounded-full bg-blue-500 flex items-center justify-center">
-            <span className="text-2xl font-bold text-white">{String(user.uid).charAt(0)}</span>
-          </div>
-        </div>
-      )}
-      <div className="absolute bottom-2 left-2 text-white text-xs bg-black/50 px-2 py-1 rounded">
-        Участник {user.uid}
       </div>
     </div>
   );
