@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { supabaseQuery } from "@/lib/api";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface DbEmployee {
@@ -16,12 +17,12 @@ export function useEmployees() {
   return useQuery({
     queryKey: ['employees'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('employees')
-        .select('*')
-        .order('full_name');
-      if (error) throw error;
-      return data as DbEmployee[];
+      return supabaseQuery(
+        () => supabase.from('employees').select('*').order('full_name'),
+        'Загрузка сотрудников'
+      ) as Promise<DbEmployee[]>;
     },
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 }

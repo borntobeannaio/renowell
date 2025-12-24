@@ -3,6 +3,8 @@ import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/hooks/useAuth";
 import { Search, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConnectionStatus } from "@/components/ConnectionStatus";
+
 export function Header() {
   const { currentSection, setCurrentSection, searchQuery, setSearchQuery } = useApp();
   const { user, signOut } = useAuth();
@@ -68,6 +70,8 @@ export function Header() {
             <Search className="w-4 h-4" />
             <span className="hidden sm:inline">Поиск</span>
           </button>
+          
+          <ConnectionStatus />
           
           {user && (
             <Button

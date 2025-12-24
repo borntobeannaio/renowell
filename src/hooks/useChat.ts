@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseQuery } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 
 export interface ChatConversation {
@@ -39,16 +40,17 @@ export function useConversations() {
     queryKey: ["conversations", user?.id],
     queryFn: async () => {
       if (!user) return [];
-
-      const { data, error } = await supabase
-        .from("chat_conversations")
-        .select("*")
-        .order("updated_at", { ascending: false });
-
-      if (error) throw error;
-      return data as ChatConversation[];
+      return supabaseQuery(
+        () => supabase
+          .from("chat_conversations")
+          .select("*")
+          .order("updated_at", { ascending: false }),
+        'Загрузка чатов'
+      ) as Promise<ChatConversation[]>;
     },
     enabled: !!user,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 }
 
@@ -58,20 +60,21 @@ export function useConversationMessages(conversationId: string | null) {
     queryKey: ["conversation-messages", conversationId],
     queryFn: async () => {
       if (!conversationId) return [];
-
-      const { data, error } = await supabase
-        .from("chat_messages")
-        .select(`
-          *,
-          sender:profiles!chat_messages_sender_id_fkey(first_name, last_name)
-        `)
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
-
-      if (error) throw error;
-      return data as ChatMessage[];
+      return supabaseQuery(
+        () => supabase
+          .from("chat_messages")
+          .select(`
+            *,
+            sender:profiles!chat_messages_sender_id_fkey(first_name, last_name)
+          `)
+          .eq("conversation_id", conversationId)
+          .order("created_at", { ascending: true }),
+        'Загрузка сообщений'
+      ) as Promise<ChatMessage[]>;
     },
     enabled: !!conversationId,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 }
 
@@ -195,17 +198,18 @@ export function useAIMessages() {
     queryKey: ["ai-messages", user?.id],
     queryFn: async () => {
       if (!user) return [];
-
-      const { data, error } = await supabase
-        .from("ai_chat_messages")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true });
-
-      if (error) throw error;
-      return data as AIMessage[];
+      return supabaseQuery(
+        () => supabase
+          .from("ai_chat_messages")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: true }),
+        'Загрузка AI-сообщений'
+      ) as Promise<AIMessage[]>;
     },
     enabled: !!user,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 }
 
