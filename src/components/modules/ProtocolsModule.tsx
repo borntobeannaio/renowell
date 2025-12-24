@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { format, parseISO } from "date-fns";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { Plus, ChevronDown, ChevronUp, Trash2, FolderOpen, CheckCircle2, Download, Pencil, Check, X } from "lucide-react";
@@ -8,6 +9,16 @@ import { useEmployees } from "@/hooks/useEmployees";
 import { useCreateTask } from "@/hooks/useTasks";
 import { generateProtocolPdf } from "@/utils/protocolPdf";
 import { toast } from "sonner";
+
+// Format date from YYYY-MM-DD to DD.MM.YYYY
+const formatDisplayDate = (dateStr: string | null): string => {
+  if (!dateStr) return "";
+  try {
+    return format(parseISO(dateStr), "dd.MM.yyyy");
+  } catch {
+    return dateStr;
+  }
+};
 
 interface ProtocolItemForm {
   project_id: string;
@@ -411,7 +422,7 @@ function ProtocolCard({
             №{protocol.number}
           </span>
           <span className="text-sm text-muted-foreground">
-            {protocol.date}
+            {formatDisplayDate(protocol.date)}
           </span>
           <h3 className="font-medium text-foreground">{protocol.title}</h3>
           <span className="chip">
@@ -515,7 +526,7 @@ function ProtocolCard({
                               <span>Ответственный: {item.responsible}</span>
                             )}
                             {item.due_date && (
-                              <span>Срок: {item.due_date}</span>
+                              <span>Срок: {formatDisplayDate(item.due_date)}</span>
                             )}
                           </div>
                         </div>
