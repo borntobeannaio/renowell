@@ -281,10 +281,19 @@ export function TasksModule() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-4">
-          <p className="text-muted-foreground">Всего задач: {filteredTasks.length}</p>
+          <p className="text-muted-foreground">
+            {showMyTasks ? (
+              <>
+                Мои задачи: {filteredTasks.length}
+                <span className="text-muted-foreground/70"> из {tasks.length}</span>
+              </>
+            ) : (
+              <>Всего задач: {filteredTasks.length}</>
+            )}
+          </p>
           {user?.id && (
             <button
-              onClick={() => setShowMyTasks(!showMyTasks)}
+              onClick={() => setShowMyTasks((v) => !v)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                 showMyTasks 
                   ? 'bg-primary text-primary-foreground shadow-md' 
