@@ -120,8 +120,16 @@ export function ProtocolsModule() {
 
       // If create_task is true, create the task
       if (itemForm.create_task && itemForm.due_date) {
+        // Get the first responsible employee's profile_id for task assignee
+        const firstResponsibleEmployeeId = itemForm.responsible_ids[0];
+        const firstResponsibleEmployee = firstResponsibleEmployeeId 
+          ? employees.find(e => e.id === firstResponsibleEmployeeId) 
+          : null;
+        const assigneeProfileId = firstResponsibleEmployee?.profile_id || null;
+
         await createTask.mutateAsync({
           title: itemForm.item_text,
+          assignee_id: assigneeProfileId,
           project_id: itemForm.project_id || null,
           due_date: itemForm.due_date,
           status: "new",
