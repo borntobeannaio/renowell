@@ -33,7 +33,7 @@ export function EmployeeMultiSelect({
         top: rect.bottom + 4,
         left: rect.left,
         width: rect.width,
-        zIndex: 9999,
+        zIndex: 99999,
       });
     }
   }, [isOpen]);
@@ -115,7 +115,8 @@ export function EmployeeMultiSelect({
           <div
             data-employee-dropdown
             style={dropdownStyle}
-            className="bg-popover border border-border rounded-lg shadow-lg max-h-60 overflow-hidden"
+            className="bg-popover border border-border rounded-lg shadow-xl max-h-60 overflow-hidden"
+            // z-index is set in dropdownStyle (99999)
           >
           <div className="p-2 border-b border-border">
             <input
