@@ -1,3 +1,5 @@
+import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useMemo } from "react";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileNav } from "@/components/layout/MobileNav";
@@ -11,12 +13,38 @@ import { ChatModule } from "@/components/modules/ChatModule";
 import { SearchModule } from "@/components/modules/SearchModule";
 import { FloatingChat } from "@/components/chat/FloatingChat";
 import { useDbProxyWarmup } from "@/hooks/useDbProxyWarmup";
+import { NavigationSection } from "@/types";
+
+const sectionFromPath = (pathname: string): NavigationSection => {
+  const path = pathname.slice(1) || "news";
+  const validSections: NavigationSection[] = ["news", "protocols", "tasks", "hr", "knowledge", "chats", "search"];
+  return validSections.includes(path as NavigationSection) ? (path as NavigationSection) : "news";
+};
+
 function PortalContent() {
   useDbProxyWarmup();
-  const { currentSection } = useApp();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { currentSection, setCurrentSection, setSearchQuery, searchQuery } = useApp();
+
+  const sectionFromUrl = useMemo(() => sectionFromPath(location.pathname), [location.pathname]);
+
+  // Sync URL -> context
+  useEffect(() => {
+    if (sectionFromUrl !== currentSection) {
+      setCurrentSection(sectionFromUrl);
+    }
+  }, [sectionFromUrl, currentSection, setCurrentSection]);
+
+  // Sync context -> URL (for search navigation)
+  useEffect(() => {
+    if (currentSection === "search" && location.pathname !== "/search") {
+      navigate("/search");
+    }
+  }, [currentSection, location.pathname, navigate]);
 
   const renderModule = () => {
-    switch (currentSection) {
+    switch (sectionFromUrl) {
       case "news":
         return <NewsModule />;
       case "protocols":

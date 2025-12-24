@@ -1,8 +1,8 @@
-import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/hooks/useAuth";
 import { NavigationSection } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { Link, useLocation } from "react-router-dom";
 import {
   Newspaper,
   FileText,
@@ -12,16 +12,16 @@ import {
 } from "lucide-react";
 import renowellLogo from "@/assets/renowell-logo-black.png";
 
-const navItems: { id: NavigationSection; label: string; icon: React.ElementType }[] = [
-  { id: "news", label: "Новости", icon: Newspaper },
-  { id: "protocols", label: "Протоколы", icon: FileText },
-  { id: "tasks", label: "Задачи", icon: CheckSquare },
-  { id: "hr", label: "HR и Офис", icon: Users },
-  { id: "knowledge", label: "База знаний", icon: BookOpen },
+const navItems: { id: NavigationSection; path: string; label: string; icon: React.ElementType }[] = [
+  { id: "news", path: "/news", label: "Новости", icon: Newspaper },
+  { id: "protocols", path: "/protocols", label: "Протоколы", icon: FileText },
+  { id: "tasks", path: "/tasks", label: "Задачи", icon: CheckSquare },
+  { id: "hr", path: "/hr", label: "HR и Офис", icon: Users },
+  { id: "knowledge", path: "/knowledge", label: "База знаний", icon: BookOpen },
 ];
 
 export function Sidebar() {
-  const { currentSection, setCurrentSection } = useApp();
+  const location = useLocation();
   const { user } = useAuth();
 
   const { data: profile } = useQuery({
@@ -45,6 +45,8 @@ export function Sidebar() {
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || 'U';
   const fullName = [firstName, lastName].filter(Boolean).join(' ') || 'Пользователь';
 
+  const isActive = (path: string) => location.pathname === path;
+
   return (
     <aside className="hidden md:flex flex-col w-64 bg-gradient-to-b from-sidebar via-sidebar to-sidebar/95 border-r border-sidebar-border/50 h-screen sticky top-0 backdrop-blur-xl">
       {/* Logo Section with subtle glow */}
@@ -61,22 +63,22 @@ export function Sidebar() {
       
       {/* Navigation with improved styling */}
       <nav className="flex-1 p-4 space-y-1.5">
-        {navItems.map(({ id, label, icon: Icon }) => (
-          <button
+        {navItems.map(({ id, path, label, icon: Icon }) => (
+          <Link
             key={id}
-            onClick={() => setCurrentSection(id)}
+            to={path}
             className={`
               w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
               transition-all duration-300 ease-out
-              ${currentSection === id 
+              ${isActive(path)
                 ? "bg-gradient-to-r from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/25 scale-[1.02]" 
                 : "text-muted-foreground hover:text-foreground hover:bg-secondary/80 hover:translate-x-1"
               }
             `}
           >
-            <Icon className={`w-5 h-5 transition-transform duration-300 ${currentSection === id ? 'scale-110' : ''}`} />
+            <Icon className={`w-5 h-5 transition-transform duration-300 ${isActive(path) ? 'scale-110' : ''}`} />
             <span>{label}</span>
-          </button>
+          </Link>
         ))}
       </nav>
 
