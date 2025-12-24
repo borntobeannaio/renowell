@@ -5,6 +5,7 @@ import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRig
 import { useTasks, useCreateTask, useUpdateTask, DbTask, TaskStatus, TaskPriority, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS, TASK_PRIORITY_COLORS } from "@/hooks/useTasks";
 import { useProjects, Project } from "@/hooks/useProjects";
 import { useEmployees, DbEmployee } from "@/hooks/useEmployees";
+import { formatDisplayDate } from "@/utils/dateFormat";
 import { toast } from "sonner";
 
 const columns: { id: TaskStatus; label: string }[] = [
@@ -683,7 +684,7 @@ function TaskCard({
         
         <div className="flex items-center gap-2">
           <Calendar className="w-3 h-3 shrink-0" />
-          <span>{task.due_date || "Без срока"}</span>
+          <span>{task.due_date ? formatDisplayDate(task.due_date) : "Без срока"}</span>
         </div>
       </div>
     </div>
