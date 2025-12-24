@@ -295,7 +295,7 @@ export function TasksModule() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-4">
           <p className="text-muted-foreground">Всего задач: {filteredTasks.length}</p>
-          {currentEmployeeId && (
+          {profile?.id && (
             <button
               onClick={() => setShowMyTasks(!showMyTasks)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
