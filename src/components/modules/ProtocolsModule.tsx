@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
-import { Plus, ChevronDown, ChevronUp, Trash2, FolderOpen, CheckCircle2, Download } from "lucide-react";
-import { useProtocols, useProtocolItems, useCreateProtocol, useCreateProtocolItem, useDeleteProtocolItem, useNextProtocolNumber } from "@/hooks/useProtocols";
+import { Plus, ChevronDown, ChevronUp, Trash2, FolderOpen, CheckCircle2, Download, Pencil, Check, X } from "lucide-react";
+import { useProtocols, useProtocolItems, useCreateProtocol, useCreateProtocolItem, useDeleteProtocolItem, useUpdateProtocolItem, useNextProtocolNumber } from "@/hooks/useProtocols";
 import { useProjects } from "@/hooks/useProjects";
 import { useEmployees } from "@/hooks/useEmployees";
 import { useCreateTask } from "@/hooks/useTasks";
@@ -341,6 +341,37 @@ function ProtocolCard({
   resetItemForm,
 }: ProtocolCardProps) {
   const { data: items = [] } = useProtocolItems(protocol.id);
+  const updateProtocolItem = useUpdateProtocolItem();
+  
+  // State for inline editing
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingItemText, setEditingItemText] = useState("");
+
+  const handleStartEditItem = (itemId: string, currentText: string) => {
+    setEditingItemId(itemId);
+    setEditingItemText(currentText);
+  };
+
+  const handleSaveItemText = async () => {
+    if (!editingItemId || !editingItemText.trim()) return;
+    try {
+      await updateProtocolItem.mutateAsync({
+        id: editingItemId,
+        protocol_id: protocol.id,
+        item_text: editingItemText.trim(),
+      });
+      setEditingItemId(null);
+      setEditingItemText("");
+      toast.success("Текст пункта обновлён");
+    } catch (error) {
+      toast.error("Ошибка обновления");
+    }
+  };
+
+  const handleCancelEditItem = () => {
+    setEditingItemId(null);
+    setEditingItemText("");
+  };
 
   const handleExportPdf = async () => {
     try {
@@ -362,6 +393,7 @@ function ProtocolCard({
     });
     return groups;
   }, [items]);
+
 
   const getProjectName = (projectId: string | null) => {
     if (!projectId) return "Без проекта";
@@ -448,7 +480,36 @@ function ProtocolCard({
                         className="group p-3 bg-secondary/50 rounded-lg flex items-start justify-between gap-4"
                       >
                         <div className="flex-1">
-                          <p className="text-foreground">{item.item_text}</p>
+                          {editingItemId === item.id ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={editingItemText}
+                                onChange={(e) => setEditingItemText(e.target.value)}
+                                className="input-base flex-1"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") handleSaveItemText();
+                                  if (e.key === "Escape") handleCancelEditItem();
+                                }}
+                              />
+                              <button
+                                onClick={handleSaveItemText}
+                                className="p-1.5 text-green-600 hover:bg-green-100 rounded"
+                                disabled={updateProtocolItem.isPending}
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={handleCancelEditItem}
+                                className="p-1.5 text-muted-foreground hover:bg-muted rounded"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <p className="text-foreground">{item.item_text}</p>
+                          )}
                           <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
                             {item.responsible && (
                               <span>Ответственный: {item.responsible}</span>
@@ -464,6 +525,14 @@ function ProtocolCard({
                               <CheckCircle2 className="w-3 h-3" />
                               Задача
                             </span>
+                          )}
+                          {editingItemId !== item.id && (
+                            <button
+                              onClick={() => handleStartEditItem(item.id, item.item_text)}
+                              className="p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
                           )}
                           <button
                             onClick={() => onDeleteItem(item.id)}
@@ -580,8 +649,9 @@ function ProtocolCard({
               {!isEditing ? (
                 <button
                   onClick={onStartEditing}
-                  className="btn-secondary text-sm"
+                  className="btn-secondary text-sm flex items-center gap-2"
                 >
+                  <Pencil className="w-4 h-4" />
                   Редактировать
                 </button>
               ) : (
@@ -590,8 +660,9 @@ function ProtocolCard({
                     onStopEditing();
                     resetItemForm();
                   }}
-                  className="btn-primary text-sm"
+                  className="btn-primary text-sm flex items-center gap-2"
                 >
+                  <Check className="w-4 h-4" />
                   Готово
                 </button>
               )}
