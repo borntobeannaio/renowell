@@ -1,8 +1,11 @@
-import { useState, DragEvent } from "react";
-import { useApp } from "@/context/AppContext";
+import { useState, DragEvent, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { Plus, Calendar, User, GripVertical } from "lucide-react";
-import { Task, TaskStatus } from "@/types";
+import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight } from "lucide-react";
+import { useTasks, useCreateTask, useUpdateTask, DbTask } from "@/hooks/useTasks";
+import { useProjects, Project } from "@/hooks/useProjects";
+import { useApp } from "@/context/AppContext";
+
+type TaskStatus = "inbox" | "doing" | "done";
 
 const columns: { id: TaskStatus; label: string }[] = [
   { id: "inbox", label: "Входящие" },
@@ -11,12 +14,19 @@ const columns: { id: TaskStatus; label: string }[] = [
 ];
 
 export function TasksModule() {
-  const { tasks, employees, addTask, updateTaskStatus, updateTaskAssignee, getEmployeeById } = useApp();
+  const { employees, getEmployeeById } = useApp();
+  const { data: tasks = [], isLoading: tasksLoading } = useTasks();
+  const { data: projects = [], isLoading: projectsLoading } = useProjects();
+  const createTask = useCreateTask();
+  const updateTask = useUpdateTask();
+
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set(["no-project"]));
   const [form, setForm] = useState({
     title: "",
     assignee: "",
+    project: "",
     due: new Date().toISOString().slice(0, 10),
     labels: "",
   });
@@ -34,35 +44,97 @@ export function TasksModule() {
   const handleDrop = (e: DragEvent, status: TaskStatus) => {
     e.preventDefault();
     if (draggedTaskId) {
-      updateTaskStatus(draggedTaskId, status);
+      updateTask.mutate({ id: draggedTaskId, status });
       setDraggedTaskId(null);
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title.trim() || !form.assignee) return;
+    if (!form.title.trim()) return;
 
-    addTask({
+    createTask.mutate({
       title: form.title,
-      assignee: form.assignee,
-      due: form.due,
+      assignee_id: form.assignee || null,
+      project_id: form.project || null,
+      due_date: form.due || null,
       status: "inbox",
       labels: form.labels.split(",").map((l) => l.trim()).filter(Boolean),
-      origin: null,
     });
 
     setForm({
       title: "",
       assignee: "",
+      project: "",
       due: new Date().toISOString().slice(0, 10),
       labels: "",
     });
     setIsModalOpen(false);
   };
 
-  const getTasksByStatus = (status: TaskStatus) =>
-    tasks.filter((t) => t.status === status);
+  const toggleProject = (projectId: string) => {
+    setExpandedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectId)) {
+        next.delete(projectId);
+      } else {
+        next.add(projectId);
+      }
+      return next;
+    });
+  };
+
+  // Group tasks by project
+  const tasksByProject = useMemo(() => {
+    const grouped: Record<string, DbTask[]> = { "no-project": [] };
+    projects.forEach((p) => {
+      grouped[p.id] = [];
+    });
+
+    tasks.forEach((task) => {
+      const key = task.project_id || "no-project";
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(task);
+    });
+
+    return grouped;
+  }, [tasks, projects]);
+
+  const getTasksByStatusAndProject = (status: TaskStatus, projectId: string) =>
+    (tasksByProject[projectId] || []).filter((t) => t.status === status);
+
+  const projectsWithTasks = useMemo(() => {
+    const result: (Project | { id: "no-project"; name: string })[] = [];
+    
+    // Add projects that have tasks
+    projects.forEach((p) => {
+      if (tasksByProject[p.id]?.length > 0) {
+        result.push(p);
+      }
+    });
+
+    // Add "no project" if there are tasks without project
+    if (tasksByProject["no-project"]?.length > 0) {
+      result.push({ id: "no-project", name: "Без проекта" });
+    }
+
+    // Add projects without tasks at the end
+    projects.forEach((p) => {
+      if (!tasksByProject[p.id]?.length) {
+        result.push(p);
+      }
+    });
+
+    return result;
+  }, [projects, tasksByProject]);
+
+  if (tasksLoading || projectsLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-muted-foreground">Загрузка...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -77,34 +149,67 @@ export function TasksModule() {
         </button>
       </div>
 
-      <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 md:mx-0 md:px-0">
-        {columns.map((column) => (
-          <div
-            key={column.id}
-            className="kanban-column shrink-0"
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, column.id)}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-foreground">{column.label}</h3>
-              <span className="chip">{getTasksByStatus(column.id).length}</span>
-            </div>
+      {/* Projects with Kanban */}
+      <div className="space-y-4">
+        {projectsWithTasks.map((project) => {
+          const projectTaskCount = tasksByProject[project.id]?.length || 0;
+          const isExpanded = expandedProjects.has(project.id);
 
-            <div className="space-y-3">
-              {getTasksByStatus(column.id).map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  employees={employees}
-                  getEmployeeById={getEmployeeById}
-                  onDragStart={handleDragStart}
-                  onStatusChange={updateTaskStatus}
-                  onAssigneeChange={updateTaskAssignee}
-                />
-              ))}
+          return (
+            <div key={project.id} className="border border-border rounded-lg overflow-hidden">
+              <button
+                onClick={() => toggleProject(project.id)}
+                className="w-full flex items-center gap-3 p-4 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+              >
+                {isExpanded ? (
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                )}
+                <FolderOpen className="w-4 h-4 text-primary" />
+                <span className="font-medium text-foreground flex-1">{project.name}</span>
+                <span className="chip">{projectTaskCount}</span>
+              </button>
+
+              {isExpanded && (
+                <div className="p-4">
+                  <div className="flex gap-4 overflow-x-auto pb-2">
+                    {columns.map((column) => {
+                      const columnTasks = getTasksByStatusAndProject(column.id, project.id);
+                      return (
+                        <div
+                          key={column.id}
+                          className="kanban-column shrink-0"
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDrop(e, column.id)}
+                        >
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-semibold text-foreground">{column.label}</h3>
+                            <span className="chip">{columnTasks.length}</span>
+                          </div>
+
+                          <div className="space-y-3">
+                            {columnTasks.map((task) => (
+                              <TaskCard
+                                key={task.id}
+                                task={task}
+                                employees={employees}
+                                getEmployeeById={getEmployeeById}
+                                onDragStart={handleDragStart}
+                                onStatusChange={(id, status) => updateTask.mutate({ id, status })}
+                                onAssigneeChange={(id, assignee_id) => updateTask.mutate({ id, assignee_id })}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <Modal
@@ -129,13 +234,30 @@ export function TasksModule() {
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">
+              Проект
+            </label>
+            <select
+              value={form.project}
+              onChange={(e) => setForm({ ...form, project: e.target.value })}
+              className="input-base w-full"
+            >
+              <option value="">Без проекта</option>
+              {projects.map((proj) => (
+                <option key={proj.id} value={proj.id}>
+                  {proj.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
               Исполнитель
             </label>
             <select
               value={form.assignee}
               onChange={(e) => setForm({ ...form, assignee: e.target.value })}
               className="input-base w-full"
-              required
             >
               <option value="">Выберите исполнителя</option>
               {employees.map((emp) => (
@@ -155,7 +277,6 @@ export function TasksModule() {
               value={form.due}
               onChange={(e) => setForm({ ...form, due: e.target.value })}
               className="input-base w-full"
-              required
             />
           </div>
 
@@ -191,7 +312,7 @@ export function TasksModule() {
 }
 
 interface TaskCardProps {
-  task: Task;
+  task: DbTask;
   employees: { id: string; name: string }[];
   getEmployeeById: (id: string) => { name: string } | undefined;
   onDragStart: (e: DragEvent, id: string) => void;
@@ -207,7 +328,7 @@ function TaskCard({
   onStatusChange,
   onAssigneeChange,
 }: TaskCardProps) {
-  const assignee = getEmployeeById(task.assignee);
+  const assignee = task.assignee_id ? getEmployeeById(task.assignee_id) : null;
 
   return (
     <div
@@ -220,31 +341,36 @@ function TaskCard({
         <div className="flex-1 min-w-0">
           <h4 className="font-medium text-foreground text-sm mb-2">{task.title}</h4>
 
-          <div className="flex flex-wrap gap-1 mb-3">
-            {task.labels.slice(0, 2).map((label) => (
-              <span key={label} className="chip text-xs">
-                {label}
-              </span>
-            ))}
-            {task.labels.length > 2 && (
-              <span className="chip text-xs">+{task.labels.length - 2}</span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <Calendar className="w-3 h-3" />
-              <span>{task.due}</span>
+          {task.labels.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-3">
+              {task.labels.slice(0, 2).map((label) => (
+                <span key={label} className="chip text-xs">
+                  {label}
+                </span>
+              ))}
+              {task.labels.length > 2 && (
+                <span className="chip text-xs">+{task.labels.length - 2}</span>
+              )}
             </div>
-          </div>
+          )}
+
+          {task.due_date && (
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <Calendar className="w-3 h-3" />
+                <span>{task.due_date}</span>
+              </div>
+            </div>
+          )}
 
           <div className="mt-3 pt-3 border-t border-border flex items-center gap-2">
             <User className="w-3 h-3 text-muted-foreground" />
             <select
-              value={task.assignee}
+              value={task.assignee_id || ""}
               onChange={(e) => onAssigneeChange(task.id, e.target.value)}
               className="text-xs bg-transparent border-none p-0 focus:ring-0 text-foreground cursor-pointer flex-1"
             >
+              <option value="">Не назначен</option>
               {employees.map((emp) => (
                 <option key={emp.id} value={emp.id}>
                   {emp.name}
