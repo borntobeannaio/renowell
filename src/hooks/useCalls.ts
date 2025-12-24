@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { proxySelect, proxyInsert, proxyUpdate } from "@/lib/dbProxy";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect } from "react";
 
@@ -37,6 +38,12 @@ export interface CallParticipant {
   };
 }
 
+interface Profile {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+}
+
 export function useActiveCall() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -45,13 +52,13 @@ export function useActiveCall() {
     queryKey: ["current-profile", user?.id],
     queryFn: async () => {
       if (!user) return null;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .eq("user_id", user.id)
-        .single();
-      if (error) throw error;
-      return data;
+      const { data, error } = await proxySelect<Profile>('profiles', {
+        select: 'id, first_name, last_name',
+        filters: [{ column: 'user_id', operator: 'eq', value: user.id }],
+        limit: 1,
+      });
+      if (error) throw new Error(error.message);
+      return data?.[0] || null;
     },
     enabled: !!user,
   });
@@ -62,19 +69,15 @@ export function useActiveCall() {
       if (!currentProfile) return null;
       
       // Check for calls where user is a participant with status 'invited'
-      const { data: participations, error } = await supabase
-        .from("call_participants")
-        .select(`
-          *,
-          call:calls(
-            *,
-            caller:profiles!calls_caller_id_fkey(id, first_name, last_name, avatar_url)
-          )
-        `)
-        .eq("user_id", currentProfile.id)
-        .eq("status", "invited");
+      const { data: participations, error } = await proxySelect<any>('call_participants', {
+        select: '*, call:calls(*, caller:profiles!calls_caller_id_fkey(id, first_name, last_name, avatar_url))',
+        filters: [
+          { column: 'user_id', operator: 'eq', value: currentProfile.id },
+          { column: 'status', operator: 'eq', value: 'invited' },
+        ],
+      });
       
-      if (error) throw error;
+      if (error) throw new Error(error.message);
       
       // Filter for ringing calls
       const ringingCall = participations?.find(
@@ -99,26 +102,26 @@ export function useActiveCall() {
     queryFn: async () => {
       if (!currentProfile) return null;
       
-      // Check for calls where user is caller or participant with status 'joined'
-      const { data: callerCalls, error: callerError } = await supabase
-        .from("calls")
-        .select("*")
-        .eq("caller_id", currentProfile.id)
-        .eq("status", "active");
+      // Check for calls where user is caller with status 'active'
+      const { data: callerCalls, error: callerError } = await proxySelect<Call>('calls', {
+        filters: [
+          { column: 'caller_id', operator: 'eq', value: currentProfile.id },
+          { column: 'status', operator: 'eq', value: 'active' },
+        ],
+      });
       
-      if (callerError) throw callerError;
+      if (callerError) throw new Error(callerError.message);
       if (callerCalls && callerCalls.length > 0) return callerCalls[0];
       
-      const { data: participations, error } = await supabase
-        .from("call_participants")
-        .select(`
-          *,
-          call:calls(*)
-        `)
-        .eq("user_id", currentProfile.id)
-        .eq("status", "joined");
+      const { data: participations, error } = await proxySelect<any>('call_participants', {
+        select: '*, call:calls(*)',
+        filters: [
+          { column: 'user_id', operator: 'eq', value: currentProfile.id },
+          { column: 'status', operator: 'eq', value: 'joined' },
+        ],
+      });
       
-      if (error) throw error;
+      if (error) throw new Error(error.message);
       
       const activeParticipation = participations?.find(
         (p: any) => p.call?.status === "active"
@@ -179,32 +182,27 @@ export function useCreateCall() {
     }) => {
       const channelName = `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      const { data: call, error: callError } = await supabase
-        .from("calls")
-        .insert({
-          conversation_id: conversationId || null,
-          caller_id: callerId,
-          channel_name: channelName,
-          call_type: callType,
-          status: "ringing",
-        })
-        .select()
-        .single();
+      const { data: calls, error: callError } = await proxyInsert<Call>('calls', {
+        conversation_id: conversationId || null,
+        caller_id: callerId,
+        channel_name: channelName,
+        call_type: callType,
+        status: "ringing",
+      }, '*');
 
-      if (callError) throw callError;
+      if (callError) throw new Error(callError.message);
+      const call = calls?.[0];
+      if (!call) throw new Error("Failed to create call");
 
       // Add participants
       const participantsToInsert = participantIds.map((userId) => ({
         call_id: call.id,
         user_id: userId,
-        status: "invited" as const,
+        status: "invited",
       }));
 
-      const { error: participantsError } = await supabase
-        .from("call_participants")
-        .insert(participantsToInsert);
-
-      if (participantsError) throw participantsError;
+      const { error: participantsError } = await proxyInsert('call_participants', participantsToInsert);
+      if (participantsError) throw new Error(participantsError.message);
 
       return call;
     },
@@ -221,20 +219,20 @@ export function useAnswerCall() {
   return useMutation({
     mutationFn: async ({ callId, participantId }: { callId: string; participantId: string }) => {
       // Update call status to active
-      const { error: callError } = await supabase
-        .from("calls")
-        .update({ status: "active" })
-        .eq("id", callId);
+      const { error: callError } = await proxyUpdate('calls', 
+        { status: "active" },
+        [{ column: 'id', operator: 'eq', value: callId }]
+      );
 
-      if (callError) throw callError;
+      if (callError) throw new Error(callError.message);
 
       // Update participant status
-      const { error: participantError } = await supabase
-        .from("call_participants")
-        .update({ status: "joined", joined_at: new Date().toISOString() })
-        .eq("id", participantId);
+      const { error: participantError } = await proxyUpdate('call_participants',
+        { status: "joined", joined_at: new Date().toISOString() },
+        [{ column: 'id', operator: 'eq', value: participantId }]
+      );
 
-      if (participantError) throw participantError;
+      if (participantError) throw new Error(participantError.message);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["incoming-call"] });
@@ -249,29 +247,31 @@ export function useDeclineCall() {
   return useMutation({
     mutationFn: async ({ callId, participantId }: { callId: string; participantId?: string }) => {
       if (participantId) {
-        const { error: participantError } = await supabase
-          .from("call_participants")
-          .update({ status: "declined" })
-          .eq("id", participantId);
+        const { error: participantError } = await proxyUpdate('call_participants',
+          { status: "declined" },
+          [{ column: 'id', operator: 'eq', value: participantId }]
+        );
 
-        if (participantError) throw participantError;
+        if (participantError) throw new Error(participantError.message);
       }
 
       // Check if all participants declined
-      const { data: participants } = await supabase
-        .from("call_participants")
-        .select("status")
-        .eq("call_id", callId);
+      const { data: participants, error: fetchError } = await proxySelect<{ status: string }>('call_participants', {
+        select: 'status',
+        filters: [{ column: 'call_id', operator: 'eq', value: callId }],
+      });
+
+      if (fetchError) throw new Error(fetchError.message);
 
       const allDeclined = participants?.every((p) => p.status === "declined");
 
       if (allDeclined) {
-        const { error: callError } = await supabase
-          .from("calls")
-          .update({ status: "ended", ended_at: new Date().toISOString() })
-          .eq("id", callId);
+        const { error: callError } = await proxyUpdate('calls',
+          { status: "ended", ended_at: new Date().toISOString() },
+          [{ column: 'id', operator: 'eq', value: callId }]
+        );
 
-        if (callError) throw callError;
+        if (callError) throw new Error(callError.message);
       }
     },
     onSuccess: () => {
@@ -286,12 +286,12 @@ export function useEndCall() {
 
   return useMutation({
     mutationFn: async (callId: string) => {
-      const { error } = await supabase
-        .from("calls")
-        .update({ status: "ended", ended_at: new Date().toISOString() })
-        .eq("id", callId);
+      const { error } = await proxyUpdate('calls',
+        { status: "ended", ended_at: new Date().toISOString() },
+        [{ column: 'id', operator: 'eq', value: callId }]
+      );
 
-      if (error) throw error;
+      if (error) throw new Error(error.message);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["incoming-call"] });

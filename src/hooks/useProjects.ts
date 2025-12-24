@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { supabaseQuery } from "@/lib/api";
+import { proxySelect } from "@/lib/dbProxy";
 
 export interface Project {
   id: string;
@@ -13,10 +12,11 @@ export function useProjects() {
   return useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
-      return supabaseQuery(
-        () => supabase.from("projects").select("*").order("name"),
-        'Загрузка проектов'
-      ) as Promise<Project[]>;
+      const { data, error } = await proxySelect<Project>('projects', {
+        order: [{ column: 'name', ascending: true }],
+      });
+      if (error) throw new Error(error.message);
+      return data || [];
     },
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
