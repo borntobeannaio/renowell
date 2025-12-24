@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
 import { Loader2, Mail, Lock, User } from 'lucide-react';
+import renowellLogo from '@/assets/renowell-logo.png';
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Введите корректный email" }),
@@ -147,7 +148,11 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-secondary/30 p-4">
       <div className="w-full max-w-md animate-fade-in">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Renowell</h1>
+          <img 
+            src={renowellLogo} 
+            alt="Renowell" 
+            className="h-16 w-auto mx-auto mb-4"
+          />
           <p className="text-muted-foreground">Внутренний портал для сотрудников</p>
         </div>
         
