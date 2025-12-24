@@ -146,11 +146,18 @@ serve(async (req) => {
   try {
     const { channelName, uid } = await req.json();
     
-    const appId = Deno.env.get('AGORA_APP_ID');
-    const appCertificate = Deno.env.get('AGORA_APP_CERTIFICATE');
+    const appIdRaw = Deno.env.get('AGORA_APP_ID');
+    const appCertificateRaw = Deno.env.get('AGORA_APP_CERTIFICATE');
+
+    const appId = appIdRaw?.trim().replace(/^"|"$/g, '').replace(/^'|'$/g, '') ?? '';
+    const appCertificate = appCertificateRaw?.trim().replace(/^"|"$/g, '').replace(/^'|'$/g, '') ?? '';
     
+    // Agora App ID is typically a 32-char string; validate to avoid confusing SDK errors
     if (!appId) {
       throw new Error('AGORA_APP_ID not configured');
+    }
+    if (appId.length !== 32) {
+      throw new Error(`AGORA_APP_ID looks invalid (length ${appId.length}). Please paste the App ID exactly as shown in Agora Console (32 characters).`);
     }
 
     if (!channelName) {
