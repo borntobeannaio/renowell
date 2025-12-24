@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
-import { MessageCircle, X, Send, Users, Bot, ChevronLeft, Loader2, Maximize2, Minimize2, Plus, Trash2 } from "lucide-react";
+import { MessageCircle, X, Send, Users, Bot, ChevronLeft, Loader2, Maximize2, Minimize2, Plus, Trash2, Phone, Video } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useConversations, useConversationMessages, useCreateConversation, useSendMessage, useAIMessages, useSaveAIMessage, useClearAIHistory } from "@/hooks/useChat";
+import { useCreateCall } from "@/hooks/useCalls";
 import { Modal } from "@/components/ui/Modal";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -36,6 +37,7 @@ export function FloatingChat() {
   const sendMessage = useSendMessage();
   const saveAIMessage = useSaveAIMessage();
   const clearAIHistory = useClearAIHistory();
+  const createCall = useCreateCall();
 
   // Fetch profiles for participant selection
   const { data: profiles = [] } = useQuery({
@@ -203,6 +205,38 @@ export function FloatingChat() {
 
   const selectedConversation = conversations.find(c => c.id === selectedConversationId);
 
+  // Get participants of selected conversation for calling
+  const { data: conversationParticipants = [] } = useQuery({
+    queryKey: ["conversation-participants", selectedConversationId],
+    queryFn: async () => {
+      if (!selectedConversationId) return [];
+      const { data, error } = await supabase
+        .from("chat_participants")
+        .select("user_id")
+        .eq("conversation_id", selectedConversationId);
+      if (error) throw error;
+      return data.map(p => p.user_id);
+    },
+    enabled: !!selectedConversationId,
+  });
+
+  const handleStartCall = async (callType: "video" | "audio") => {
+    if (!currentProfile || !selectedConversationId) return;
+    
+    // Get other participants (not the current user)
+    const otherParticipants = conversationParticipants.filter(
+      id => id !== currentProfile.id
+    );
+    
+    if (otherParticipants.length === 0) return;
+
+    await createCall.mutateAsync({
+      conversationId: selectedConversationId,
+      callerId: currentProfile.id,
+      participantIds: otherParticipants,
+      callType,
+    });
+  };
   const renderChatList = () => (
     <div className="flex-1 overflow-y-auto p-3 space-y-2">
       {/* New chat button */}
@@ -372,6 +406,27 @@ export function FloatingChat() {
                 </span>
               )}
               <div className="flex items-center gap-1">
+                {/* Call buttons - only show when in a conversation */}
+                {selectedConversationId && activeTab === "general" && (
+                  <>
+                    <button
+                      onClick={() => handleStartCall("audio")}
+                      disabled={createCall.isPending}
+                      className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-green-500"
+                      title="Голосовой звонок"
+                    >
+                      <Phone className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleStartCall("video")}
+                      disabled={createCall.isPending}
+                      className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-green-500"
+                      title="Видеозвонок"
+                    >
+                      <Video className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
                 {activeTab === "ai" && aiMessages.length > 0 && (
                   <button
                     onClick={() => clearAIHistory.mutate()}
