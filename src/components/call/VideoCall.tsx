@@ -4,11 +4,11 @@ import AgoraRTC, {
   IAgoraRTCRemoteUser,
   ICameraVideoTrack,
   IMicrophoneAudioTrack,
+  ILocalVideoTrack,
 } from "agora-rtc-sdk-ng";
 import { supabase } from "@/integrations/supabase/client";
 import { useEndCall } from "@/hooks/useCalls";
 import {
-  Phone,
   PhoneOff,
   Mic,
   MicOff,
@@ -17,6 +17,8 @@ import {
   Maximize2,
   Minimize2,
   Users,
+  Monitor,
+  MonitorOff,
 } from "lucide-react";
 
 interface VideoCallProps {
@@ -30,14 +32,17 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
   const [client, setClient] = useState<IAgoraRTCClient | null>(null);
   const [localAudioTrack, setLocalAudioTrack] = useState<IMicrophoneAudioTrack | null>(null);
   const [localVideoTrack, setLocalVideoTrack] = useState<ICameraVideoTrack | null>(null);
+  const [screenTrack, setScreenTrack] = useState<ILocalVideoTrack | null>(null);
   const [remoteUsers, setRemoteUsers] = useState<IAgoraRTCRemoteUser[]>([]);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isVideoMuted, setIsVideoMuted] = useState(callType === "audio");
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isConnecting, setIsConnecting] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const localVideoRef = useRef<HTMLDivElement>(null);
+  const screenShareRef = useRef<HTMLDivElement>(null);
   const endCall = useEndCall();
 
   const handleUserJoined = useCallback((user: IAgoraRTCRemoteUser) => {
@@ -130,16 +135,24 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
     return () => {
       localAudioTrack?.close();
       localVideoTrack?.close();
+      screenTrack?.close();
       client?.leave();
     };
   }, [channelName, callType]);
 
   // Play local video
   useEffect(() => {
-    if (localVideoTrack && localVideoRef.current && !isVideoMuted) {
+    if (localVideoTrack && localVideoRef.current && !isVideoMuted && !isScreenSharing) {
       localVideoTrack.play(localVideoRef.current);
     }
-  }, [localVideoTrack, isVideoMuted]);
+  }, [localVideoTrack, isVideoMuted, isScreenSharing]);
+
+  // Play screen share
+  useEffect(() => {
+    if (screenTrack && screenShareRef.current && isScreenSharing) {
+      screenTrack.play(screenShareRef.current);
+    }
+  }, [screenTrack, isScreenSharing]);
 
   const toggleAudio = async () => {
     if (localAudioTrack) {
@@ -161,9 +174,76 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
     }
   };
 
+  const toggleScreenShare = async () => {
+    if (!client) return;
+
+    try {
+      if (isScreenSharing && screenTrack) {
+        // Stop screen sharing
+        await client.unpublish([screenTrack]);
+        screenTrack.close();
+        setScreenTrack(null);
+        setIsScreenSharing(false);
+
+        // Re-publish camera if it was enabled
+        if (localVideoTrack && !isVideoMuted) {
+          await client.publish([localVideoTrack]);
+        }
+      } else {
+        // Start screen sharing
+        const screenVideoTrack = await AgoraRTC.createScreenVideoTrack(
+          {
+            encoderConfig: "1080p_1",
+            optimizationMode: "detail",
+          },
+          "disable" // Don't capture audio from screen
+        );
+
+        // Handle if user cancels screen share picker
+        if (!screenVideoTrack) {
+          return;
+        }
+
+        // screenVideoTrack could be an array [videoTrack, audioTrack] or just videoTrack
+        const videoTrack = Array.isArray(screenVideoTrack) ? screenVideoTrack[0] : screenVideoTrack;
+
+        // Unpublish camera video first
+        if (localVideoTrack) {
+          await client.unpublish([localVideoTrack]);
+        }
+
+        // Listen for when user stops sharing via browser UI
+        videoTrack.on("track-ended", async () => {
+          console.log("Screen sharing stopped by user");
+          await client.unpublish([videoTrack]);
+          videoTrack.close();
+          setScreenTrack(null);
+          setIsScreenSharing(false);
+
+          // Re-publish camera
+          if (localVideoTrack && !isVideoMuted) {
+            await client.publish([localVideoTrack]);
+          }
+        });
+
+        await client.publish([videoTrack]);
+        setScreenTrack(videoTrack);
+        setIsScreenSharing(true);
+      }
+    } catch (err) {
+      console.error("Screen share error:", err);
+      // User cancelled or browser doesn't support
+      if (err instanceof Error && err.message.includes("Permission denied")) {
+        setError("Доступ к экрану отклонён");
+        setTimeout(() => setError(null), 3000);
+      }
+    }
+  };
+
   const handleEndCall = async () => {
     localAudioTrack?.close();
     localVideoTrack?.close();
+    screenTrack?.close();
     await client?.leave();
     await endCall.mutateAsync(callId);
     onEnd();
@@ -182,6 +262,11 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
           <span className="font-medium">
             {isConnecting ? "Подключение..." : `${remoteUsers.length + 1} участников`}
           </span>
+          {isScreenSharing && (
+            <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
+              Демонстрация экрана
+            </span>
+          )}
         </div>
         <button
           onClick={() => setIsFullscreen(!isFullscreen)}
@@ -196,9 +281,11 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
         gridTemplateColumns: remoteUsers.length === 0 ? "1fr" : remoteUsers.length === 1 ? "1fr 1fr" : "repeat(2, 1fr)",
         gridTemplateRows: remoteUsers.length <= 2 ? "1fr" : "repeat(2, 1fr)",
       }}>
-        {/* Local video */}
+        {/* Local video / Screen share */}
         <div className="relative bg-gray-800 rounded-lg overflow-hidden">
-          {callType === "video" && !isVideoMuted ? (
+          {isScreenSharing ? (
+            <div ref={screenShareRef} className="absolute inset-0" />
+          ) : callType === "video" && !isVideoMuted ? (
             <div ref={localVideoRef} className="absolute inset-0" />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
@@ -207,7 +294,8 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
               </div>
             </div>
           )}
-          <div className="absolute bottom-2 left-2 text-white text-xs bg-black/50 px-2 py-1 rounded">
+          <div className="absolute bottom-2 left-2 text-white text-xs bg-black/50 px-2 py-1 rounded flex items-center gap-1">
+            {isScreenSharing && <Monitor className="w-3 h-3" />}
             Вы {isAudioMuted && "(микрофон выкл)"}
           </div>
         </div>
@@ -226,40 +314,59 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
       )}
 
       {/* Controls */}
-      <div className="flex items-center justify-center gap-4 p-4 bg-gray-800/50">
+      <div className="flex items-center justify-center gap-3 p-4 bg-gray-800/50">
         <button
           onClick={toggleAudio}
-          className={`p-4 rounded-full transition-colors ${
+          className={`p-3 rounded-full transition-colors ${
             isAudioMuted ? "bg-red-500 hover:bg-red-600" : "bg-gray-600 hover:bg-gray-500"
           }`}
+          title={isAudioMuted ? "Включить микрофон" : "Выключить микрофон"}
         >
           {isAudioMuted ? (
-            <MicOff className="w-6 h-6 text-white" />
+            <MicOff className="w-5 h-5 text-white" />
           ) : (
-            <Mic className="w-6 h-6 text-white" />
+            <Mic className="w-5 h-5 text-white" />
           )}
         </button>
 
         {callType === "video" && (
           <button
             onClick={toggleVideo}
-            className={`p-4 rounded-full transition-colors ${
-              isVideoMuted ? "bg-red-500 hover:bg-red-600" : "bg-gray-600 hover:bg-gray-500"
-            }`}
+            disabled={isScreenSharing}
+            className={`p-3 rounded-full transition-colors ${
+              isVideoMuted || isScreenSharing ? "bg-red-500 hover:bg-red-600" : "bg-gray-600 hover:bg-gray-500"
+            } ${isScreenSharing ? "opacity-50 cursor-not-allowed" : ""}`}
+            title={isVideoMuted ? "Включить камеру" : "Выключить камеру"}
           >
             {isVideoMuted ? (
-              <VideoOff className="w-6 h-6 text-white" />
+              <VideoOff className="w-5 h-5 text-white" />
             ) : (
-              <Video className="w-6 h-6 text-white" />
+              <Video className="w-5 h-5 text-white" />
             )}
           </button>
         )}
 
+        {/* Screen share button */}
+        <button
+          onClick={toggleScreenShare}
+          className={`p-3 rounded-full transition-colors ${
+            isScreenSharing ? "bg-green-500 hover:bg-green-600" : "bg-gray-600 hover:bg-gray-500"
+          }`}
+          title={isScreenSharing ? "Остановить демонстрацию" : "Демонстрация экрана"}
+        >
+          {isScreenSharing ? (
+            <MonitorOff className="w-5 h-5 text-white" />
+          ) : (
+            <Monitor className="w-5 h-5 text-white" />
+          )}
+        </button>
+
         <button
           onClick={handleEndCall}
-          className="p-4 rounded-full bg-red-500 hover:bg-red-600 transition-colors"
+          className="p-3 rounded-full bg-red-500 hover:bg-red-600 transition-colors"
+          title="Завершить звонок"
         >
-          <PhoneOff className="w-6 h-6 text-white" />
+          <PhoneOff className="w-5 h-5 text-white" />
         </button>
       </div>
     </div>
