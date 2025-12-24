@@ -255,6 +255,7 @@ export type Database = {
           id: string
           phone: string | null
           position: string
+          profile_id: string | null
           updated_at: string
         }
         Insert: {
@@ -267,6 +268,7 @@ export type Database = {
           id?: string
           phone?: string | null
           position: string
+          profile_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -279,9 +281,18 @@ export type Database = {
           id?: string
           phone?: string | null
           position?: string
+          profile_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "employees_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {

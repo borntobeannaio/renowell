@@ -10,6 +10,7 @@ export interface DbEmployee {
   department: string | null;
   avatar_url: string | null;
   birthday: string | null;
+  profile_id: string | null;
 }
 
 export function useEmployees() {

@@ -287,7 +287,7 @@ interface ProtocolCardProps {
     attendees: string[];
   };
   projects: { id: string; name: string }[];
-  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null }[];
+  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null }[];
   isExpanded: boolean;
   isEditing: boolean;
   onToggleExpand: () => void;
