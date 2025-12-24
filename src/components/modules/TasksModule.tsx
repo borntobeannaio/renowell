@@ -30,10 +30,8 @@ const priorities: { id: TaskPriority; label: string }[] = [
 export function TasksModule() {
   const { user } = useAuth();
   const { data: employees = [] } = useEmployees();
-  const { data: tasks = [], isLoading: tasksLoading } = useTasks();
-  const { data: projects = [], isLoading: projectsLoading } = useProjects();
-  const createTask = useCreateTask();
-  const updateTask = useUpdateTask();
+
+  const [showMyTasks, setShowMyTasks] = useState(false);
 
   // Load current user's profile (for "Мои задачи")
   const { data: profile } = useQuery({
@@ -50,6 +48,14 @@ export function TasksModule() {
     },
     enabled: !!user?.id,
   });
+
+  // When "Мои задачи" is enabled, fetch only tasks assigned to the current profile
+  const assigneeFilterId = showMyTasks ? profile?.id ?? null : null;
+  const { data: tasks = [], isLoading: tasksLoading } = useTasks({ assigneeId: assigneeFilterId });
+
+  const { data: projects = [], isLoading: projectsLoading } = useProjects();
+  const createTask = useCreateTask();
+  const updateTask = useUpdateTask();
   // Build maps using direct profile_id from employees table
   const employeeProfileMaps = useMemo(() => {
     const employeeToProfile = new Map<string, string>();
@@ -84,7 +90,6 @@ export function TasksModule() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<DbTask | null>(null);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set(["no-project"]));
-  const [showMyTasks, setShowMyTasks] = useState(false);
   const [form, setForm] = useState({
     title: "",
     assignee_id: "",
@@ -200,12 +205,7 @@ export function TasksModule() {
     });
   };
 
-  // Filter tasks based on showMyTasks toggle (tasks.assignee_id is profile_id)
-  const filteredTasks = useMemo(() => {
-    if (!showMyTasks) return tasks;
-    if (!profile?.id) return tasks;
-    return tasks.filter((t) => t.assignee_id === profile.id);
-  }, [tasks, showMyTasks, profile?.id]);
+  const filteredTasks = tasks;
 
   // Group tasks by project
   const tasksByProject = useMemo(() => {
