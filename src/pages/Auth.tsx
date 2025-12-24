@@ -92,9 +92,8 @@ export default function Auth() {
           <img 
             src={renowellLogo} 
             alt="Renowell" 
-            className="h-16 w-auto mx-auto mb-4"
+            className="h-24 w-auto mx-auto"
           />
-          <p className="text-muted-foreground">Внутренний портал для сотрудников</p>
         </div>
         
         <Card className="border-border/50 shadow-lg">
