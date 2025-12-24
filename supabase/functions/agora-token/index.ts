@@ -152,12 +152,15 @@ serve(async (req) => {
     const appId = appIdRaw?.trim().replace(/^"|"$/g, '').replace(/^'|'$/g, '') ?? '';
     const appCertificate = appCertificateRaw?.trim().replace(/^"|"$/g, '').replace(/^'|'$/g, '') ?? '';
     
-    // Agora App ID is typically a 32-char string; validate to avoid confusing SDK errors
+    // Agora App ID is typically a 32-char hex string; validate to avoid confusing SDK errors
     if (!appId) {
       throw new Error('AGORA_APP_ID not configured');
     }
     if (appId.length !== 32) {
       throw new Error(`AGORA_APP_ID looks invalid (length ${appId.length}). Please paste the App ID exactly as shown in Agora Console (32 characters).`);
+    }
+    if (!/^[0-9a-f]{32}$/i.test(appId)) {
+      throw new Error('AGORA_APP_ID looks invalid (expected 32 hex characters). Please paste the App ID exactly as shown in Agora Console.');
     }
 
     if (!channelName) {
