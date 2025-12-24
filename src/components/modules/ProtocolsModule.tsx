@@ -534,12 +534,14 @@ function ProtocolCard({
                               <Pencil className="w-4 h-4" />
                             </button>
                           )}
-                          <button
-                            onClick={() => onDeleteItem(item.id)}
-                            className="p-1 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {isEditing && (
+                            <button
+                              onClick={() => onDeleteItem(item.id)}
+                              className="p-1 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
