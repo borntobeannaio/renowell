@@ -68,6 +68,106 @@ export type Database = {
         }
         Relationships: []
       }
+      protocol_items: {
+        Row: {
+          create_task: boolean | null
+          created_at: string
+          due_date: string | null
+          id: string
+          item_text: string
+          project_id: string | null
+          protocol_id: string
+          responsible: string | null
+          sort_order: number | null
+          task_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          create_task?: boolean | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          item_text: string
+          project_id?: string | null
+          protocol_id: string
+          responsible?: string | null
+          sort_order?: number | null
+          task_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          create_task?: boolean | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          item_text?: string
+          project_id?: string | null
+          protocol_id?: string
+          responsible?: string | null
+          sort_order?: number | null
+          task_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "protocol_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "protocol_items_protocol_id_fkey"
+            columns: ["protocol_id"]
+            isOneToOne: false
+            referencedRelation: "protocols"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "protocol_items_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      protocols: {
+        Row: {
+          attendees: string[] | null
+          created_at: string
+          date: string
+          id: string
+          meeting_type: string | null
+          number: number
+          organizer: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          attendees?: string[] | null
+          created_at?: string
+          date: string
+          id?: string
+          meeting_type?: string | null
+          number: number
+          organizer?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          attendees?: string[] | null
+          created_at?: string
+          date?: string
+          id?: string
+          meeting_type?: string | null
+          number?: number
+          organizer?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           assignee_id: string | null
