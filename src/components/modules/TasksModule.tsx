@@ -1,9 +1,13 @@
 import { useState, DragEvent, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight } from "lucide-react";
 import { useTasks, useCreateTask, useUpdateTask, DbTask } from "@/hooks/useTasks";
 import { useProjects, Project } from "@/hooks/useProjects";
-import { useApp } from "@/context/AppContext";
+import { useEmployees, DbEmployee } from "@/hooks/useEmployees";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
 type TaskStatus = "inbox" | "doing" | "done";
 
@@ -14,18 +18,47 @@ const columns: { id: TaskStatus; label: string }[] = [
 ];
 
 export function TasksModule() {
-  const { employees, getEmployeeById } = useApp();
+  const { user } = useAuth();
+  const { data: employees = [] } = useEmployees();
   const { data: tasks = [], isLoading: tasksLoading } = useTasks();
   const { data: projects = [], isLoading: projectsLoading } = useProjects();
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
 
+  // Get current user's profile to match with employee
+  const { data: profile } = useQuery({
+    queryKey: ['profile', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Find employee matching the logged-in user profile
+  const currentEmployeeId = useMemo(() => {
+    if (!profile) return null;
+    const fullName = `${profile.last_name || ''} ${profile.first_name || ''}`.trim();
+    const employee = employees.find(e => 
+      e.full_name.toLowerCase().includes((profile.first_name || '').toLowerCase()) &&
+      e.full_name.toLowerCase().includes((profile.last_name || '').toLowerCase())
+    );
+    return employee?.id || null;
+  }, [profile, employees]);
+
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set(["no-project"]));
+  const [showMyTasks, setShowMyTasks] = useState(false);
   const [form, setForm] = useState({
     title: "",
-    assignee: "",
+    assignee_id: "",
     project: "",
     due: new Date().toISOString().slice(0, 10),
     labels: "",
@@ -55,7 +88,7 @@ export function TasksModule() {
 
     createTask.mutate({
       title: form.title,
-      assignee_id: form.assignee || null,
+      assignee_id: form.assignee_id || null,
       project_id: form.project || null,
       due_date: form.due || null,
       status: "inbox",
@@ -64,7 +97,7 @@ export function TasksModule() {
 
     setForm({
       title: "",
-      assignee: "",
+      assignee_id: "",
       project: "",
       due: new Date().toISOString().slice(0, 10),
       labels: "",
@@ -84,6 +117,12 @@ export function TasksModule() {
     });
   };
 
+  // Filter tasks based on showMyTasks toggle
+  const filteredTasks = useMemo(() => {
+    if (!showMyTasks || !currentEmployeeId) return tasks;
+    return tasks.filter(t => t.assignee_id === currentEmployeeId);
+  }, [tasks, showMyTasks, currentEmployeeId]);
+
   // Group tasks by project
   const tasksByProject = useMemo(() => {
     const grouped: Record<string, DbTask[]> = { "no-project": [] };
@@ -91,17 +130,19 @@ export function TasksModule() {
       grouped[p.id] = [];
     });
 
-    tasks.forEach((task) => {
+    filteredTasks.forEach((task) => {
       const key = task.project_id || "no-project";
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(task);
     });
 
     return grouped;
-  }, [tasks, projects]);
+  }, [filteredTasks, projects]);
 
   const getTasksByStatusAndProject = (status: TaskStatus, projectId: string) =>
     (tasksByProject[projectId] || []).filter((t) => t.status === status);
+
+  const getEmployeeById = (id: string) => employees.find(e => e.id === id);
 
   const projectsWithTasks = useMemo(() => {
     const result: (Project | { id: "no-project"; name: string })[] = [];
@@ -138,8 +179,21 @@ export function TasksModule() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <p className="text-muted-foreground">Всего задач: {tasks.length}</p>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-4">
+          <p className="text-muted-foreground">Всего задач: {filteredTasks.length}</p>
+          {currentEmployeeId && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showMyTasks}
+                onChange={(e) => setShowMyTasks(e.target.checked)}
+                className="w-4 h-4 rounded border-input text-primary focus:ring-ring"
+              />
+              <span className="text-sm text-foreground">Мои задачи</span>
+            </label>
+          )}
+        </div>
         <button
           onClick={() => setIsModalOpen(true)}
           className="btn-primary flex items-center gap-2"
@@ -254,18 +308,13 @@ export function TasksModule() {
             <label className="block text-sm font-medium text-foreground mb-1.5">
               Исполнитель
             </label>
-            <select
-              value={form.assignee}
-              onChange={(e) => setForm({ ...form, assignee: e.target.value })}
-              className="input-base w-full"
-            >
-              <option value="">Выберите исполнителя</option>
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.name}
-                </option>
-              ))}
-            </select>
+            <EmployeeMultiSelect
+              employees={employees}
+              selectedIds={form.assignee_id ? [form.assignee_id] : []}
+              onChange={(ids) => setForm({ ...form, assignee_id: ids[0] || "" })}
+              placeholder="Выберите исполнителя"
+              single
+            />
           </div>
 
           <div>
@@ -313,8 +362,8 @@ export function TasksModule() {
 
 interface TaskCardProps {
   task: DbTask;
-  employees: { id: string; name: string }[];
-  getEmployeeById: (id: string) => { name: string } | undefined;
+  employees: DbEmployee[];
+  getEmployeeById: (id: string) => DbEmployee | undefined;
   onDragStart: (e: DragEvent, id: string) => void;
   onStatusChange: (id: string, status: TaskStatus) => void;
   onAssigneeChange: (id: string, assignee: string) => void;
@@ -368,12 +417,12 @@ function TaskCard({
             <select
               value={task.assignee_id || ""}
               onChange={(e) => onAssigneeChange(task.id, e.target.value)}
-              className="text-xs bg-transparent border-none p-0 focus:ring-0 text-foreground cursor-pointer flex-1"
+              className="text-xs bg-popover border-none p-0 focus:ring-0 text-foreground cursor-pointer flex-1"
             >
               <option value="">Не назначен</option>
               {employees.map((emp) => (
                 <option key={emp.id} value={emp.id}>
-                  {emp.name}
+                  {emp.full_name}
                 </option>
               ))}
             </select>
@@ -381,7 +430,7 @@ function TaskCard({
             <select
               value={task.status}
               onChange={(e) => onStatusChange(task.id, e.target.value as TaskStatus)}
-              className="text-xs bg-transparent border-none p-0 focus:ring-0 text-muted-foreground cursor-pointer"
+              className="text-xs bg-popover border-none p-0 focus:ring-0 text-muted-foreground cursor-pointer"
             >
               <option value="inbox">Входящие</option>
               <option value="doing">В работе</option>

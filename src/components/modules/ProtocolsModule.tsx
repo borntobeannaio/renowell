@@ -1,15 +1,17 @@
 import { useState, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { Plus, ChevronDown, ChevronUp, Trash2, FolderOpen, CheckCircle2 } from "lucide-react";
 import { useProtocols, useProtocolItems, useCreateProtocol, useCreateProtocolItem, useDeleteProtocolItem, useNextProtocolNumber } from "@/hooks/useProtocols";
 import { useProjects } from "@/hooks/useProjects";
+import { useEmployees } from "@/hooks/useEmployees";
 import { useCreateTask } from "@/hooks/useTasks";
 import { toast } from "sonner";
 
 interface ProtocolItemForm {
   project_id: string;
   item_text: string;
-  responsible: string;
+  responsible_ids: string[];
   due_date: string;
   create_task: boolean;
 }
@@ -17,6 +19,7 @@ interface ProtocolItemForm {
 export function ProtocolsModule() {
   const { data: protocols = [], isLoading } = useProtocols();
   const { data: projects = [] } = useProjects();
+  const { data: employees = [] } = useEmployees();
   const { data: nextNumber = 1 } = useNextProtocolNumber();
   const createProtocol = useCreateProtocol();
   const createProtocolItem = useCreateProtocolItem();
@@ -39,7 +42,7 @@ export function ProtocolsModule() {
   const [itemForm, setItemForm] = useState<ProtocolItemForm>({
     project_id: "",
     item_text: "",
-    responsible: "",
+    responsible_ids: [],
     due_date: "",
     create_task: false,
   });
@@ -57,7 +60,7 @@ export function ProtocolsModule() {
     setItemForm({
       project_id: "",
       item_text: "",
-      responsible: "",
+      responsible_ids: [],
       due_date: "",
       create_task: false,
     });
@@ -90,12 +93,18 @@ export function ProtocolsModule() {
   const handleAddItem = async (protocolId: string) => {
     if (!itemForm.item_text.trim()) return;
 
+    // Convert selected employee IDs to names for storage
+    const responsibleNames = itemForm.responsible_ids
+      .map(id => employees.find(e => e.id === id)?.full_name)
+      .filter(Boolean)
+      .join(", ");
+
     try {
       const item = await createProtocolItem.mutateAsync({
         protocol_id: protocolId,
         project_id: itemForm.project_id || null,
         item_text: itemForm.item_text,
-        responsible: itemForm.responsible || null,
+        responsible: responsibleNames || null,
         due_date: itemForm.due_date || null,
         create_task: itemForm.create_task,
       });
@@ -159,6 +168,7 @@ export function ProtocolsModule() {
               key={protocol.id}
               protocol={protocol}
               projects={projects}
+              employees={employees}
               isExpanded={expandedId === protocol.id}
               isEditing={editingProtocolId === protocol.id}
               onToggleExpand={() => setExpandedId(expandedId === protocol.id ? null : protocol.id)}
@@ -276,6 +286,7 @@ interface ProtocolCardProps {
     attendees: string[];
   };
   projects: { id: string; name: string }[];
+  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null }[];
   isExpanded: boolean;
   isEditing: boolean;
   onToggleExpand: () => void;
@@ -291,6 +302,7 @@ interface ProtocolCardProps {
 function ProtocolCard({
   protocol,
   projects,
+  employees,
   isExpanded,
   isEditing,
   onToggleExpand,
@@ -480,14 +492,13 @@ function ProtocolCard({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm text-muted-foreground mb-1">
-                        Ответственный
+                        Ответственные
                       </label>
-                      <input
-                        type="text"
-                        value={itemForm.responsible}
-                        onChange={(e) => setItemForm({ ...itemForm, responsible: e.target.value })}
-                        className="input-base w-full"
-                        placeholder="ФИО"
+                      <EmployeeMultiSelect
+                        employees={employees}
+                        selectedIds={itemForm.responsible_ids}
+                        onChange={(ids) => setItemForm({ ...itemForm, responsible_ids: ids })}
+                        placeholder="Выберите ответственных"
                       />
                     </div>
                     <div>
