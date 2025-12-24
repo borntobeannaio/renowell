@@ -122,6 +122,28 @@ export function useCreateProtocolItem() {
   });
 }
 
+export function useUpdateProtocolItem() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, protocol_id, ...updates }: { id: string; protocol_id: string; item_text?: string }) => {
+      const { proxyUpdate } = await import("@/lib/dbProxy");
+      const { data, error } = await proxyUpdate<DbProtocolItem>(
+        'protocol_items',
+        updates,
+        [{ column: 'id', operator: 'eq', value: id }],
+        '*'
+      );
+
+      if (error) throw new Error(error.message);
+      return { ...data?.[0], protocol_id } as DbProtocolItem & { protocol_id: string };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["protocol_items", data.protocol_id] });
+    },
+  });
+}
+
 export function useDeleteProtocolItem() {
   const queryClient = useQueryClient();
 
