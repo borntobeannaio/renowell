@@ -9,6 +9,8 @@ interface EmployeeMultiSelectProps {
   onChange: (ids: string[]) => void;
   placeholder?: string;
   single?: boolean;
+  /** Use portal for rendering dropdown (needed inside modals) */
+  usePortal?: boolean;
 }
 
 export function EmployeeMultiSelect({
@@ -17,6 +19,7 @@ export function EmployeeMultiSelect({
   onChange,
   placeholder = "Выберите сотрудников",
   single = false,
+  usePortal = false,
 }: EmployeeMultiSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -24,19 +27,29 @@ export function EmployeeMultiSelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // Position dropdown relative to button
+  // Position dropdown when using portal
   useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setDropdownStyle({
-        position: "fixed",
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
-        zIndex: 99999,
-      });
+    if (isOpen && usePortal && buttonRef.current) {
+      const updatePosition = () => {
+        if (!buttonRef.current) return;
+        const rect = buttonRef.current.getBoundingClientRect();
+        setDropdownStyle({
+          position: "fixed",
+          top: rect.bottom + 4,
+          left: rect.left,
+          width: rect.width,
+          zIndex: 99999,
+        });
+      };
+      updatePosition();
+      window.addEventListener("scroll", updatePosition, true);
+      window.addEventListener("resize", updatePosition);
+      return () => {
+        window.removeEventListener("scroll", updatePosition, true);
+        window.removeEventListener("resize", updatePosition);
+      };
     }
-  }, [isOpen]);
+  }, [isOpen, usePortal]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -77,9 +90,65 @@ export function EmployeeMultiSelect({
     onChange(selectedIds.filter((s) => s !== id));
   };
 
+  const dropdownContent = (
+    <div
+      data-employee-dropdown
+      style={usePortal ? dropdownStyle : undefined}
+      className={`bg-popover border border-border rounded-lg shadow-xl max-h-60 overflow-hidden ${
+        usePortal ? "" : "absolute z-50 mt-1 w-full"
+      }`}
+    >
+      <div className="p-2 border-b border-border">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Поиск..."
+          className="input-base w-full h-8 text-sm"
+          autoFocus
+        />
+      </div>
+      <div className="overflow-y-auto max-h-48">
+        {filteredEmployees.length === 0 ? (
+          <div className="p-3 text-sm text-muted-foreground text-center">
+            Не найдено
+          </div>
+        ) : (
+          filteredEmployees.map((emp) => {
+            const isSelected = selectedIds.includes(emp.id);
+            return (
+              <button
+                key={emp.id}
+                type="button"
+                onClick={() => toggleEmployee(emp.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted/50 transition-colors ${
+                  isSelected ? "bg-primary/5" : ""
+                }`}
+              >
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  {emp.avatar_url ? (
+                    <img src={emp.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                  ) : (
+                    <User className="w-4 h-4 text-primary" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{emp.full_name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{emp.position}</p>
+                </div>
+                {isSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
+              </button>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div ref={containerRef} className="relative">
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="input-base w-full flex items-center justify-between gap-2 text-left"
@@ -110,61 +179,11 @@ export function EmployeeMultiSelect({
         <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
       </button>
 
-      {isOpen &&
-        createPortal(
-          <div
-            data-employee-dropdown
-            style={dropdownStyle}
-            className="bg-popover border border-border rounded-lg shadow-xl max-h-60 overflow-hidden"
-            // z-index is set in dropdownStyle (99999)
-          >
-          <div className="p-2 border-b border-border">
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Поиск..."
-              className="input-base w-full h-8 text-sm"
-              autoFocus
-            />
-          </div>
-          <div className="overflow-y-auto max-h-48">
-            {filteredEmployees.length === 0 ? (
-              <div className="p-3 text-sm text-muted-foreground text-center">
-                Не найдено
-              </div>
-            ) : (
-              filteredEmployees.map((emp) => {
-                const isSelected = selectedIds.includes(emp.id);
-                return (
-                  <button
-                    key={emp.id}
-                    type="button"
-                    onClick={() => toggleEmployee(emp.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted/50 transition-colors ${
-                      isSelected ? "bg-primary/5" : ""
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      {emp.avatar_url ? (
-                        <img src={emp.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
-                      ) : (
-                        <User className="w-4 h-4 text-primary" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{emp.full_name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{emp.position}</p>
-                    </div>
-                    {isSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
-                  </button>
-                );
-              })
-            )}
-          </div>
-          </div>,
-          document.body
-        )}
+      {isOpen && (
+        usePortal
+          ? createPortal(dropdownContent, document.body)
+          : dropdownContent
+      )}
     </div>
   );
 }

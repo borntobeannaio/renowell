@@ -251,6 +251,7 @@ export function ProtocolsModule() {
               onChange={(ids) => setForm({ ...form, organizer_id: ids[0] || "" })}
               placeholder="Выберите организатора"
               single
+              usePortal
             />
           </div>
 
@@ -263,6 +264,7 @@ export function ProtocolsModule() {
               selectedIds={form.attendee_ids}
               onChange={(ids) => setForm({ ...form, attendee_ids: ids })}
               placeholder="Выберите участников"
+              usePortal
             />
           </div>
 
@@ -526,6 +528,7 @@ function ProtocolCard({
                         selectedIds={itemForm.responsible_ids}
                         onChange={(ids) => setItemForm({ ...itemForm, responsible_ids: ids })}
                         placeholder="Выберите ответственных"
+                        usePortal
                       />
                     </div>
                     <div>
