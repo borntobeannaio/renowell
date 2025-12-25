@@ -120,4 +120,5 @@ export type NavigationSection =
   | "knowledge"
   | "calendar"
   | "chats"
-  | "search";
+  | "search"
+  | "brandhub";

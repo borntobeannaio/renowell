@@ -10,6 +10,7 @@ import {
   Users,
   BookOpen,
   Calendar,
+  Sparkles,
 } from "lucide-react";
 import renowellLogo from "@/assets/renowell-logo-text.png";
 
@@ -20,6 +21,7 @@ const navItems: { id: NavigationSection; path: string; label: string; icon: Reac
   { id: "calendar", path: "/calendar", label: "Календарь", icon: Calendar },
   { id: "hr", path: "/hr", label: "HR и Офис", icon: Users },
   { id: "knowledge", path: "/knowledge", label: "База знаний", icon: BookOpen },
+  { id: "brandhub", path: "/brandhub", label: "Brand Hub", icon: Sparkles },
 ];
 
 export function Sidebar() {
