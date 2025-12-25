@@ -1,5 +1,5 @@
 import { X, Copy, Check } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { brandData } from "./BrandHubData";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,20 @@ interface DetailPanelProps {
 
 export function DetailPanel({ level, isQuickMode, onClose }: DetailPanelProps) {
   const [copied, setCopied] = useState<string | null>(null);
+  const [contentKey, setContentKey] = useState(level);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  // Animate content change
+  useEffect(() => {
+    if (level !== contentKey) {
+      setIsAnimating(true);
+      const timer = setTimeout(() => {
+        setContentKey(level);
+        setIsAnimating(false);
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [level, contentKey]);
 
   const handleCopy = async (text: string, id: string) => {
     try {
@@ -27,7 +41,7 @@ export function DetailPanel({ level, isQuickMode, onClose }: DetailPanelProps) {
   const CopyBtn = ({ text, id }: { text: string; id: string }) => (
     <button
       onClick={() => handleCopy(text, id)}
-      className="shrink-0 p-1.5 rounded hover:bg-muted transition-colors"
+      className="shrink-0 p-1.5 rounded hover:bg-muted transition-all duration-200 hover:scale-110 active:scale-95"
       title="Скопировать"
     >
       {copied === id ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5 text-muted-foreground" />}
@@ -235,20 +249,32 @@ export function DetailPanel({ level, isQuickMode, onClose }: DetailPanelProps) {
   };
 
   return (
-    <div className="h-full flex flex-col bg-card border-l border-border">
+    <div className="h-full flex flex-col bg-card border-l border-border animate-in slide-in-from-right-5 duration-300">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border">
-        <h2 className="font-semibold text-lg">{titles[level]}</h2>
+        <h2 
+          key={level}
+          className="font-semibold text-lg animate-in fade-in slide-in-from-left-2 duration-200"
+        >
+          {titles[level]}
+        </h2>
         <button
           onClick={onClose}
-          className="p-2 hover:bg-muted rounded-lg transition-colors"
+          className="p-2 hover:bg-muted rounded-lg transition-all duration-200 hover:rotate-90"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div 
+        key={contentKey}
+        className={`
+          flex-1 overflow-y-auto p-4
+          transition-all duration-200
+          ${isAnimating ? "opacity-0 translate-x-4" : "opacity-100 translate-x-0"}
+        `}
+      >
         {renderContent()}
       </div>
     </div>
