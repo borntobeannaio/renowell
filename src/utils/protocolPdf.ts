@@ -23,7 +23,42 @@ interface Project {
   name: string;
 }
 
-export function generateProtocolPdf(
+// Function to load and add Cyrillic font
+async function loadCyrillicFont(doc: jsPDF): Promise<void> {
+  try {
+    // Load Roboto font from Google Fonts CDN (supports Cyrillic)
+    const fontUrl = 'https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Me5WZLCzYlKw.ttf';
+    
+    const response = await fetch(fontUrl);
+    if (!response.ok) {
+      throw new Error('Failed to load font');
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = arrayBufferToBase64(arrayBuffer);
+    
+    // Add font to jsPDF
+    doc.addFileToVFS('Roboto-Regular.ttf', base64);
+    doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
+    doc.setFont('Roboto');
+  } catch (error) {
+    console.error('Failed to load Cyrillic font:', error);
+    // Fallback to helvetica (will use transliteration)
+    doc.setFont('helvetica');
+  }
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+export async function generateProtocolPdf(
   protocol: Protocol,
   items: ProtocolItem[],
   projects: Project[]
@@ -34,45 +69,54 @@ export function generateProtocolPdf(
     format: 'a4',
   });
 
-  // Use transliteration for Cyrillic text since jsPDF default fonts don't support it
+  // Load Cyrillic font
+  await loadCyrillicFont(doc);
+  
+  // Check if Roboto was loaded successfully
+  const fontList = doc.getFontList();
+  const hasRoboto = 'Roboto' in fontList;
+  const fontName = hasRoboto ? 'Roboto' : 'helvetica';
   
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 20;
   let yPos = 20;
 
-  // Header - Company name (transliterated for PDF compatibility)
+  // Helper to format text (use original if font supports Cyrillic, otherwise transliterate)
+  const formatText = (text: string) => hasRoboto ? text : transliterate(text);
+
+  // Header - Company name
   doc.setFontSize(12);
-  doc.text('KOMPANIYA RENOVELL', pageWidth / 2, yPos, { align: 'center' });
+  doc.text(formatText('КОМПАНИЯ РЕНОВЕЛЛ'), pageWidth / 2, yPos, { align: 'center' });
   
   yPos += 15;
 
   // Protocol title
   doc.setFontSize(18);
-  doc.text(`Protokol soveshchaniya № ${protocol.number}`, pageWidth / 2, yPos, { align: 'center' });
+  doc.text(formatText(`Протокол совещания № ${protocol.number}`), pageWidth / 2, yPos, { align: 'center' });
   
   yPos += 15;
 
   // Date
   doc.setFontSize(11);
   const formattedDate = new Date(protocol.date).toLocaleDateString('ru-RU');
-  doc.text(`Data: ${formattedDate}`, margin, yPos);
+  doc.text(formatText(`Дата: ${formattedDate}`), margin, yPos);
   
   yPos += 8;
 
   // Organizer
   if (protocol.organizer) {
-    doc.text(`Organizator: ${transliterate(protocol.organizer)}`, margin, yPos);
+    doc.text(formatText(`Организатор: ${protocol.organizer}`), margin, yPos);
     yPos += 8;
   }
 
   // Meeting type
-  doc.text(`Tip soveshchaniya: ${transliterate(protocol.title)}`, margin, yPos);
+  doc.text(formatText(`Тип совещания: ${protocol.title}`), margin, yPos);
   yPos += 8;
 
   // Attendees
   if (protocol.attendees.length > 0) {
-    const attendeesText = protocol.attendees.map(a => transliterate(a)).join(', ');
-    const lines = doc.splitTextToSize(`Uchastniki: ${attendeesText}`, pageWidth - margin * 2);
+    const attendeesText = protocol.attendees.join(', ');
+    const lines = doc.splitTextToSize(formatText(`Участники: ${attendeesText}`), pageWidth - margin * 2);
     doc.text(lines, margin, yPos);
     yPos += lines.length * 6 + 5;
   }
@@ -88,10 +132,10 @@ export function generateProtocolPdf(
   });
 
   const getProjectName = (projectId: string | null) => {
-    if (!projectId) return 'Bez proekta';
+    if (!projectId) return formatText('Без проекта');
     const project = projects.find(p => p.id === projectId);
-    if (!project) return 'Neizvestnyy proekt';
-    return transliterate(project.name);
+    if (!project) return formatText('Неизвестный проект');
+    return formatText(project.name);
   };
 
   // Create table data
@@ -106,8 +150,8 @@ export function generateProtocolPdf(
     
     // Add items
     projectItems.forEach((item, idx) => {
-      const itemText = `${itemNumber}.${idx + 1}. ${transliterate(item.item_text)}`;
-      const responsible = item.responsible ? transliterate(item.responsible) : '';
+      const itemText = `${itemNumber}.${idx + 1}. ${formatText(item.item_text)}`;
+      const responsible = item.responsible ? formatText(item.responsible) : '';
       const dueDate = item.due_date || '';
       tableData.push([itemText, responsible, dueDate]);
     });
@@ -115,8 +159,12 @@ export function generateProtocolPdf(
     itemNumber++;
   });
 
-  // Table headers (transliterated)
-  const tableHeaders = ['Zadachi/deystviya', 'Otvetstvennyye', 'Sroki'];
+  // Table headers
+  const tableHeaders = [
+    formatText('Задачи/действия'), 
+    formatText('Ответственные'), 
+    formatText('Сроки')
+  ];
 
   // Add table
   autoTable(doc, {
@@ -125,7 +173,7 @@ export function generateProtocolPdf(
     body: tableData,
     margin: { left: margin, right: margin },
     styles: {
-      font: 'helvetica',
+      font: fontName,
     },
     headStyles: {
       fillColor: [5, 42, 110], // Primary color #052A6E
@@ -163,7 +211,7 @@ export function generateProtocolPdf(
     doc.setPage(i);
     doc.setFontSize(9);
     doc.text(
-      `Stranitsa ${i} iz ${pageCount}`,
+      formatText(`Страница ${i} из ${pageCount}`),
       pageWidth / 2,
       doc.internal.pageSize.getHeight() - 10,
       { align: 'center' }
@@ -171,11 +219,11 @@ export function generateProtocolPdf(
   }
 
   // Save PDF
-  const fileName = `Protokol_${protocol.number}_${protocol.date}.pdf`;
+  const fileName = `Протокол_${protocol.number}_${protocol.date}.pdf`;
   doc.save(fileName);
 }
 
-// Simple transliteration function for Cyrillic to Latin (fallback)
+// Simple transliteration function for Cyrillic to Latin (fallback if font fails to load)
 function transliterate(text: string): string {
   const map: Record<string, string> = {
     'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
