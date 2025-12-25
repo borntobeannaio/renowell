@@ -28,9 +28,9 @@ interface ProxyResponse<T> {
 
 const RETRIES = 2;
 
-// Prefer built-in backend proxy (proper UTF-8), fall back to external proxy if needed
-const INTERNAL_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/db-proxy`;
+// Yandex Cloud proxy as primary (faster in RU region), internal as fallback
 const EXTERNAL_PROXY_URL = "https://functions.yandexcloud.net/d4ed338dbl81ecrk8g0t";
+const INTERNAL_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/db-proxy`;
 
 async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -72,13 +72,13 @@ async function callProxyUrl<T>(url: string, request: ProxyRequest): Promise<Prox
 }
 
 /**
- * Try internal proxy first (stable UTF-8), fall back to external proxy.
+ * Try Yandex Cloud proxy first, fall back to internal proxy.
  */
 async function callExternalProxy<T>(request: ProxyRequest): Promise<ProxyResponse<T>> {
   try {
-    return await callProxyUrl<T>(INTERNAL_PROXY_URL, request);
-  } catch {
     return await callProxyUrl<T>(EXTERNAL_PROXY_URL, request);
+  } catch {
+    return await callProxyUrl<T>(INTERNAL_PROXY_URL, request);
   }
 }
 
