@@ -1,34 +1,9 @@
 import { ExternalLink, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useEffect, useRef } from "react";
 
 export function TelegramChannelBlock() {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    // Load Telegram Widget script
-    const script = document.createElement("script");
-    script.src = "https://telegram.org/js/telegram-widget.js?22";
-    script.setAttribute("data-telegram-post", "oparinandrey_renowell/1");
-    script.setAttribute("data-width", "100%");
-    script.setAttribute("data-userpic", "false");
-    script.async = true;
-
-    // Clear container and append script
-    if (containerRef.current) {
-      containerRef.current.innerHTML = "";
-      containerRef.current.appendChild(script);
-    }
-
-    return () => {
-      if (containerRef.current) {
-        containerRef.current.innerHTML = "";
-      }
-    };
-  }, []);
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -49,20 +24,19 @@ export function TelegramChannelBlock() {
         </Button>
       </div>
 
-      {/* Telegram Widget Container */}
-      <div 
-        className="rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm p-4 overflow-hidden"
-      >
-        <div 
-          ref={containerRef}
-          className="telegram-widget-container"
-          style={{ minHeight: "400px" }}
+      {/* Telegram Channel Preview via iframe */}
+      <div className="rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
+        <iframe
+          src="https://t.me/s/oparinandrey_renowell"
+          className="w-full border-0"
+          style={{ height: "600px" }}
+          title="Telegram Channel @oparinandrey_renowell"
         />
       </div>
 
       {/* Info text */}
       <p className="text-xs text-muted-foreground text-center">
-        Виджет отображает последние посты из Telegram-канала. Нажмите на пост, чтобы открыть его в Telegram.
+        Нажмите на пост, чтобы открыть его в Telegram
       </p>
     </div>
   );
