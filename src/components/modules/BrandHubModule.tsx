@@ -80,7 +80,12 @@ export function BrandHubModule() {
       {/* Main content area */}
       <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
         {/* Pyramid section */}
-        <div className={`${selectedLevel ? "w-1/2 hidden md:block" : "w-full"} overflow-y-auto transition-all duration-300`}>
+        <div 
+          className={`
+            transition-all duration-500 ease-out overflow-y-auto
+            ${selectedLevel ? "w-0 md:w-1/2 opacity-0 md:opacity-100" : "w-full opacity-100"}
+          `}
+        >
           <InteractivePyramid
             onLayerSelect={setSelectedLevel}
             selectedLevel={selectedLevel}
@@ -88,15 +93,23 @@ export function BrandHubModule() {
         </div>
 
         {/* Detail panel */}
-        {selectedLevel && (
-          <div className={`${selectedLevel ? "w-full md:w-1/2" : "w-0"} transition-all duration-300 overflow-hidden rounded-xl shadow-lg`}>
+        <div 
+          className={`
+            transition-all duration-500 ease-out overflow-hidden rounded-xl shadow-lg
+            ${selectedLevel 
+              ? "w-full md:w-1/2 opacity-100 translate-x-0" 
+              : "w-0 opacity-0 translate-x-8"
+            }
+          `}
+        >
+          {selectedLevel && (
             <DetailPanel
               level={selectedLevel}
               isQuickMode={isQuickMode}
               onClose={() => setSelectedLevel(null)}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Modals */}
