@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import { ChevronRight, Copy, Check, Sparkles } from "lucide-react";
+import { ChevronRight, Sparkles } from "lucide-react";
 import { brandData } from "./BrandHubData";
-import { toast } from "sonner";
 
 interface InteractivePyramidProps {
   onLayerSelect: (level: number) => void;
@@ -9,7 +8,6 @@ interface InteractivePyramidProps {
 }
 
 export function InteractivePyramid({ onLayerSelect, selectedLevel }: InteractivePyramidProps) {
-  const [copiedRule, setCopiedRule] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [hoveredLayer, setHoveredLayer] = useState<number | null>(null);
 
@@ -17,23 +15,16 @@ export function InteractivePyramid({ onLayerSelect, selectedLevel }: Interactive
     setMounted(true);
   }, []);
 
-  const handleCopyRule = async () => {
-    try {
-      await navigator.clipboard.writeText(brandData.goldenRule.text);
-      setCopiedRule(true);
-      toast.success("Золотое правило скопировано");
-      setTimeout(() => setCopiedRule(false), 2000);
-    } catch {
-      toast.error("Не удалось скопировать");
-    }
-  };
-
+  // Gradients using brand complementary colors: 
+  // Primary #052A6E (deep blue) → complement: warm gold/amber tones
+  // Accent #F1502C (orange) → complement: teal/cyan tones  
+  // Brown #341715 → complement: sage/olive tones
   const layers = [
     { 
       level: 1, 
       title: "Суть бренда", 
       subtitle: "Золотое правило",
-      gradient: "from-primary via-primary to-blue-700",
+      gradient: "from-primary via-primary/90 to-primary/70",
       glowColor: "shadow-primary/40",
       width: "w-[40%]",
       icon: "✦"
@@ -42,7 +33,7 @@ export function InteractivePyramid({ onLayerSelect, selectedLevel }: Interactive
       level: 2, 
       title: "Позиционирование", 
       subtitle: "Кто мы и для кого",
-      gradient: "from-accent via-orange-500 to-red-500",
+      gradient: "from-accent via-accent/90 to-amber-500",
       glowColor: "shadow-accent/40",
       width: "w-[52%]",
       icon: "◆"
@@ -51,8 +42,8 @@ export function InteractivePyramid({ onLayerSelect, selectedLevel }: Interactive
       level: 3, 
       title: "Характер и Тональность", 
       subtitle: "Как мы себя ведём",
-      gradient: "from-violet-500 via-purple-500 to-fuchsia-500",
-      glowColor: "shadow-violet-500/40",
+      gradient: "from-teal-600 via-cyan-600 to-sky-600",
+      glowColor: "shadow-teal-500/40",
       width: "w-[64%]",
       icon: "●"
     },
@@ -60,8 +51,8 @@ export function InteractivePyramid({ onLayerSelect, selectedLevel }: Interactive
       level: 4, 
       title: "Ценности", 
       subtitle: "Во что мы верим",
-      gradient: "from-emerald-500 via-teal-500 to-cyan-500",
-      glowColor: "shadow-emerald-500/40",
+      gradient: "from-amber-600 via-orange-500 to-accent/80",
+      glowColor: "shadow-amber-500/40",
       width: "w-[76%]",
       icon: "◈"
     },
@@ -69,8 +60,8 @@ export function InteractivePyramid({ onLayerSelect, selectedLevel }: Interactive
       level: 5, 
       title: "Польза", 
       subtitle: "Что получает клиент",
-      gradient: "from-sky-500 via-blue-500 to-indigo-500",
-      glowColor: "shadow-sky-500/40",
+      gradient: "from-primary/80 via-blue-600 to-cyan-600",
+      glowColor: "shadow-blue-500/40",
       width: "w-[88%]",
       icon: "▲"
     },
@@ -78,8 +69,8 @@ export function InteractivePyramid({ onLayerSelect, selectedLevel }: Interactive
       level: 6, 
       title: "Атрибуты", 
       subtitle: "Конкретные доказательства",
-      gradient: "from-slate-600 via-slate-500 to-slate-400",
-      glowColor: "shadow-slate-500/30",
+      gradient: "from-stone-600 via-stone-500 to-amber-700/60",
+      glowColor: "shadow-stone-500/30",
       width: "w-full",
       icon: "■"
     },
@@ -110,31 +101,19 @@ export function InteractivePyramid({ onLayerSelect, selectedLevel }: Interactive
         <Sparkles className="absolute top-4 right-4 w-5 h-5 text-white/30 animate-pulse" />
         <Sparkles className="absolute bottom-6 left-6 w-4 h-4 text-white/20 animate-pulse delay-500" />
         
-        <div className="relative flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-2xl">✦</span>
-              <p className="text-sm uppercase tracking-[0.2em] font-medium text-white/80">
-                Золотое правило Renowell
-              </p>
-            </div>
-            <p className="text-lg md:text-xl font-medium leading-relaxed tracking-wide group-hover:tracking-wider transition-all duration-500">
-              {brandData.goldenRule.text}
-            </p>
-            <p className="mt-4 text-sm text-white/60 italic">
-              {brandData.goldenRule.subtext}
+        <div className="relative">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-2xl">✦</span>
+            <p className="text-sm uppercase tracking-[0.2em] font-medium text-white/80">
+              Золотое правило Renowell
             </p>
           </div>
-          <button
-            onClick={handleCopyRule}
-            className="shrink-0 p-3 rounded-xl bg-white/10 hover:bg-white/20 
-                       transition-all duration-300 hover:scale-110 active:scale-95
-                       backdrop-blur-sm border border-white/10 hover:border-white/20
-                       hover:shadow-lg hover:shadow-white/10"
-            title="Скопировать"
-          >
-            {copiedRule ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-          </button>
+          <p className="text-lg md:text-xl font-medium leading-relaxed tracking-wide group-hover:tracking-wider transition-all duration-500">
+            {brandData.goldenRule.text}
+          </p>
+          <p className="mt-4 text-sm text-white/60 italic">
+            {brandData.goldenRule.subtext}
+          </p>
         </div>
         
         {/* Bottom gradient line */}

@@ -10,13 +10,15 @@ interface DetailPanelProps {
   onClose: () => void;
 }
 
+// Complementary colors to brand: #052A6E (blue), #F1502C (orange), #341715 (brown)
+// Blue → warm amber/gold, Orange → teal/cyan, Brown → sage/olive
 const levelThemes: Record<number, { gradient: string; accent: string; icon: string }> = {
   1: { gradient: "from-primary/20 via-primary/10 to-transparent", accent: "text-primary", icon: "✦" },
   2: { gradient: "from-accent/20 via-accent/10 to-transparent", accent: "text-accent", icon: "◆" },
-  3: { gradient: "from-violet-500/20 via-violet-500/10 to-transparent", accent: "text-violet-500", icon: "●" },
-  4: { gradient: "from-emerald-500/20 via-emerald-500/10 to-transparent", accent: "text-emerald-500", icon: "◈" },
-  5: { gradient: "from-sky-500/20 via-sky-500/10 to-transparent", accent: "text-sky-500", icon: "▲" },
-  6: { gradient: "from-slate-500/20 via-slate-500/10 to-transparent", accent: "text-slate-500", icon: "■" },
+  3: { gradient: "from-teal-500/20 via-cyan-500/10 to-transparent", accent: "text-teal-600", icon: "●" },
+  4: { gradient: "from-amber-500/20 via-orange-500/10 to-transparent", accent: "text-amber-600", icon: "◈" },
+  5: { gradient: "from-primary/15 via-cyan-500/10 to-transparent", accent: "text-primary", icon: "▲" },
+  6: { gradient: "from-stone-500/20 via-amber-500/10 to-transparent", accent: "text-stone-600", icon: "■" },
 };
 
 export function DetailPanel({ level, isQuickMode, onClose }: DetailPanelProps) {
@@ -142,13 +144,13 @@ export function DetailPanel({ level, isQuickMode, onClose }: DetailPanelProps) {
           <div className="space-y-6">
             <div>
               <h3 className="font-bold mb-4 flex items-center gap-2">
-                <span className="text-violet-500">●</span> Характер
+                <span className="text-teal-600">●</span> Характер
               </h3>
               <div className="grid gap-3">
                 {brandData.character.map((item, idx) => (
                   <SectionCard key={item.id} className="group hover:scale-[1.01]">
                     <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 
                                       flex items-center justify-center text-white text-sm font-bold shrink-0
                                       group-hover:scale-110 transition-transform">
                         {idx + 1}
@@ -165,14 +167,14 @@ export function DetailPanel({ level, isQuickMode, onClose }: DetailPanelProps) {
 
             <div>
               <h3 className="font-bold mb-4 flex items-center gap-2">
-                <span className="text-violet-500">●</span> Тональность
+                <span className="text-teal-600">●</span> Тональность
               </h3>
               <div className="flex flex-wrap gap-2 mb-4">
                 {brandData.tonality.map((item) => (
                   <Badge 
                     key={item.id} 
-                    className="px-4 py-2 bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 
-                               text-violet-600 dark:text-violet-400 border-violet-500/20
+                    className="px-4 py-2 bg-gradient-to-r from-teal-500/10 to-cyan-500/10 
+                               text-teal-600 dark:text-teal-400 border-teal-500/20
                                hover:scale-105 transition-transform cursor-default"
                   >
                     {item.title}
@@ -182,7 +184,7 @@ export function DetailPanel({ level, isQuickMode, onClose }: DetailPanelProps) {
               <div className="space-y-2">
                 {brandData.tonality.map((item) => (
                   <div key={item.id} className="flex items-baseline gap-2 text-sm">
-                    <span className="font-semibold text-violet-500">{item.title}:</span>
+                    <span className="font-semibold text-teal-600">{item.title}:</span>
                     <span className="text-muted-foreground">{item.description}</span>
                   </div>
                 ))}
@@ -195,13 +197,13 @@ export function DetailPanel({ level, isQuickMode, onClose }: DetailPanelProps) {
         return (
           <div className="space-y-4">
             <h3 className="font-bold mb-4 flex items-center gap-2">
-              <span className="text-emerald-500">◈</span> Ценности компании
+              <span className="text-amber-600">◈</span> Ценности компании
             </h3>
             <div className="grid gap-3">
               {brandData.values.map((value, idx) => (
                 <SectionCard key={value.id} className="group hover:scale-[1.01]">
                   <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 
                                     flex items-center justify-center text-white font-bold shrink-0
                                     group-hover:scale-110 group-hover:rotate-3 transition-all">
                       {idx + 1}
@@ -209,7 +211,7 @@ export function DetailPanel({ level, isQuickMode, onClose }: DetailPanelProps) {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-bold">{value.title}</span>
-                        <Badge className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                        <Badge className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/20">
                           {value.tag}
                         </Badge>
                       </div>
@@ -227,21 +229,21 @@ export function DetailPanel({ level, isQuickMode, onClose }: DetailPanelProps) {
           <div className="space-y-6">
             <div>
               <h3 className="font-bold mb-4 flex items-center gap-2">
-                <span className="text-sky-500">▲</span> Рациональная польза
+                <span className="text-primary">▲</span> Рациональная польза
               </h3>
               <div className="space-y-3">
                 {brandData.benefits.rational.map((benefit) => (
                   <SectionCard 
                     key={benefit.id} 
-                    className="border-l-4 border-l-sky-500 hover:scale-[1.01]"
+                    className="border-l-4 border-l-primary hover:scale-[1.01]"
                   >
-                    <p className="font-semibold text-sm mb-3 text-sky-600 dark:text-sky-400">{benefit.title}</p>
+                    <p className="font-semibold text-sm mb-3 text-primary">{benefit.title}</p>
                     <div className="flex flex-wrap gap-2">
                       {benefit.items.map((item, i) => (
                         <Badge 
                           key={i} 
                           variant="secondary" 
-                          className="text-xs bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                          className="text-xs bg-primary/10 text-primary"
                         >
                           {item}
                         </Badge>
@@ -254,21 +256,21 @@ export function DetailPanel({ level, isQuickMode, onClose }: DetailPanelProps) {
 
             <div>
               <h3 className="font-bold mb-4 flex items-center gap-2">
-                <span className="text-pink-500">♥</span> Эмоциональная польза
+                <span className="text-accent">♥</span> Эмоциональная польза
               </h3>
               <div className="space-y-3">
                 {brandData.benefits.emotional.map((benefit) => (
                   <SectionCard 
                     key={benefit.id} 
-                    className="border-l-4 border-l-pink-500 hover:scale-[1.01]"
+                    className="border-l-4 border-l-accent hover:scale-[1.01]"
                   >
-                    <p className="font-semibold text-sm mb-3 text-pink-600 dark:text-pink-400">{benefit.title}</p>
+                    <p className="font-semibold text-sm mb-3 text-accent">{benefit.title}</p>
                     <div className="flex flex-wrap gap-2">
                       {benefit.items.map((item, i) => (
                         <Badge 
                           key={i} 
                           variant="secondary" 
-                          className="text-xs bg-pink-500/10 text-pink-600 dark:text-pink-400"
+                          className="text-xs bg-accent/10 text-accent"
                         >
                           {item}
                         </Badge>
@@ -283,10 +285,10 @@ export function DetailPanel({ level, isQuickMode, onClose }: DetailPanelProps) {
 
       case 6:
         const attributeGroups = [
-          { key: "product", title: "Продуктовые", data: brandData.attributes.product, color: "from-blue-500 to-indigo-500", textColor: "text-blue-600 dark:text-blue-400" },
-          { key: "service", title: "Сервисные", data: brandData.attributes.service, color: "from-purple-500 to-violet-500", textColor: "text-purple-600 dark:text-purple-400" },
+          { key: "product", title: "Продуктовые", data: brandData.attributes.product, color: "from-primary to-primary/70", textColor: "text-primary" },
+          { key: "service", title: "Сервисные", data: brandData.attributes.service, color: "from-teal-500 to-cyan-500", textColor: "text-teal-600 dark:text-teal-400" },
           { key: "reputation", title: "Репутационные", data: brandData.attributes.reputation, color: "from-amber-500 to-orange-500", textColor: "text-amber-600 dark:text-amber-400" },
-          { key: "additional", title: "Дополнительные", data: brandData.attributes.additional, color: "from-rose-500 to-pink-500", textColor: "text-rose-600 dark:text-rose-400" },
+          { key: "additional", title: "Дополнительные", data: brandData.attributes.additional, color: "from-accent to-accent/70", textColor: "text-accent" },
         ];
 
         return (
