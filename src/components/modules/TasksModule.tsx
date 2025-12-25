@@ -1,6 +1,7 @@
 import { useState, DragEvent, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
+import { TaskComments } from "@/components/tasks/TaskComments";
 import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight, Pencil } from "lucide-react";
 import { useTasks, useCreateTask, useUpdateTask, DbTask, TaskStatus, TaskPriority, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS, TASK_PRIORITY_COLORS } from "@/hooks/useTasks";
 import { useProjects, Project } from "@/hooks/useProjects";
@@ -584,6 +585,13 @@ export function TasksModule() {
             </button>
           </div>
         </form>
+
+        {/* Comments section */}
+        {editingTask && (
+          <div className="mt-6 pt-6 border-t border-border">
+            <TaskComments taskId={editingTask.id} />
+          </div>
+        )}
       </Modal>
     </div>
   );
