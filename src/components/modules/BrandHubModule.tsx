@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { Book, Lightbulb, FileQuestion, Download, Sparkles } from "lucide-react";
+import { Book, Lightbulb, FileQuestion, Download, Sparkles, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InteractivePyramid } from "./brandhub/InteractivePyramid";
 import { DetailPanel } from "./brandhub/DetailPanel";
 import { GlossaryModal } from "./brandhub/GlossaryModal";
 import { PrerequisitesModal } from "./brandhub/PrerequisitesModal";
 import { UsageGuideModal } from "./brandhub/UsageGuideModal";
+import { TelegramChannelBlock } from "./brandhub/TelegramChannelBlock";
 
 export function BrandHubModule() {
   const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
@@ -81,42 +83,59 @@ export function BrandHubModule() {
         </div>
       </div>
 
-      {/* Main content area */}
-      <div className="flex-1 flex gap-6 min-h-0 overflow-hidden">
-        {/* Pyramid section */}
-        <div 
-          className={`
-            transition-all duration-700 ease-out overflow-y-auto scrollbar-thin
-            ${selectedLevel ? "w-0 md:w-1/2 opacity-0 md:opacity-100 md:pr-2" : "w-full opacity-100"}
-          `}
-        >
-          <InteractivePyramid
-            onLayerSelect={setSelectedLevel}
-            selectedLevel={selectedLevel}
-          />
-        </div>
+      {/* Main content area with tabs */}
+      <Tabs defaultValue="platform" className="flex-1 flex flex-col min-h-0">
+        <TabsList className="w-fit mb-4">
+          <TabsTrigger value="platform" className="gap-2">
+            <Sparkles className="w-4 h-4" />
+            Платформа
+          </TabsTrigger>
+          <TabsTrigger value="channel" className="gap-2">
+            <Send className="w-4 h-4" />
+            Бренд-канал
+          </TabsTrigger>
+        </TabsList>
 
-        {/* Detail panel */}
-        <div 
-          className={`
-            transition-all duration-700 ease-out overflow-hidden 
-            rounded-2xl shadow-2xl shadow-black/10
-            border border-border/50
-            ${selectedLevel 
-              ? "w-full md:w-1/2 opacity-100 translate-x-0 scale-100" 
-              : "w-0 opacity-0 translate-x-12 scale-95"
-            }
-          `}
-        >
-          {selectedLevel && (
-            <DetailPanel
-              level={selectedLevel}
-              isQuickMode={false}
-              onClose={() => setSelectedLevel(null)}
+        <TabsContent value="platform" className="flex-1 flex gap-6 min-h-0 overflow-hidden mt-0">
+          {/* Pyramid section */}
+          <div 
+            className={`
+              transition-all duration-700 ease-out overflow-y-auto scrollbar-thin
+              ${selectedLevel ? "w-0 md:w-1/2 opacity-0 md:opacity-100 md:pr-2" : "w-full opacity-100"}
+            `}
+          >
+            <InteractivePyramid
+              onLayerSelect={setSelectedLevel}
+              selectedLevel={selectedLevel}
             />
-          )}
-        </div>
-      </div>
+          </div>
+
+          {/* Detail panel */}
+          <div 
+            className={`
+              transition-all duration-700 ease-out overflow-hidden 
+              rounded-2xl shadow-2xl shadow-black/10
+              border border-border/50
+              ${selectedLevel 
+                ? "w-full md:w-1/2 opacity-100 translate-x-0 scale-100" 
+                : "w-0 opacity-0 translate-x-12 scale-95"
+              }
+            `}
+          >
+            {selectedLevel && (
+              <DetailPanel
+                level={selectedLevel}
+                isQuickMode={false}
+                onClose={() => setSelectedLevel(null)}
+              />
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="channel" className="flex-1 overflow-y-auto mt-0">
+          <TelegramChannelBlock />
+        </TabsContent>
+      </Tabs>
 
       {/* Modals */}
       <GlossaryModal open={glossaryOpen} onOpenChange={setGlossaryOpen} />
