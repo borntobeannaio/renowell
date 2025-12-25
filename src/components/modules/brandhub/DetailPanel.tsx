@@ -1,4 +1,4 @@
-import { X, Copy, Check } from "lucide-react";
+import { X, Copy, Check, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
 import { brandData } from "./BrandHubData";
 import { toast } from "sonner";
@@ -10,19 +10,29 @@ interface DetailPanelProps {
   onClose: () => void;
 }
 
+const levelThemes: Record<number, { gradient: string; accent: string; icon: string }> = {
+  1: { gradient: "from-primary/20 via-primary/10 to-transparent", accent: "text-primary", icon: "✦" },
+  2: { gradient: "from-accent/20 via-accent/10 to-transparent", accent: "text-accent", icon: "◆" },
+  3: { gradient: "from-violet-500/20 via-violet-500/10 to-transparent", accent: "text-violet-500", icon: "●" },
+  4: { gradient: "from-emerald-500/20 via-emerald-500/10 to-transparent", accent: "text-emerald-500", icon: "◈" },
+  5: { gradient: "from-sky-500/20 via-sky-500/10 to-transparent", accent: "text-sky-500", icon: "▲" },
+  6: { gradient: "from-slate-500/20 via-slate-500/10 to-transparent", accent: "text-slate-500", icon: "■" },
+};
+
 export function DetailPanel({ level, isQuickMode, onClose }: DetailPanelProps) {
   const [copied, setCopied] = useState<string | null>(null);
   const [contentKey, setContentKey] = useState(level);
   const [isAnimating, setIsAnimating] = useState(false);
 
-  // Animate content change
+  const theme = levelThemes[level] || levelThemes[1];
+
   useEffect(() => {
     if (level !== contentKey) {
       setIsAnimating(true);
       const timer = setTimeout(() => {
         setContentKey(level);
         setIsAnimating(false);
-      }, 150);
+      }, 200);
       return () => clearTimeout(timer);
     }
   }, [level, contentKey]);
@@ -41,195 +51,264 @@ export function DetailPanel({ level, isQuickMode, onClose }: DetailPanelProps) {
   const CopyBtn = ({ text, id }: { text: string; id: string }) => (
     <button
       onClick={() => handleCopy(text, id)}
-      className="shrink-0 p-1.5 rounded hover:bg-muted transition-all duration-200 hover:scale-110 active:scale-95"
+      className="shrink-0 p-2 rounded-lg bg-muted/50 hover:bg-muted transition-all duration-300 
+                 hover:scale-110 active:scale-95 group/copy"
       title="Скопировать"
     >
-      {copied === id ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5 text-muted-foreground" />}
+      {copied === id 
+        ? <Check className="w-4 h-4 text-emerald-500" /> 
+        : <Copy className="w-4 h-4 text-muted-foreground group-hover/copy:text-foreground transition-colors" />
+      }
     </button>
+  );
+
+  const SectionCard = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
+    <div className={`
+      relative overflow-hidden rounded-xl p-4 
+      bg-gradient-to-br from-card via-card to-muted/30
+      border border-border/50 hover:border-border
+      transition-all duration-300 hover:shadow-lg
+      ${className}
+    `}>
+      {children}
+    </div>
   );
 
   const renderContent = () => {
     switch (level) {
-      case 1: // Суть бренда
+      case 1:
         return (
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-semibold text-lg mb-2">Золотое правило Renowell</h3>
-              <div className="flex items-start gap-2 p-4 bg-primary/10 rounded-lg">
-                <p className="text-foreground leading-relaxed flex-1">{brandData.goldenRule.text}</p>
+          <div className="space-y-6">
+            <SectionCard className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border-primary/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles className="w-5 h-5 text-primary" />
+                <h3 className="font-bold text-lg text-primary">Золотое правило</h3>
+              </div>
+              <div className="flex items-start gap-3">
+                <p className="text-foreground leading-relaxed flex-1 text-base">{brandData.goldenRule.text}</p>
                 <CopyBtn text={brandData.goldenRule.text} id="golden" />
               </div>
-              {!isQuickMode && (
-                <p className="text-sm text-muted-foreground mt-2 italic">{brandData.goldenRule.subtext}</p>
-              )}
+              <p className="text-sm text-muted-foreground mt-4 italic border-l-2 border-primary/30 pl-3">
+                {brandData.goldenRule.subtext}
+              </p>
+            </SectionCard>
+          </div>
+        );
+
+      case 2:
+        return (
+          <div className="space-y-5">
+            {[brandData.positioning, brandData.vision, brandData.mission].map((item, idx) => (
+              <SectionCard key={item.title}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`w-6 h-6 rounded-full bg-gradient-to-br from-accent to-orange-600 
+                                   flex items-center justify-center text-white text-xs font-bold`}>
+                    {idx + 1}
+                  </span>
+                  <h3 className="font-bold">{item.title}</h3>
+                </div>
+                <div className="flex items-start gap-2">
+                  <p className="text-sm text-muted-foreground flex-1 leading-relaxed">{item.text}</p>
+                  <CopyBtn text={item.text} id={item.title} />
+                </div>
+              </SectionCard>
+            ))}
+            
+            <div className="mt-6">
+              <h3 className="font-bold mb-4 flex items-center gap-2">
+                <span className="text-accent">◆</span> Целевая аудитория
+              </h3>
+              <div className="grid gap-4">
+                {brandData.audiences.map((aud) => (
+                  <SectionCard key={aud.id} className="hover:scale-[1.01]">
+                    <p className="font-semibold text-sm mb-1">{aud.title}</p>
+                    <p className="text-xs text-muted-foreground mb-3">{aud.description}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {aud.needs.map((need, i) => (
+                        <Badge key={i} variant="secondary" className="text-xs bg-accent/10 text-accent border-accent/20">
+                          {need}
+                        </Badge>
+                      ))}
+                    </div>
+                  </SectionCard>
+                ))}
+              </div>
             </div>
           </div>
         );
 
-      case 2: // Позиционирование
-        return (
-          <div className="space-y-6">
-            {[brandData.positioning, brandData.vision, brandData.mission].map((item) => (
-              <div key={item.title}>
-                <h3 className="font-semibold mb-2">{item.title}</h3>
-                <div className="flex items-start gap-2 p-3 bg-secondary/50 rounded-lg">
-                  <p className="text-sm text-foreground flex-1">{item.text}</p>
-                  <CopyBtn text={item.text} id={item.title} />
-                </div>
-              </div>
-            ))}
-            
-            {!isQuickMode && (
-              <div>
-                <h3 className="font-semibold mb-3">Целевая аудитория</h3>
-                <div className="space-y-3">
-                  {brandData.audiences.map((aud) => (
-                    <div key={aud.id} className="p-3 bg-muted/50 rounded-lg">
-                      <p className="font-medium text-sm">{aud.title}</p>
-                      <p className="text-xs text-muted-foreground mb-2">{aud.description}</p>
-                      <ul className="space-y-1">
-                        {aud.needs.map((need, i) => (
-                          <li key={i} className="text-xs text-muted-foreground flex items-center gap-2">
-                            <span className="w-1 h-1 rounded-full bg-primary" />
-                            {need}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        );
-
-      case 3: // Характер и Тональность
+      case 3:
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="font-semibold mb-3">Характер</h3>
-              <div className="space-y-2">
-                {brandData.character.map((item) => (
-                  <div key={item.id} className="flex items-start gap-3 p-3 bg-secondary/50 rounded-lg">
-                    <div className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1.5" />
-                    <div>
-                      <p className="font-medium text-sm">{item.title}</p>
-                      {!isQuickMode && <p className="text-xs text-muted-foreground">{item.description}</p>}
+              <h3 className="font-bold mb-4 flex items-center gap-2">
+                <span className="text-violet-500">●</span> Характер
+              </h3>
+              <div className="grid gap-3">
+                {brandData.character.map((item, idx) => (
+                  <SectionCard key={item.id} className="group hover:scale-[1.01]">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 
+                                      flex items-center justify-center text-white text-sm font-bold shrink-0
+                                      group-hover:scale-110 transition-transform">
+                        {idx + 1}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">{item.title}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+                      </div>
                     </div>
-                  </div>
+                  </SectionCard>
                 ))}
               </div>
             </div>
 
             <div>
-              <h3 className="font-semibold mb-3">Тональность</h3>
-              <div className="flex flex-wrap gap-2 mb-3">
+              <h3 className="font-bold mb-4 flex items-center gap-2">
+                <span className="text-violet-500">●</span> Тональность
+              </h3>
+              <div className="flex flex-wrap gap-2 mb-4">
                 {brandData.tonality.map((item) => (
-                  <Badge key={item.id} variant="outline" className="px-3 py-1">
+                  <Badge 
+                    key={item.id} 
+                    className="px-4 py-2 bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 
+                               text-violet-600 dark:text-violet-400 border-violet-500/20
+                               hover:scale-105 transition-transform cursor-default"
+                  >
                     {item.title}
                   </Badge>
                 ))}
               </div>
-              {!isQuickMode && (
-                <div className="space-y-2">
-                  {brandData.tonality.map((item) => (
-                    <p key={item.id} className="text-sm">
-                      <span className="font-medium">{item.title}:</span>{" "}
-                      <span className="text-muted-foreground">{item.description}</span>
-                    </p>
-                  ))}
-                </div>
-              )}
+              <div className="space-y-2">
+                {brandData.tonality.map((item) => (
+                  <div key={item.id} className="flex items-baseline gap-2 text-sm">
+                    <span className="font-semibold text-violet-500">{item.title}:</span>
+                    <span className="text-muted-foreground">{item.description}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         );
 
-      case 4: // Ценности
+      case 4:
         return (
           <div className="space-y-4">
-            <h3 className="font-semibold mb-3">Ценности компании</h3>
-            <div className="space-y-3">
-              {brandData.values.map((value) => (
-                <div key={value.id} className="p-4 bg-secondary/50 rounded-lg">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-semibold">{value.title}</span>
-                    <Badge variant="secondary" className="text-xs">{value.tag}</Badge>
+            <h3 className="font-bold mb-4 flex items-center gap-2">
+              <span className="text-emerald-500">◈</span> Ценности компании
+            </h3>
+            <div className="grid gap-3">
+              {brandData.values.map((value, idx) => (
+                <SectionCard key={value.id} className="group hover:scale-[1.01]">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 
+                                    flex items-center justify-center text-white font-bold shrink-0
+                                    group-hover:scale-110 group-hover:rotate-3 transition-all">
+                      {idx + 1}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-bold">{value.title}</span>
+                        <Badge className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                          {value.tag}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{value.description}</p>
+                    </div>
                   </div>
-                  {!isQuickMode && (
-                    <p className="text-sm text-muted-foreground">{value.description}</p>
-                  )}
-                </div>
+                </SectionCard>
               ))}
             </div>
           </div>
         );
 
-      case 5: // Польза
+      case 5:
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="font-semibold mb-3">Рациональная польза</h3>
+              <h3 className="font-bold mb-4 flex items-center gap-2">
+                <span className="text-sky-500">▲</span> Рациональная польза
+              </h3>
               <div className="space-y-3">
                 {brandData.benefits.rational.map((benefit) => (
-                  <div key={benefit.id} className="p-3 bg-primary/5 rounded-lg border-l-2 border-primary">
-                    <p className="font-medium text-sm mb-2">{benefit.title}</p>
-                    {!isQuickMode && (
-                      <ul className="space-y-1">
-                        {benefit.items.map((item, i) => (
-                          <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
-                            <span className="w-1 h-1 rounded-full bg-primary shrink-0 mt-1.5" />
-                            {item}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                  <SectionCard 
+                    key={benefit.id} 
+                    className="border-l-4 border-l-sky-500 hover:scale-[1.01]"
+                  >
+                    <p className="font-semibold text-sm mb-3 text-sky-600 dark:text-sky-400">{benefit.title}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {benefit.items.map((item, i) => (
+                        <Badge 
+                          key={i} 
+                          variant="secondary" 
+                          className="text-xs bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                        >
+                          {item}
+                        </Badge>
+                      ))}
+                    </div>
+                  </SectionCard>
                 ))}
               </div>
             </div>
 
             <div>
-              <h3 className="font-semibold mb-3">Эмоциональная польза</h3>
+              <h3 className="font-bold mb-4 flex items-center gap-2">
+                <span className="text-pink-500">♥</span> Эмоциональная польза
+              </h3>
               <div className="space-y-3">
                 {brandData.benefits.emotional.map((benefit) => (
-                  <div key={benefit.id} className="p-3 bg-accent/5 rounded-lg border-l-2 border-accent">
-                    <p className="font-medium text-sm mb-2">{benefit.title}</p>
-                    {!isQuickMode && (
-                      <ul className="space-y-1">
-                        {benefit.items.map((item, i) => (
-                          <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
-                            <span className="w-1 h-1 rounded-full bg-accent shrink-0 mt-1.5" />
-                            {item}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                  <SectionCard 
+                    key={benefit.id} 
+                    className="border-l-4 border-l-pink-500 hover:scale-[1.01]"
+                  >
+                    <p className="font-semibold text-sm mb-3 text-pink-600 dark:text-pink-400">{benefit.title}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {benefit.items.map((item, i) => (
+                        <Badge 
+                          key={i} 
+                          variant="secondary" 
+                          className="text-xs bg-pink-500/10 text-pink-600 dark:text-pink-400"
+                        >
+                          {item}
+                        </Badge>
+                      ))}
+                    </div>
+                  </SectionCard>
                 ))}
               </div>
             </div>
           </div>
         );
 
-      case 6: // Атрибуты
+      case 6:
+        const attributeGroups = [
+          { key: "product", title: "Продуктовые", data: brandData.attributes.product, color: "from-blue-500 to-indigo-500", textColor: "text-blue-600 dark:text-blue-400" },
+          { key: "service", title: "Сервисные", data: brandData.attributes.service, color: "from-purple-500 to-violet-500", textColor: "text-purple-600 dark:text-purple-400" },
+          { key: "reputation", title: "Репутационные", data: brandData.attributes.reputation, color: "from-amber-500 to-orange-500", textColor: "text-amber-600 dark:text-amber-400" },
+          { key: "additional", title: "Дополнительные", data: brandData.attributes.additional, color: "from-rose-500 to-pink-500", textColor: "text-rose-600 dark:text-rose-400" },
+        ];
+
         return (
-          <div className="space-y-6">
-            {[
-              { key: "product", title: "Продуктовые", data: brandData.attributes.product },
-              { key: "service", title: "Сервисные", data: brandData.attributes.service },
-              { key: "reputation", title: "Репутационные", data: brandData.attributes.reputation },
-              { key: "additional", title: "Дополнительные", data: brandData.attributes.additional },
-            ].map(({ key, title, data }) => (
-              <div key={key}>
-                <h3 className="font-semibold mb-2 text-sm">{title}</h3>
+          <div className="space-y-5">
+            {attributeGroups.map(({ key, title, data, color, textColor }) => (
+              <SectionCard key={key} className="hover:scale-[1.01]">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${color}`} />
+                  <h3 className={`font-bold text-sm ${textColor}`}>{title}</h3>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {data.map((attr, i) => (
-                    <Badge key={i} variant="secondary" className="text-xs">
+                    <Badge 
+                      key={i} 
+                      variant="secondary" 
+                      className="text-xs hover:scale-105 transition-transform cursor-default"
+                    >
                       {attr}
                     </Badge>
                   ))}
                 </div>
-              </div>
+              </SectionCard>
             ))}
           </div>
         );
@@ -249,30 +328,44 @@ export function DetailPanel({ level, isQuickMode, onClose }: DetailPanelProps) {
   };
 
   return (
-    <div className="h-full flex flex-col bg-card border-l border-border animate-in slide-in-from-right-5 duration-300">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border">
-        <h2 
-          key={level}
-          className="font-semibold text-lg animate-in fade-in slide-in-from-left-2 duration-200"
-        >
-          {titles[level]}
-        </h2>
+    <div className="h-full flex flex-col bg-card/95 backdrop-blur-xl border-l border-border/50 
+                    animate-in slide-in-from-right-8 duration-500 ease-out">
+      {/* Header with gradient */}
+      <div className={`
+        relative overflow-hidden
+        flex items-center justify-between p-5 
+        border-b border-border/50
+        bg-gradient-to-r ${theme.gradient}
+      `}>
+        {/* Decorative elements */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-white/5 to-transparent rounded-bl-full" />
+        
+        <div className="flex items-center gap-3">
+          <span className={`text-2xl ${theme.accent}`}>{theme.icon}</span>
+          <h2 
+            key={level}
+            className="font-bold text-xl animate-in fade-in slide-in-from-left-4 duration-300"
+          >
+            {titles[level]}
+          </h2>
+        </div>
         <button
           onClick={onClose}
-          className="p-2 hover:bg-muted rounded-lg transition-all duration-200 hover:rotate-90"
+          className="relative z-10 p-2.5 hover:bg-muted/80 rounded-xl 
+                     transition-all duration-300 hover:rotate-90 hover:scale-110
+                     active:scale-95"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Content */}
+      {/* Content with smooth transitions */}
       <div 
         key={contentKey}
         className={`
-          flex-1 overflow-y-auto p-4
-          transition-all duration-200
-          ${isAnimating ? "opacity-0 translate-x-4" : "opacity-100 translate-x-0"}
+          flex-1 overflow-y-auto p-5 scrollbar-thin
+          transition-all duration-300 ease-out
+          ${isAnimating ? "opacity-0 translate-x-8 scale-95" : "opacity-100 translate-x-0 scale-100"}
         `}
       >
         {renderContent()}
