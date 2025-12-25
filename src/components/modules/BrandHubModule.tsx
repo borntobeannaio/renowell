@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Book, Lightbulb, FileQuestion } from "lucide-react";
+import { Book, Lightbulb, FileQuestion, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InteractivePyramid } from "./brandhub/InteractivePyramid";
 import { DetailPanel } from "./brandhub/DetailPanel";
@@ -24,6 +24,11 @@ export function BrandHubModule() {
           </div>
           
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" asChild className="flex-1 sm:flex-none">
+              <a href="/docs/brand-platform.pdf" download="Платформа_бренда_Реновель.pdf">
+                <Download className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Скачать PDF</span>
+              </a>
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setGlossaryOpen(true)} className="flex-1 sm:flex-none">
               <Book className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Глоссарий</span>
             </Button>
