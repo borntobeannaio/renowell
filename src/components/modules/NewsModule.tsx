@@ -43,16 +43,16 @@ export function NewsModule() {
     kind === "news" ? "Новость" : "Поздравление";
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-muted-foreground" />
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          <Filter className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           <div className="flex gap-1">
             {(["all", "news", "congrats"] as const).map((k) => (
               <button
                 key={k}
                 onClick={() => setFilter(k)}
-                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                className={`px-2.5 md:px-3 py-1.5 text-xs md:text-sm rounded-md transition-colors whitespace-nowrap ${
                   filter === k
                     ? "bg-primary text-primary-foreground"
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
@@ -66,10 +66,10 @@ export function NewsModule() {
 
         <button
           onClick={() => setIsModalOpen(true)}
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary h-9 md:h-11 flex items-center justify-center gap-2 text-sm md:text-base"
         >
           <Plus className="w-4 h-4" />
-          Добавить
+          <span>Добавить</span>
         </button>
       </div>
 

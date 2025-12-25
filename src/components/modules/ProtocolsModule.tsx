@@ -157,17 +157,18 @@ export function ProtocolsModule() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <p className="text-muted-foreground">
-          Всего протоколов: {protocols.length}
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm md:text-base text-muted-foreground">
+          Протоколов: {protocols.length}
         </p>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary h-9 md:h-11 px-3 md:px-5 flex items-center gap-2 text-sm md:text-base"
         >
           <Plus className="w-4 h-4" />
-          Новый протокол
+          <span className="hidden sm:inline">Новый протокол</span>
+          <span className="sm:hidden">Добавить</span>
         </button>
       </div>
 

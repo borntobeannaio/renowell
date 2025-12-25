@@ -257,40 +257,43 @@ export function TasksModule() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-4 flex-wrap">
-          <p className="text-muted-foreground">Задач: {filteredTasks.length}</p>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-muted-foreground">Исполнитель:</span>
-            <div className="min-w-[240px]">
-              <EmployeeMultiSelect
-                employees={employees}
-                selectedIds={assigneeEmployeeFilterId ? [assigneeEmployeeFilterId] : []}
-                onChange={(ids) => setAssigneeEmployeeFilterId(ids[0] || "")}
-                placeholder="Все исполнители"
-                single
-              />
-            </div>
-            {assigneeEmployeeFilterId && (
-              <button
-                type="button"
-                onClick={() => setAssigneeEmployeeFilterId("")}
-                className="btn-secondary h-9 px-3 py-1.5"
-              >
-                Сбросить
-              </button>
-            )}
-          </div>
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col gap-3">
+        {/* Top row: count and add button */}
+        <div className="flex items-center justify-between">
+          <p className="text-sm md:text-base text-muted-foreground">Задач: {filteredTasks.length}</p>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="btn-primary h-9 md:h-11 px-3 md:px-5 flex items-center gap-2 text-sm md:text-base"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Новая задача</span>
+            <span className="sm:hidden">Добавить</span>
+          </button>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Новая задача
-        </button>
+
+        {/* Filter row */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <span className="text-sm text-muted-foreground flex-shrink-0">Исполнитель:</span>
+          <div className="flex-1 min-w-0">
+            <EmployeeMultiSelect
+              employees={employees}
+              selectedIds={assigneeEmployeeFilterId ? [assigneeEmployeeFilterId] : []}
+              onChange={(ids) => setAssigneeEmployeeFilterId(ids[0] || "")}
+              placeholder="Все исполнители"
+              single
+            />
+          </div>
+          {assigneeEmployeeFilterId && (
+            <button
+              type="button"
+              onClick={() => setAssigneeEmployeeFilterId("")}
+              className="btn-secondary h-9 px-3 py-1.5 text-sm flex-shrink-0"
+            >
+              Сбросить
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Projects with Kanban */}
@@ -316,20 +319,20 @@ export function TasksModule() {
               </button>
 
               {isExpanded && (
-                <div className="p-4">
-                  <div className="flex gap-3 overflow-x-auto pb-2">
+                <div className="p-2 md:p-4">
+                  <div className="flex gap-2 md:gap-3 overflow-x-auto pb-2 -mx-2 px-2">
                     {columns.map((column) => {
                       const columnTasks = getTasksByStatusAndProject(column.id, project.id);
                       return (
                         <div
                           key={column.id}
-                          className="kanban-column shrink-0 min-w-[240px] max-w-[280px]"
+                          className="kanban-column shrink-0 min-w-[200px] md:min-w-[240px] max-w-[280px] p-3 md:p-5"
                           onDragOver={handleDragOver}
                           onDrop={(e) => handleDrop(e, column.id)}
                         >
-                          <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-semibold text-foreground text-sm">{column.label}</h3>
-                            <span className="chip text-xs">{columnTasks.length}</span>
+                          <div className="flex items-center justify-between mb-3 md:mb-4">
+                            <h3 className="font-semibold text-foreground text-xs md:text-sm truncate">{column.label}</h3>
+                            <span className="chip text-xs ml-1 flex-shrink-0">{columnTasks.length}</span>
                           </div>
 
                           <div className="space-y-2">
