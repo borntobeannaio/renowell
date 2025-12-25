@@ -9,6 +9,8 @@
 
 ## 2. Код функции (index.js)
 
+**ВАЖНО**: Используется `Buffer.concat()` вместо `data += chunk` для корректной работы с UTF-8 (кириллица).
+
 ```javascript
 const https = require('https');
 
@@ -18,7 +20,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 module.exports.handler = async function (event, context) {
     const corsHeaders = {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
     };
 
@@ -41,7 +43,7 @@ module.exports.handler = async function (event, context) {
                 path: url.pathname,
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json; charset=utf-8',
                     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
                     'apikey': SUPABASE_ANON_KEY,
                 },
@@ -49,9 +51,12 @@ module.exports.handler = async function (event, context) {
             };
 
             const req = https.request(options, (res) => {
-                let data = '';
-                res.on('data', (chunk) => data += chunk);
+                // ИСПРАВЛЕНИЕ: используем Buffer.concat для корректной работы с UTF-8
+                const chunks = [];
+                res.on('data', (chunk) => chunks.push(chunk));
                 res.on('end', () => {
+                    const buffer = Buffer.concat(chunks);
+                    const data = buffer.toString('utf8');
                     resolve({
                         statusCode: res.statusCode,
                         body: data,
@@ -69,7 +74,7 @@ module.exports.handler = async function (event, context) {
             statusCode: response.statusCode,
             headers: {
                 ...corsHeaders,
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json; charset=utf-8',
             },
             body: response.body,
         };
@@ -97,6 +102,23 @@ module.exports.handler = async function (event, context) {
 https://functions.yandexcloud.net/d4e...abc
 ```
 
-## 5. Добавьте URL в приложение
+## 5. Обновите функцию в Yandex Cloud
 
-Добавьте секрет `EXTERNAL_PROXY_URL` со значением URL вашей Yandex функции.
+Если у вас уже есть функция, обновите её код по инструкции выше. Ключевое изменение:
+
+**Было (ломает UTF-8):**
+```javascript
+let data = '';
+res.on('data', (chunk) => data += chunk);
+```
+
+**Стало (корректный UTF-8):**
+```javascript
+const chunks = [];
+res.on('data', (chunk) => chunks.push(chunk));
+res.on('end', () => {
+    const buffer = Buffer.concat(chunks);
+    const data = buffer.toString('utf8');
+    // ...
+});
+```
