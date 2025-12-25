@@ -2,7 +2,7 @@ import { useState, DragEvent, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { TaskComments } from "@/components/tasks/TaskComments";
-import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight, Pencil } from "lucide-react";
+import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight, Pencil, Users } from "lucide-react";
 import { useTasks, useCreateTask, useUpdateTask, DbTask, TaskStatus, TaskPriority, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS, TASK_PRIORITY_COLORS } from "@/hooks/useTasks";
 import { useProjects, Project } from "@/hooks/useProjects";
 import { useEmployees, DbEmployee } from "@/hooks/useEmployees";
@@ -25,6 +25,8 @@ const priorities: { id: TaskPriority; label: string }[] = [
   { id: "normal", label: "Нормальный" },
   { id: "low", label: "Низкий" },
 ];
+
+type GroupByMode = "project" | "assignee";
 
 export function TasksModule() {
   const { data: employees = [] } = useEmployees();
@@ -70,6 +72,8 @@ export function TasksModule() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<DbTask | null>(null);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set(["no-project"]));
+  const [expandedAssignees, setExpandedAssignees] = useState<Set<string>>(new Set(["no-assignee"]));
+  const [groupBy, setGroupBy] = useState<GroupByMode>("project");
   const [form, setForm] = useState({
     title: "",
     assignee_id: "",
@@ -185,6 +189,18 @@ export function TasksModule() {
     });
   };
 
+  const toggleAssignee = (assigneeId: string) => {
+    setExpandedAssignees((prev) => {
+      const next = new Set(prev);
+      if (next.has(assigneeId)) {
+        next.delete(assigneeId);
+      } else {
+        next.add(assigneeId);
+      }
+      return next;
+    });
+  };
+
   const filteredTasks = tasks;
 
   // Group tasks by project
@@ -205,6 +221,29 @@ export function TasksModule() {
 
   const getTasksByStatusAndProject = (status: TaskStatus, projectId: string) =>
     (tasksByProject[projectId] || []).filter((t) => t.status === status);
+
+  // Group tasks by assignee
+  const tasksByAssignee = useMemo(() => {
+    const grouped: Record<string, DbTask[]> = { "no-assignee": [] };
+    
+    // Initialize with all employees that have profile_id
+    employees.forEach((emp) => {
+      if (emp.profile_id) {
+        grouped[emp.profile_id] = [];
+      }
+    });
+
+    filteredTasks.forEach((task) => {
+      const key = task.assignee_id || "no-assignee";
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(task);
+    });
+
+    return grouped;
+  }, [filteredTasks, employees]);
+
+  const getTasksByStatusAndAssignee = (status: TaskStatus, assigneeProfileId: string) =>
+    (tasksByAssignee[assigneeProfileId] || []).filter((t) => t.status === status);
 
   const getEmployeeById = (id: string) => employees.find((e) => e.id === id);
 
@@ -248,6 +287,32 @@ export function TasksModule() {
 
     return result;
   }, [projects, tasksByProject]);
+
+  // Build assignees with tasks list
+  const assigneesWithTasks = useMemo(() => {
+    const result: { id: string; name: string; isNoAssignee?: boolean }[] = [];
+    
+    // Add employees that have tasks
+    employees.forEach((emp) => {
+      if (emp.profile_id && tasksByAssignee[emp.profile_id]?.length > 0) {
+        result.push({ id: emp.profile_id, name: emp.full_name });
+      }
+    });
+
+    // Add "no assignee" if there are tasks without assignee
+    if (tasksByAssignee["no-assignee"]?.length > 0) {
+      result.push({ id: "no-assignee", name: "Не назначен", isNoAssignee: true });
+    }
+
+    // Add employees without tasks at the end
+    employees.forEach((emp) => {
+      if (emp.profile_id && !tasksByAssignee[emp.profile_id]?.length) {
+        result.push({ id: emp.profile_id, name: emp.full_name });
+      }
+    });
+
+    return result;
+  }, [employees, tasksByAssignee]);
 
   if (tasksLoading || projectsLoading) {
     return (
@@ -295,77 +360,178 @@ export function TasksModule() {
             </button>
           )}
         </div>
-      </div>
+        </div>
 
-      {/* Projects with Kanban */}
+        {/* Group by toggle */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Группировать:</span>
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            <button
+              onClick={() => setGroupBy("project")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors ${
+                groupBy === "project"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-card hover:bg-muted text-foreground"
+              }`}
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">По проектам</span>
+            </button>
+            <button
+              onClick={() => setGroupBy("assignee")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors ${
+                groupBy === "assignee"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-card hover:bg-muted text-foreground"
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">По исполнителям</span>
+            </button>
+          </div>
+        </div>
+
+      {/* Tasks grouped by project or assignee */}
       <div className="space-y-4">
-        {projectsWithTasks.map((project) => {
-          const projectTaskCount = tasksByProject[project.id]?.length || 0;
-          const isExpanded = expandedProjects.has(project.id);
+        {groupBy === "project" ? (
+          // Group by Project
+          projectsWithTasks.map((project) => {
+            const projectTaskCount = tasksByProject[project.id]?.length || 0;
+            const isExpanded = expandedProjects.has(project.id);
 
-          return (
-            <div key={project.id} className="border border-border rounded-xl overflow-hidden">
-              <button
-                onClick={() => toggleProject(project.id)}
-                className="w-full flex items-center gap-3 p-4 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
-              >
-                {isExpanded ? (
-                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                ) : (
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                )}
-                <FolderOpen className="w-4 h-4 text-primary" />
-                <span className="font-medium text-foreground flex-1">{project.name}</span>
-                <span className="chip">{projectTaskCount}</span>
-              </button>
+            return (
+              <div key={project.id} className="border border-border rounded-xl overflow-hidden">
+                <button
+                  onClick={() => toggleProject(project.id)}
+                  className="w-full flex items-center gap-3 p-4 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  )}
+                  <FolderOpen className="w-4 h-4 text-primary" />
+                  <span className="font-medium text-foreground flex-1">{project.name}</span>
+                  <span className="chip">{projectTaskCount}</span>
+                </button>
 
-              {isExpanded && (
-                <div className="p-2 md:p-4">
-                  <div className="flex gap-2 md:gap-3 overflow-x-auto pb-2 -mx-2 px-2">
-                    {columns.map((column) => {
-                      const columnTasks = getTasksByStatusAndProject(column.id, project.id);
-                      return (
-                        <div
-                          key={column.id}
-                          className="kanban-column shrink-0 min-w-[200px] md:min-w-[240px] max-w-[280px] p-3 md:p-5"
-                          onDragOver={handleDragOver}
-                          onDrop={(e) => handleDrop(e, column.id)}
-                        >
-                          <div className="flex items-center justify-between mb-3 md:mb-4">
-                            <h3 className="font-semibold text-foreground text-xs md:text-sm truncate">{column.label}</h3>
-                            <span className="chip text-xs ml-1 flex-shrink-0">{columnTasks.length}</span>
+                {isExpanded && (
+                  <div className="p-2 md:p-4">
+                    <div className="flex gap-2 md:gap-3 overflow-x-auto pb-2 -mx-2 px-2">
+                      {columns.map((column) => {
+                        const columnTasks = getTasksByStatusAndProject(column.id, project.id);
+                        return (
+                          <div
+                            key={column.id}
+                            className="kanban-column shrink-0 min-w-[200px] md:min-w-[240px] max-w-[280px] p-3 md:p-5"
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDrop(e, column.id)}
+                          >
+                            <div className="flex items-center justify-between mb-3 md:mb-4">
+                              <h3 className="font-semibold text-foreground text-xs md:text-sm truncate">{column.label}</h3>
+                              <span className="chip text-xs ml-1 flex-shrink-0">{columnTasks.length}</span>
+                            </div>
+
+                            <div className="space-y-2">
+                              {columnTasks.map((task) => {
+                                const assigneeEmployeeId = getAssigneeEmployeeId(task.assignee_id);
+                                const assigneeEmployee = assigneeEmployeeId ? getEmployeeById(assigneeEmployeeId) : null;
+
+                                return (
+                                  <TaskCard
+                                    key={task.id}
+                                    task={task}
+                                    employees={employees}
+                                    assigneeEmployeeId={assigneeEmployeeId}
+                                    assigneeLabel={assigneeEmployee?.full_name || "Не назначен"}
+                                    onDragStart={handleDragStart}
+                                    onEdit={openEditModal}
+                                    onStatusChange={(id, status) => updateTask.mutate({ id, status })}
+                                    onPriorityChange={(id, priority) => updateTask.mutate({ id, priority })}
+                                    onAssigneeChange={handleAssigneeChange}
+                                  />
+                                );
+                              })}
+                            </div>
                           </div>
-
-                          <div className="space-y-2">
-                            {columnTasks.map((task) => {
-                              const assigneeEmployeeId = getAssigneeEmployeeId(task.assignee_id);
-                              const assigneeEmployee = assigneeEmployeeId ? getEmployeeById(assigneeEmployeeId) : null;
-
-                              return (
-                                <TaskCard
-                                  key={task.id}
-                                  task={task}
-                                  employees={employees}
-                                  assigneeEmployeeId={assigneeEmployeeId}
-                                  assigneeLabel={assigneeEmployee?.full_name || "Не назначен"}
-                                  onDragStart={handleDragStart}
-                                  onEdit={openEditModal}
-                                  onStatusChange={(id, status) => updateTask.mutate({ id, status })}
-                                  onPriorityChange={(id, priority) => updateTask.mutate({ id, priority })}
-                                  onAssigneeChange={handleAssigneeChange}
-                                />
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+                )}
+              </div>
+            );
+          })
+        ) : (
+          // Group by Assignee
+          assigneesWithTasks.map((assignee) => {
+            const assigneeTaskCount = tasksByAssignee[assignee.id]?.length || 0;
+            const isExpanded = expandedAssignees.has(assignee.id);
+
+            return (
+              <div key={assignee.id} className="border border-border rounded-xl overflow-hidden">
+                <button
+                  onClick={() => toggleAssignee(assignee.id)}
+                  className="w-full flex items-center gap-3 p-4 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  )}
+                  <User className="w-4 h-4 text-primary" />
+                  <span className="font-medium text-foreground flex-1">{assignee.name}</span>
+                  <span className="chip">{assigneeTaskCount}</span>
+                </button>
+
+                {isExpanded && (
+                  <div className="p-2 md:p-4">
+                    <div className="flex gap-2 md:gap-3 overflow-x-auto pb-2 -mx-2 px-2">
+                      {columns.map((column) => {
+                        const columnTasks = getTasksByStatusAndAssignee(column.id, assignee.id);
+                        return (
+                          <div
+                            key={column.id}
+                            className="kanban-column shrink-0 min-w-[200px] md:min-w-[240px] max-w-[280px] p-3 md:p-5"
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDrop(e, column.id)}
+                          >
+                            <div className="flex items-center justify-between mb-3 md:mb-4">
+                              <h3 className="font-semibold text-foreground text-xs md:text-sm truncate">{column.label}</h3>
+                              <span className="chip text-xs ml-1 flex-shrink-0">{columnTasks.length}</span>
+                            </div>
+
+                            <div className="space-y-2">
+                              {columnTasks.map((task) => {
+                                const assigneeEmployeeId = getAssigneeEmployeeId(task.assignee_id);
+                                const assigneeEmployee = assigneeEmployeeId ? getEmployeeById(assigneeEmployeeId) : null;
+
+                                return (
+                                  <TaskCard
+                                    key={task.id}
+                                    task={task}
+                                    employees={employees}
+                                    assigneeEmployeeId={assigneeEmployeeId}
+                                    assigneeLabel={assigneeEmployee?.full_name || "Не назначен"}
+                                    onDragStart={handleDragStart}
+                                    onEdit={openEditModal}
+                                    onStatusChange={(id, status) => updateTask.mutate({ id, status })}
+                                    onPriorityChange={(id, priority) => updateTask.mutate({ id, priority })}
+                                    onAssigneeChange={handleAssigneeChange}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
 
       <Modal
