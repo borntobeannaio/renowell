@@ -36,7 +36,7 @@ const App = () => (
                   path="/"
                   element={
                     <ProtectedRoute>
-                      <Navigate to="/news" replace />
+                      <Navigate to="/brandhub" replace />
                     </ProtectedRoute>
                   }
                 />

@@ -74,13 +74,14 @@ export function BrandHubModule() {
         <HeroBlock onOpenFull={() => setCatalogOpen(true)} onScrollToCheatsheet={scrollToCheatsheet} />
       </div>
 
+      <PyramidBlock onLayerClick={handlePyramidClick} />
+
       <div id="positioning"><PositioningBlock /></div>
       <AudienceBlock />
       <div id="benefits"><BenefitsBlock /></div>
       <div id="values"><ValuesBlock /></div>
       <div ref={cheatsheetRef} id="character"><CharacterBlock /></div>
       <AttributesBlock onOpenCatalog={() => setCatalogOpen(true)} />
-      <PyramidBlock onLayerClick={handlePyramidClick} />
 
       {/* Modals */}
       <GlossaryModal open={glossaryOpen} onOpenChange={setGlossaryOpen} />
