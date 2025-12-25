@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+
 
 interface Filter {
   column: string;
@@ -28,7 +28,8 @@ interface ProxyResponse<T> {
 
 const RETRIES = 2;
 
-// Always use Yandex Cloud proxy for better connectivity in RU region
+// Prefer built-in backend proxy (proper UTF-8), fall back to external proxy if needed
+const INTERNAL_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/db-proxy`;
 const EXTERNAL_PROXY_URL = "https://functions.yandexcloud.net/d4ed338dbl81ecrk8g0t";
 
 async function sleep(ms: number) {
@@ -36,17 +37,20 @@ async function sleep(ms: number) {
 }
 
 /**
- * Make request via external proxy (Yandex Cloud)
+ * Make request via proxy endpoint.
  */
-async function callExternalProxy<T>(request: ProxyRequest): Promise<ProxyResponse<T>> {
+async function callProxyUrl<T>(url: string, request: ProxyRequest): Promise<ProxyResponse<T>> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 20000);
 
   try {
-    const response = await fetch(EXTERNAL_PROXY_URL, {
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        // Publishable key is safe on the client and is required for calling backend functions.
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify(request),
       signal: controller.signal,
@@ -64,6 +68,17 @@ async function callExternalProxy<T>(request: ProxyRequest): Promise<ProxyRespons
   } catch (err) {
     clearTimeout(timeoutId);
     throw err;
+  }
+}
+
+/**
+ * Try internal proxy first (stable UTF-8), fall back to external proxy.
+ */
+async function callExternalProxy<T>(request: ProxyRequest): Promise<ProxyResponse<T>> {
+  try {
+    return await callProxyUrl<T>(INTERNAL_PROXY_URL, request);
+  } catch {
+    return await callProxyUrl<T>(EXTERNAL_PROXY_URL, request);
   }
 }
 
