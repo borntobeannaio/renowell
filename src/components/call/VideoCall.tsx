@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useEndCall } from "@/hooks/useCalls";
 import {
   PhoneOff,
@@ -75,6 +75,27 @@ interface VideoCallProps {
   onEnd: () => void;
 }
 
+// Helper to wait for Jitsi API to load
+function waitForJitsiAPI(maxWait = 10000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (window.JitsiMeetExternalAPI) {
+      resolve();
+      return;
+    }
+
+    const startTime = Date.now();
+    const checkInterval = setInterval(() => {
+      if (window.JitsiMeetExternalAPI) {
+        clearInterval(checkInterval);
+        resolve();
+      } else if (Date.now() - startTime > maxWait) {
+        clearInterval(checkInterval);
+        reject(new Error("Jitsi API не загрузился. Попробуйте обновить страницу."));
+      }
+    }, 100);
+  });
+}
+
 export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallProps) {
   const [jitsiApi, setJitsiApi] = useState<JitsiMeetAPI | null>(null);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
@@ -87,161 +108,223 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
 
   const containerRef = useRef<HTMLDivElement>(null);
   const endCall = useEndCall();
+  const apiRef = useRef<JitsiMeetAPI | null>(null);
+
+  const handleEndCall = useCallback(async () => {
+    if (apiRef.current) {
+      apiRef.current.dispose();
+      apiRef.current = null;
+    }
+    try {
+      await endCall.mutateAsync(callId);
+    } catch (e) {
+      console.error("Error ending call:", e);
+    }
+    onEnd();
+  }, [callId, endCall, onEnd]);
 
   useEffect(() => {
-    if (!containerRef.current || !window.JitsiMeetExternalAPI) {
-      if (!window.JitsiMeetExternalAPI) {
-        setError("Jitsi API не загружен");
-        setIsConnecting(false);
-      }
-      return;
-    }
+    let mounted = true;
+    let api: JitsiMeetAPI | null = null;
 
-    try {
-      setIsConnecting(true);
-      setError(null);
+    const initJitsi = async () => {
+      if (!containerRef.current) return;
 
-      const domain = "meet.jit.si";
-      const options: JitsiMeetOptions = {
-        roomName: `renowell_${channelName}`,
-        width: "100%",
-        height: "100%",
-        parentNode: containerRef.current,
-        userInfo: {
-          displayName: "Участник",
-        },
-        configOverwrite: {
-          startWithAudioMuted: false,
-          startWithVideoMuted: callType === "audio",
-          prejoinPageEnabled: false,
-          disableDeepLinking: true,
-          enableClosePage: false,
-          hideConferenceSubject: true,
-          hideConferenceTimer: true,
-          enableLobby: false,
-          disableInviteFunctions: true,
-          enableNoisyMicDetection: false,
-          remoteVideoMenu: {
-            disableKick: true,
+      try {
+        setIsConnecting(true);
+        setError(null);
+
+        console.log("Waiting for Jitsi API...");
+        await waitForJitsiAPI();
+        console.log("Jitsi API loaded");
+
+        if (!mounted || !containerRef.current) return;
+
+        const domain = "meet.jit.si";
+        const roomName = `renowell_${channelName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+        
+        console.log("Creating Jitsi conference:", roomName);
+        
+        const options: JitsiMeetOptions = {
+          roomName,
+          width: "100%",
+          height: "100%",
+          parentNode: containerRef.current,
+          userInfo: {
+            displayName: "Участник",
           },
-          toolbarButtons: [],
-        },
-        interfaceConfigOverwrite: {
-          SHOW_JITSI_WATERMARK: false,
-          SHOW_WATERMARK_FOR_GUESTS: false,
-          SHOW_BRAND_WATERMARK: false,
-          TOOLBAR_BUTTONS: [],
-          DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
-          HIDE_INVITE_MORE_HEADER: true,
-          MOBILE_APP_PROMO: false,
-          SHOW_CHROME_EXTENSION_BANNER: false,
-          FILM_STRIP_MAX_HEIGHT: 0,
-        },
-        lang: "ru",
-      };
+          configOverwrite: {
+            startWithAudioMuted: false,
+            startWithVideoMuted: callType === "audio",
+            prejoinPageEnabled: false,
+            disableDeepLinking: true,
+            enableClosePage: false,
+            hideConferenceSubject: true,
+            hideConferenceTimer: false,
+            enableLobby: false,
+            disableInviteFunctions: true,
+            enableNoisyMicDetection: false,
+            remoteVideoMenu: {
+              disableKick: true,
+            },
+            // Show toolbar inside Jitsi iframe
+            toolbarButtons: [
+              'microphone',
+              'camera',
+              'desktop',
+              'fullscreen',
+              'hangup',
+              'chat',
+              'settings',
+              'videoquality',
+              'tileview',
+            ],
+          },
+          interfaceConfigOverwrite: {
+            SHOW_JITSI_WATERMARK: false,
+            SHOW_WATERMARK_FOR_GUESTS: false,
+            SHOW_BRAND_WATERMARK: false,
+            DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
+            HIDE_INVITE_MORE_HEADER: true,
+            MOBILE_APP_PROMO: false,
+            SHOW_CHROME_EXTENSION_BANNER: false,
+          },
+          lang: "ru",
+        };
 
-      const api = new window.JitsiMeetExternalAPI(domain, options);
-      setJitsiApi(api);
+        api = new window.JitsiMeetExternalAPI(domain, options);
+        apiRef.current = api;
+        
+        if (mounted) {
+          setJitsiApi(api);
+        }
 
-      api.addListener("videoConferenceJoined", () => {
-        console.log("Joined Jitsi conference");
-        setIsConnecting(false);
-        setParticipantCount(api.getNumberOfParticipants());
-      });
+        api.addListener("videoConferenceJoined", () => {
+          console.log("Joined Jitsi conference");
+          if (mounted) {
+            setIsConnecting(false);
+            setParticipantCount(api?.getNumberOfParticipants() || 1);
+          }
+        });
 
-      api.addListener("participantJoined", () => {
-        setParticipantCount(api.getNumberOfParticipants());
-      });
+        api.addListener("participantJoined", () => {
+          if (mounted && api) {
+            setParticipantCount(api.getNumberOfParticipants());
+          }
+        });
 
-      api.addListener("participantLeft", () => {
-        setParticipantCount(api.getNumberOfParticipants());
-      });
+        api.addListener("participantLeft", () => {
+          if (mounted && api) {
+            setParticipantCount(api.getNumberOfParticipants());
+          }
+        });
 
-      api.addListener("audioMuteStatusChanged", (data: { muted: boolean }) => {
-        setIsAudioMuted(data.muted);
-      });
+        api.addListener("audioMuteStatusChanged", (data: unknown) => {
+          const { muted } = data as { muted: boolean };
+          if (mounted) setIsAudioMuted(muted);
+        });
 
-      api.addListener("videoMuteStatusChanged", (data: { muted: boolean }) => {
-        setIsVideoMuted(data.muted);
-      });
+        api.addListener("videoMuteStatusChanged", (data: unknown) => {
+          const { muted } = data as { muted: boolean };
+          if (mounted) setIsVideoMuted(muted);
+        });
 
-      api.addListener("screenSharingStatusChanged", (data: { on: boolean }) => {
-        setIsScreenSharing(data.on);
-      });
+        api.addListener("screenSharingStatusChanged", (data: unknown) => {
+          const { on } = data as { on: boolean };
+          if (mounted) setIsScreenSharing(on);
+        });
 
-      api.addListener("readyToClose", () => {
-        handleEndCall();
-      });
+        api.addListener("readyToClose", () => {
+          console.log("Jitsi readyToClose event");
+          if (mounted) {
+            handleEndCall();
+          }
+        });
 
-      return () => {
+        api.addListener("videoConferenceLeft", () => {
+          console.log("Left Jitsi conference");
+          if (mounted) {
+            handleEndCall();
+          }
+        });
+
+      } catch (err) {
+        console.error("Jitsi init error:", err);
+        if (mounted) {
+          setError(err instanceof Error ? err.message : "Ошибка подключения к видеозвонку");
+          setIsConnecting(false);
+        }
+      }
+    };
+
+    initJitsi();
+
+    return () => {
+      mounted = false;
+      if (api) {
+        console.log("Disposing Jitsi API");
         api.dispose();
-      };
-    } catch (err) {
-      console.error("Jitsi init error:", err);
-      setError(err instanceof Error ? err.message : "Ошибка подключения");
-      setIsConnecting(false);
-    }
-  }, [channelName, callType]);
+      }
+    };
+  }, [channelName, callType, handleEndCall]);
 
   const toggleAudio = () => {
-    if (jitsiApi) {
-      jitsiApi.executeCommand("toggleAudio");
-    }
+    jitsiApi?.executeCommand("toggleAudio");
   };
 
   const toggleVideo = () => {
-    if (jitsiApi) {
-      jitsiApi.executeCommand("toggleVideo");
-    }
+    jitsiApi?.executeCommand("toggleVideo");
   };
 
   const toggleScreenShare = () => {
-    if (jitsiApi) {
-      jitsiApi.executeCommand("toggleShareScreen");
-    }
-  };
-
-  const handleEndCall = async () => {
-    jitsiApi?.dispose();
-    await endCall.mutateAsync(callId);
-    onEnd();
+    jitsiApi?.executeCommand("toggleShareScreen");
   };
 
   const panelClasses = isFullscreen
     ? "fixed inset-0 z-[100]"
-    : "fixed bottom-24 right-4 md:right-6 z-[100] w-[400px] h-[500px] rounded-2xl overflow-hidden";
+    : "fixed bottom-24 right-4 md:right-6 z-[100] w-[500px] h-[600px] rounded-2xl overflow-hidden";
 
   return (
     <div className={`${panelClasses} bg-gray-900 shadow-2xl flex flex-col`}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 bg-gray-800/50">
+      <div className="flex items-center justify-between p-3 bg-gray-800/80">
         <div className="flex items-center gap-2 text-white">
-          <Users className="w-5 h-5" />
-          <span className="font-medium">
+          <Users className="w-4 h-4" />
+          <span className="text-sm font-medium">
             {isConnecting ? "Подключение..." : `${participantCount} участников`}
           </span>
           {isScreenSharing && (
             <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
-              Демонстрация экрана
+              Экран
             </span>
           )}
         </div>
-        <button
-          onClick={() => setIsFullscreen(!isFullscreen)}
-          className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white"
-        >
-          {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-white"
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={handleEndCall}
+            className="p-1.5 rounded-lg bg-red-500 hover:bg-red-600 transition-colors"
+            title="Завершить звонок"
+          >
+            <PhoneOff className="w-4 h-4 text-white" />
+          </button>
+        </div>
       </div>
 
       {/* Jitsi container */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative bg-gray-900">
         <div ref={containerRef} className="absolute inset-0" />
         {isConnecting && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-800 z-10">
             <div className="text-white text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2" />
-              <p>Подключение к звонку...</p>
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white mx-auto mb-3" />
+              <p className="text-sm">Подключение к звонку...</p>
+              <p className="text-xs text-gray-400 mt-1">Разрешите доступ к камере и микрофону</p>
             </div>
           </div>
         )}
@@ -249,64 +332,59 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
 
       {/* Error message */}
       {error && (
-        <div className="px-4 py-2 bg-red-500/20 text-red-400 text-center text-sm">
+        <div className="px-4 py-3 bg-red-500/20 text-red-400 text-center text-sm">
           {error}
+          <button 
+            onClick={() => window.location.reload()} 
+            className="ml-2 underline hover:no-underline"
+          >
+            Обновить страницу
+          </button>
         </div>
       )}
 
-      {/* Controls */}
-      <div className="flex items-center justify-center gap-3 p-4 bg-gray-800/50">
+      {/* Mini controls bar - supplementary to Jitsi's own controls */}
+      <div className="flex items-center justify-center gap-2 p-2 bg-gray-800/80">
         <button
           onClick={toggleAudio}
-          className={`p-3 rounded-full transition-colors ${
+          className={`p-2 rounded-full transition-colors ${
             isAudioMuted ? "bg-red-500 hover:bg-red-600" : "bg-gray-600 hover:bg-gray-500"
           }`}
           title={isAudioMuted ? "Включить микрофон" : "Выключить микрофон"}
         >
           {isAudioMuted ? (
-            <MicOff className="w-5 h-5 text-white" />
+            <MicOff className="w-4 h-4 text-white" />
           ) : (
-            <Mic className="w-5 h-5 text-white" />
+            <Mic className="w-4 h-4 text-white" />
           )}
         </button>
 
-        {callType === "video" && (
-          <button
-            onClick={toggleVideo}
-            className={`p-3 rounded-full transition-colors ${
-              isVideoMuted ? "bg-red-500 hover:bg-red-600" : "bg-gray-600 hover:bg-gray-500"
-            }`}
-            title={isVideoMuted ? "Включить камеру" : "Выключить камеру"}
-          >
-            {isVideoMuted ? (
-              <VideoOff className="w-5 h-5 text-white" />
-            ) : (
-              <Video className="w-5 h-5 text-white" />
-            )}
-          </button>
-        )}
+        <button
+          onClick={toggleVideo}
+          className={`p-2 rounded-full transition-colors ${
+            isVideoMuted ? "bg-red-500 hover:bg-red-600" : "bg-gray-600 hover:bg-gray-500"
+          }`}
+          title={isVideoMuted ? "Включить камеру" : "Выключить камеру"}
+        >
+          {isVideoMuted ? (
+            <VideoOff className="w-4 h-4 text-white" />
+          ) : (
+            <Video className="w-4 h-4 text-white" />
+          )}
+        </button>
 
-        {/* Screen share button */}
         <button
           onClick={toggleScreenShare}
-          className={`p-3 rounded-full transition-colors ${
+          className={`p-2 rounded-full transition-colors ${
             isScreenSharing ? "bg-green-500 hover:bg-green-600" : "bg-gray-600 hover:bg-gray-500"
           }`}
           title={isScreenSharing ? "Остановить демонстрацию" : "Демонстрация экрана"}
         >
           {isScreenSharing ? (
-            <MonitorOff className="w-5 h-5 text-white" />
+            <MonitorOff className="w-4 h-4 text-white" />
           ) : (
-            <Monitor className="w-5 h-5 text-white" />
+            <Monitor className="w-4 h-4 text-white" />
           )}
-        </button>
-
-        <button
-          onClick={handleEndCall}
-          className="p-3 rounded-full bg-red-500 hover:bg-red-600 transition-colors"
-          title="Завершить звонок"
-        >
-          <PhoneOff className="w-5 h-5 text-white" />
         </button>
       </div>
     </div>
