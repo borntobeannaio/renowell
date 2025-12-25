@@ -303,7 +303,7 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
 
   const panelClasses = isFullscreen
     ? "fixed inset-0 z-[100]"
-    : "fixed bottom-24 right-4 md:right-6 z-[100] w-[500px] h-[600px] rounded-2xl overflow-hidden";
+    : "fixed inset-4 md:inset-auto md:bottom-24 md:right-6 z-[100] md:w-[500px] md:h-[600px] rounded-2xl overflow-hidden";
 
   return (
     <div className={`${panelClasses} bg-gray-900 shadow-2xl flex flex-col`}>
