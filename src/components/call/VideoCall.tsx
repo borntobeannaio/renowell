@@ -110,18 +110,28 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
   const endCall = useEndCall();
   const apiRef = useRef<JitsiMeetAPI | null>(null);
 
+  const onEndRef = useRef(onEnd);
+  useEffect(() => {
+    onEndRef.current = onEnd;
+  }, [onEnd]);
+
+  const callIdRef = useRef(callId);
+  useEffect(() => {
+    callIdRef.current = callId;
+  }, [callId]);
+
   const handleEndCall = useCallback(async () => {
     if (apiRef.current) {
       apiRef.current.dispose();
       apiRef.current = null;
     }
     try {
-      await endCall.mutateAsync(callId);
+      await endCall.mutateAsync(callIdRef.current);
     } catch (e) {
       console.error("Error ending call:", e);
     }
-    onEnd();
-  }, [callId, endCall, onEnd]);
+    onEndRef.current();
+  }, [endCall]);
 
   useEffect(() => {
     let mounted = true;
@@ -234,17 +244,28 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
           if (mounted) setIsScreenSharing(on);
         });
 
+        // If Jitsi decides to close itself (e.g. network / iframe issues), do NOT end the call in backend
+        // to avoid UI restart loops. Just close the UI.
         api.addListener("readyToClose", () => {
           console.log("Jitsi readyToClose event");
           if (mounted) {
-            handleEndCall();
+            api?.dispose();
+            apiRef.current = null;
+            setJitsiApi(null);
+            setIsConnecting(false);
+            setError("Соединение Jitsi было закрыто. Попробуйте открыть звонок ещё раз.");
+            onEndRef.current();
           }
         });
 
         api.addListener("videoConferenceLeft", () => {
           console.log("Left Jitsi conference");
           if (mounted) {
-            handleEndCall();
+            api?.dispose();
+            apiRef.current = null;
+            setJitsiApi(null);
+            setIsConnecting(false);
+            onEndRef.current();
           }
         });
 
@@ -266,7 +287,7 @@ export function VideoCall({ channelName, callId, callType, onEnd }: VideoCallPro
         api.dispose();
       }
     };
-  }, [channelName, callType, handleEndCall]);
+  }, [channelName, callType]);
 
   const toggleAudio = () => {
     jitsiApi?.executeCommand("toggleAudio");
