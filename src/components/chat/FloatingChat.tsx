@@ -220,6 +220,40 @@ export function FloatingChat() {
     enabled: !!selectedConversationId,
   });
 
+  // Fetch all participants with profiles for each conversation (for displaying correct title)
+  const { data: allConversationParticipants = [] } = useQuery({
+    queryKey: ["all-conversation-participants"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chat_participants")
+        .select("conversation_id, user_id, profiles:profiles!chat_participants_user_id_fkey(id, first_name, last_name)");
+      if (error) throw error;
+      return data;
+    },
+    enabled: conversations.length > 0,
+  });
+
+  // Helper to get the display title for a conversation
+  const getConversationDisplayTitle = (conv: typeof conversations[0]) => {
+    // For group chats, use the stored title
+    if (conv.type === "group") {
+      return conv.title;
+    }
+    
+    // For direct chats, find the other participant (not the current user)
+    const participants = allConversationParticipants.filter(p => p.conversation_id === conv.id);
+    const otherParticipant = participants.find(p => p.user_id !== currentProfile?.id);
+    
+    if (otherParticipant?.profiles) {
+      const profile = otherParticipant.profiles as { first_name: string | null; last_name: string | null };
+      const name = `${profile.first_name || ""} ${profile.last_name || ""}`.trim();
+      if (name) return name;
+    }
+    
+    // Fallback to stored title
+    return conv.title;
+  };
+
   const handleStartCall = async (callType: "video" | "audio") => {
     if (!currentProfile || !selectedConversationId) return;
     
@@ -264,7 +298,7 @@ export function FloatingChat() {
               <Users className="w-4 h-4 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-foreground truncate">{conv.title}</p>
+              <p className="font-medium text-foreground truncate">{getConversationDisplayTitle(conv)}</p>
               <p className="text-xs text-muted-foreground">
                 {formatTime(conv.updated_at)}
               </p>
@@ -398,7 +432,7 @@ export function FloatingChat() {
                   className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" />
-                  {selectedConversation?.title}
+                  {selectedConversation ? getConversationDisplayTitle(selectedConversation) : ""}
                 </button>
               ) : (
                 <span className="text-sm font-semibold text-foreground">
