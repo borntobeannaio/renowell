@@ -1,14 +1,8 @@
-import { Sparkles, FileText, HelpCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Sparkles } from "lucide-react";
 import { CopyButton } from "./CopyButton";
 import { brandData } from "./BrandHubData";
 
-interface HeroBlockProps {
-  onOpenFull: () => void;
-  onScrollToCheatsheet: () => void;
-}
-
-export function HeroBlock({ onOpenFull, onScrollToCheatsheet }: HeroBlockProps) {
+export function HeroBlock() {
   return (
     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary/90 to-primary/80 p-6 md:p-10 text-primary-foreground">
       {/* Background decoration */}
@@ -34,37 +28,9 @@ export function HeroBlock({ onOpenFull, onScrollToCheatsheet }: HeroBlockProps) 
           />
         </div>
 
-        <p className="text-sm opacity-70 mb-8 italic">
+        <p className="text-sm opacity-70 italic">
           {brandData.goldenRule.subtext}
         </p>
-
-        <div className="flex flex-wrap gap-3">
-          <Button
-            onClick={onOpenFull}
-            variant="secondary"
-            className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
-          >
-            <FileText className="w-4 h-4 mr-2" />
-            Открыть платформу целиком
-          </Button>
-          
-          <Button
-            onClick={onScrollToCheatsheet}
-            variant="outline"
-            className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10"
-          >
-            Шпаргалка на 1 минуту
-          </Button>
-
-          <Button
-            variant="ghost"
-            className="text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10"
-            onClick={() => window.open("mailto:marketing@renowell.ru?subject=Вопрос по бренду", "_blank")}
-          >
-            <HelpCircle className="w-4 h-4 mr-2" />
-            Вопрос по бренду → маркетинг
-          </Button>
-        </div>
       </div>
     </div>
   );

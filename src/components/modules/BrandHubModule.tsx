@@ -71,7 +71,7 @@ export function BrandHubModule() {
       <BrandSearch onResultClick={handleSearchResult} />
 
       <div id="hero">
-        <HeroBlock onOpenFull={() => setCatalogOpen(true)} onScrollToCheatsheet={scrollToCheatsheet} />
+        <HeroBlock />
       </div>
 
       <PyramidBlock onLayerClick={handlePyramidClick} />
