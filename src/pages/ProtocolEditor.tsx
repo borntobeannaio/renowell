@@ -2,15 +2,16 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2, Check, FolderOpen, CheckCircle2, Pencil } from "lucide-react";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
-import { 
-  useProtocols, 
-  useProtocolItems, 
-  useCreateProtocol, 
-  useCreateProtocolItem, 
-  useDeleteProtocolItem, 
-  useUpdateProtocolItem, 
+import {
+  useProtocols,
+  useProtocolItems,
+  useCreateProtocol,
+  useUpdateProtocol,
+  useCreateProtocolItem,
+  useDeleteProtocolItem,
+  useUpdateProtocolItem,
   useNextProtocolNumber,
-  DbProtocolItem 
+  DbProtocolItem,
 } from "@/hooks/useProtocols";
 import { useProjects } from "@/hooks/useProjects";
 import { useEmployees } from "@/hooks/useEmployees";
@@ -50,11 +51,13 @@ export default function ProtocolEditor() {
   const { data: employees = [] } = useEmployees();
   const { data: nextNumber = 1 } = useNextProtocolNumber();
   const createProtocol = useCreateProtocol();
+  const updateProtocol = useUpdateProtocol();
   const createProtocolItem = useCreateProtocolItem();
   const deleteProtocolItem = useDeleteProtocolItem();
   const updateProtocolItem = useUpdateProtocolItem();
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
+
 
   // Existing protocol data for edit mode
   const existingProtocol = isEditMode ? protocols.find(p => p.id === id) : null;
@@ -82,15 +85,36 @@ export default function ProtocolEditor() {
   });
   const [showAddItemForm, setShowAddItemForm] = useState(false);
 
-  // Initialize form for copy mode
+  // Initialize form for edit & copy modes
   useEffect(() => {
-    if (isCopyMode && sourceProtocol && sourceItems.length >= 0) {
-      const organizerEmployee = sourceProtocol.organizer 
-        ? employees.find(e => e.full_name === sourceProtocol.organizer) 
+    // Edit mode: load existing protocol into local form for editing
+    if (isEditMode && existingProtocol) {
+      const organizerEmployee = existingProtocol.organizer
+        ? employees.find((e) => e.full_name === existingProtocol.organizer)
         : null;
-      
-      const attendeeIds = sourceProtocol.attendees
-        .map(name => employees.find(e => e.full_name === name)?.id)
+
+      const attendeeIds = (existingProtocol.attendees || [])
+        .map((name) => employees.find((e) => e.full_name === name)?.id)
+        .filter(Boolean) as string[];
+
+      setForm({
+        date: existingProtocol.date,
+        title: existingProtocol.title,
+        organizer_id: organizerEmployee?.id || "",
+        attendee_ids: attendeeIds,
+      });
+    }
+  }, [isEditMode, existingProtocol, employees]);
+
+  useEffect(() => {
+    // Copy mode: prefill from source protocol + items
+    if (isCopyMode && sourceProtocol) {
+      const organizerEmployee = sourceProtocol.organizer
+        ? employees.find((e) => e.full_name === sourceProtocol.organizer)
+        : null;
+
+      const attendeeIds = (sourceProtocol.attendees || [])
+        .map((name) => employees.find((e) => e.full_name === name)?.id)
         .filter(Boolean) as string[];
 
       setForm({
@@ -111,6 +135,7 @@ export default function ProtocolEditor() {
       setPendingItems(copiedItems);
     }
   }, [isCopyMode, sourceProtocol, sourceItems, employees]);
+
 
   // Helper functions
   const getEmployeeIdsFromResponsible = (responsible: string | null): string[] => {
@@ -325,58 +350,40 @@ export default function ProtocolEditor() {
         <section className="card-base p-6 space-y-4">
           <h2 className="text-lg font-medium text-foreground">Информация о совещании</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">
-                Номер
-              </label>
-              <input
-                type="number"
-                value={isEditMode ? existingProtocol?.number || "" : nextNumber}
-                disabled
-                className="input-base w-full bg-muted"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Номер</label>
+                <input
+                  type="number"
+                  value={isEditMode ? existingProtocol?.number || "" : nextNumber}
+                  disabled
+                  className="input-base w-full bg-muted"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Дата</label>
+                <input
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                  className="input-base w-full"
+                />
+              </div>
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">
-                Дата
-              </label>
-              <input
-                type="date"
-                value={isEditMode ? existingProtocol?.date || "" : form.date}
-                onChange={(e) => !isEditMode && setForm({ ...form, date: e.target.value })}
-                className="input-base w-full"
-                disabled={isEditMode}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              Тема совещания
-            </label>
-            <input
-              type="text"
-              value={isEditMode ? existingProtocol?.title || "" : form.title}
-              onChange={(e) => !isEditMode && setForm({ ...form, title: e.target.value })}
-              className="input-base w-full"
-              placeholder="Введите тему"
-              disabled={isEditMode}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              Организатор
-            </label>
-            {isEditMode ? (
+              <label className="block text-sm font-medium text-foreground mb-1.5">Тема совещания</label>
               <input
                 type="text"
-                value={existingProtocol?.organizer || ""}
-                disabled
-                className="input-base w-full bg-muted"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                className="input-base w-full"
+                placeholder="Введите тему"
               />
-            ) : (
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Организатор</label>
               <EmployeeMultiSelect
                 employees={employees}
                 selectedIds={form.organizer_id ? [form.organizer_id] : []}
@@ -384,41 +391,73 @@ export default function ProtocolEditor() {
                 placeholder="Выберите организатора"
                 single
               />
-            )}
-          </div>
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              Участники
-            </label>
-            {isEditMode ? (
-              <div className="flex flex-wrap gap-2">
-                {existingProtocol?.attendees.map((a, i) => (
-                  <span key={i} className="chip">{a}</span>
-                ))}
-              </div>
-            ) : (
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Участники</label>
               <EmployeeMultiSelect
                 employees={employees}
                 selectedIds={form.attendee_ids}
                 onChange={(ids) => setForm({ ...form, attendee_ids: ids })}
                 placeholder="Выберите участников"
               />
-            )}
-          </div>
-
-          {/* Create button for new protocol */}
-          {isNew && (
-            <div className="pt-4 flex justify-end">
-              <button
-                onClick={handleCreate}
-                className="btn-primary"
-                disabled={createProtocol.isPending || !form.title.trim()}
-              >
-                {createProtocol.isPending ? "Создание..." : isCopyMode ? "Создать копию" : "Создать протокол"}
-              </button>
             </div>
-          )}
+
+
+            {/* Actions */}
+            <div className="pt-4 flex justify-end gap-2">
+              {isEditMode && (
+                <button
+                  onClick={async () => {
+                    if (!id) return;
+                    if (!form.title.trim()) {
+                      toast.error("Введите тему совещания");
+                      return;
+                    }
+
+                    const organizerName = form.organizer_id
+                      ? employees.find((e) => e.id === form.organizer_id)?.full_name || null
+                      : null;
+                    const attendeeNames = form.attendee_ids
+                      .map((empId) => employees.find((e) => e.id === empId)?.full_name)
+                      .filter(Boolean) as string[];
+
+                    try {
+                      await updateProtocol.mutateAsync({
+                        id,
+                        date: form.date,
+                        title: form.title,
+                        organizer: organizerName,
+                        meeting_type: form.title,
+                        attendees: attendeeNames,
+                      });
+                      toast.success("Протокол обновлён");
+                    } catch {
+                      toast.error("Ошибка при сохранении");
+                    }
+                  }}
+                  className="btn-primary"
+                  disabled={updateProtocol.isPending || !form.title.trim()}
+                >
+                  {updateProtocol.isPending ? "Сохранение..." : "Сохранить"}
+                </button>
+              )}
+
+              {isNew && (
+                <button
+                  onClick={handleCreate}
+                  className="btn-primary"
+                  disabled={createProtocol.isPending || !form.title.trim()}
+                >
+                  {createProtocol.isPending
+                    ? "Создание..."
+                    : isCopyMode
+                      ? "Создать копию"
+                      : "Создать протокол"}
+                </button>
+              )}
+            </div>
+
         </section>
 
         {/* Items section - for new protocol (pending items) */}
