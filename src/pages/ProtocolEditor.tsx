@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Check, FolderOpen, CheckCircle2, Pencil } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Check, FolderOpen, CheckCircle2, Pencil, Loader2 } from "lucide-react";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import {
   useProtocols,
@@ -46,9 +46,9 @@ export default function ProtocolEditor() {
   const isEditMode = !isNew && !!id;
   const isCopyMode = isNew && !!copyFromId;
 
-  const { data: protocols = [] } = useProtocols();
+  const { data: protocols = [], isLoading: protocolsLoading } = useProtocols();
   const { data: projects = [] } = useProjects();
-  const { data: employees = [] } = useEmployees();
+  const { data: employees = [], isLoading: employeesLoading } = useEmployees();
   const { data: nextNumber = 1 } = useNextProtocolNumber();
   const createProtocol = useCreateProtocol();
   const updateProtocol = useUpdateProtocol();
@@ -65,7 +65,10 @@ export default function ProtocolEditor() {
 
   // Source protocol for copy mode
   const sourceProtocol = isCopyMode ? protocols.find(p => p.id === copyFromId) : null;
-  const { data: sourceItems = [] } = useProtocolItems(isCopyMode ? copyFromId : null);
+  const { data: sourceItems = [], isLoading: sourceItemsLoading } = useProtocolItems(isCopyMode ? copyFromId : null);
+  
+  // Loading state for copy mode
+  const isCopyDataLoading = isCopyMode && (protocolsLoading || employeesLoading || sourceItemsLoading || !sourceProtocol);
 
   // Form state
   const [form, setForm] = useState({
@@ -106,9 +109,12 @@ export default function ProtocolEditor() {
     }
   }, [isEditMode, existingProtocol, employees]);
 
+  // Track if copy data was already applied
+  const [copyApplied, setCopyApplied] = useState(false);
+
   useEffect(() => {
-    // Copy mode: prefill from source protocol + items
-    if (isCopyMode && sourceProtocol) {
+    // Copy mode: prefill from source protocol + items (only once when data is ready)
+    if (isCopyMode && sourceProtocol && sourceItems.length >= 0 && employees.length > 0 && !copyApplied && !sourceItemsLoading) {
       const organizerEmployee = sourceProtocol.organizer
         ? employees.find((e) => e.full_name === sourceProtocol.organizer)
         : null;
@@ -133,8 +139,9 @@ export default function ProtocolEditor() {
         create_task: false,
       }));
       setPendingItems(copiedItems);
+      setCopyApplied(true);
     }
-  }, [isCopyMode, sourceProtocol, sourceItems, employees]);
+  }, [isCopyMode, sourceProtocol, sourceItems, employees, copyApplied, sourceItemsLoading]);
 
 
   // Helper functions
@@ -346,7 +353,16 @@ export default function ProtocolEditor() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+        {/* Loading state for copy mode */}
+        {isCopyDataLoading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <span className="ml-3 text-muted-foreground">Загрузка данных протокола...</span>
+          </div>
+        )}
+
         {/* Protocol metadata form */}
+        {!isCopyDataLoading && (
         <section className="card-base p-6 space-y-4">
           <h2 className="text-lg font-medium text-foreground">Информация о совещании</h2>
           
@@ -459,9 +475,10 @@ export default function ProtocolEditor() {
             </div>
 
         </section>
+        )}
 
         {/* Items section - for new protocol (pending items) */}
-        {isNew && (
+        {isNew && !isCopyDataLoading && (
           <section className="card-base p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-medium text-foreground">
