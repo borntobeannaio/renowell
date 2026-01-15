@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Check, FolderOpen, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Check, FolderOpen, CheckCircle2, Pencil } from "lucide-react";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { 
   useProtocols, 
@@ -39,7 +39,7 @@ export default function ProtocolEditor() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
-  const copyFromId = searchParams.get("copyFrom");
+  const copyFromId = searchParams.get("copy");
   
   const isNew = id === "new";
   const isEditMode = !isNew && !!id;
@@ -819,14 +819,15 @@ function ExistingItemRow({ item, employees, onDelete, protocolId, updateProtocol
         )}
         <button
           onClick={() => setIsEditing(true)}
-          className="p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+          className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded transition-colors"
           title="Редактировать"
         >
-          <Check className="w-4 h-4" />
+          <Pencil className="w-4 h-4" />
         </button>
         <button
           onClick={onDelete}
-          className="p-1 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+          className="p-1.5 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+          title="Удалить"
         >
           <Trash2 className="w-4 h-4" />
         </button>
