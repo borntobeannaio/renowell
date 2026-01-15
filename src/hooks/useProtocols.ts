@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { proxySelect, proxyInsert, proxyDelete } from "@/lib/dbProxy";
+import { proxySelect, proxyInsert, proxyDelete, proxyUpdate } from "@/lib/dbProxy";
+
 
 export interface DbProtocol {
   id: string;
@@ -72,14 +73,49 @@ export function useCreateProtocol() {
       meeting_type?: string | null;
       attendees?: string[];
     }) => {
-      const { data, error } = await proxyInsert<DbProtocol>('protocols', {
-        number: protocol.number,
-        date: protocol.date,
-        title: protocol.title,
-        organizer: protocol.organizer || null,
-        meeting_type: protocol.meeting_type || null,
-        attendees: protocol.attendees || [],
-      }, '*');
+      const { data, error } = await proxyInsert<DbProtocol>(
+        "protocols",
+        {
+          number: protocol.number,
+          date: protocol.date,
+          title: protocol.title,
+          organizer: protocol.organizer || null,
+          meeting_type: protocol.meeting_type || null,
+          attendees: protocol.attendees || [],
+        },
+        "*"
+      );
+
+      if (error) throw new Error(error.message);
+      return data?.[0] as DbProtocol;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["protocols"] });
+    },
+  });
+}
+
+export function useUpdateProtocol() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...updates
+    }: {
+      id: string;
+      date?: string;
+      title?: string;
+      organizer?: string | null;
+      meeting_type?: string | null;
+      attendees?: string[];
+    }) => {
+      const { data, error } = await proxyUpdate<DbProtocol>(
+        "protocols",
+        updates,
+        [{ column: "id", operator: "eq", value: id }],
+        "*"
+      );
 
       if (error) throw new Error(error.message);
       return data?.[0] as DbProtocol;
@@ -103,15 +139,19 @@ export function useCreateProtocolItem() {
       create_task?: boolean;
       sort_order?: number;
     }) => {
-      const { data, error } = await proxyInsert<DbProtocolItem>('protocol_items', {
-        protocol_id: item.protocol_id,
-        project_id: item.project_id || null,
-        item_text: item.item_text,
-        responsible: item.responsible || null,
-        due_date: item.due_date || null,
-        create_task: item.create_task || false,
-        sort_order: item.sort_order || 0,
-      }, '*');
+      const { data, error } = await proxyInsert<DbProtocolItem>(
+        "protocol_items",
+        {
+          protocol_id: item.protocol_id,
+          project_id: item.project_id || null,
+          item_text: item.item_text,
+          responsible: item.responsible || null,
+          due_date: item.due_date || null,
+          create_task: item.create_task || false,
+          sort_order: item.sort_order || 0,
+        },
+        "*"
+      );
 
       if (error) throw new Error(error.message);
       return data?.[0] as DbProtocolItem;
@@ -126,20 +166,19 @@ export function useUpdateProtocolItem() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, protocol_id, ...updates }: { 
-      id: string; 
-      protocol_id: string; 
+    mutationFn: async ({ id, protocol_id, ...updates }: {
+      id: string;
+      protocol_id: string;
       item_text?: string;
       responsible?: string | null;
       due_date?: string | null;
       task_id?: string | null;
     }) => {
-      const { proxyUpdate } = await import("@/lib/dbProxy");
       const { data, error } = await proxyUpdate<DbProtocolItem>(
-        'protocol_items',
+        "protocol_items",
         updates,
-        [{ column: 'id', operator: 'eq', value: id }],
-        '*'
+        [{ column: "id", operator: "eq", value: id }],
+        "*"
       );
 
       if (error) throw new Error(error.message);
@@ -156,9 +195,7 @@ export function useDeleteProtocolItem() {
 
   return useMutation({
     mutationFn: async ({ id, protocol_id }: { id: string; protocol_id: string }) => {
-      const { error } = await proxyDelete('protocol_items', [
-        { column: 'id', operator: 'eq', value: id },
-      ]);
+      const { error } = await proxyDelete("protocol_items", [{ column: "id", operator: "eq", value: id }]);
 
       if (error) throw new Error(error.message);
       return { id, protocol_id };

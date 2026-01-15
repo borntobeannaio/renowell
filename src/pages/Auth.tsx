@@ -1,36 +1,51 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
-import { z } from 'zod';
-import { Loader2, Mail, Lock } from 'lucide-react';
-import renowellLogo from '@/assets/renowell-logo.png';
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { z } from "zod";
+import { Loader2, Mail, Lock } from "lucide-react";
+import renowellLogo from "@/assets/renowell-logo.png";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Введите корректный email" }),
   password: z.string().min(6, { message: "Пароль должен содержать минимум 6 символов" }),
 });
 
+type LocationState = {
+  from?: {
+    pathname: string;
+    search: string;
+  };
+};
+
 export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
   const { signIn, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
   useEffect(() => {
     if (user && !authLoading) {
-      navigate('/');
+      const state = location.state as LocationState | null;
+      const from = state?.from;
+      if (from?.pathname) {
+        navigate(`${from.pathname}${from.search || ""}`, { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, location.state]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
