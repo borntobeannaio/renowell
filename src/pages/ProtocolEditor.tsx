@@ -38,12 +38,13 @@ interface ProtocolItemForm {
 
 export default function ProtocolEditor() {
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id?: string }>();
   const [searchParams] = useSearchParams();
   const copyFromId = searchParams.get("copy");
   
-  const isNew = id === "new";
-  const isEditMode = !isNew && !!id;
+  // Support both /protocols/new (no param) and /protocols/:id where id="new"
+  const isNew = !id || id === "new";
+  const isEditMode = !!id && id !== "new";
   const isCopyMode = isNew && !!copyFromId;
 
   const { data: protocols = [], isLoading: protocolsLoading } = useProtocols();
