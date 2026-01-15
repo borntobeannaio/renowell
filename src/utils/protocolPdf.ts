@@ -78,7 +78,7 @@ export async function generateProtocolPdf(protocol: Protocol, items: ProtocolIte
   // Header
   doc.setFont(hasCyrillicFont ? "Roboto" : "helvetica", "bold");
   doc.setFontSize(12);
-  doc.text(t("КОМПАНИЯ РЕНОВЕЛЛ"), pageWidth / 2, yPos, { align: "center" });
+  doc.text(t("КОМПАНИЯ РЕНОВЭЛЛ"), pageWidth / 2, yPos, { align: "center" });
 
   yPos += 15;
 
@@ -100,7 +100,7 @@ export async function generateProtocolPdf(protocol: Protocol, items: ProtocolIte
     yPos += 8;
   }
 
-  doc.text(t(`Тип совещания: ${protocol.title}`), margin, yPos);
+  doc.text(t(`Тип/цель совещания: ${protocol.title}`), margin, yPos);
   yPos += 8;
 
   if (protocol.attendees.length > 0) {
