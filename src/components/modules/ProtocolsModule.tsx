@@ -255,7 +255,7 @@ export function ProtocolsModule() {
           Протоколов: {protocols.length}
         </p>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => window.open('/protocols/new', '_blank')}
           className="btn-primary h-9 md:h-11 px-3 md:px-5 flex items-center gap-2 text-sm md:text-base"
         >
           <Plus className="w-4 h-4" />
@@ -750,11 +750,18 @@ function ProtocolCard({
         </button>
         <div className="flex items-center gap-1">
           <button
-            onClick={() => onCopyProtocol(protocol, items)}
+            onClick={() => window.open(`/protocols/new?copy=${protocol.id}`, '_blank')}
             className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
             title="Копировать протокол"
           >
             <Copy className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => window.open(`/protocols/edit/${protocol.id}`, '_blank')}
+            className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+            title="Редактировать протокол"
+          >
+            <Pencil className="w-4 h-4" />
           </button>
           <button
             onClick={handleExportPdf}
