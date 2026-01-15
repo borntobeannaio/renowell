@@ -60,6 +60,22 @@ async function ensureCyrillicFonts(doc: jsPDF): Promise<boolean> {
   }
 }
 
+async function loadImageAsBase64(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
 export async function generateProtocolPdf(protocol: Protocol, items: ProtocolItem[], projects: Project[]) {
   const doc = new jsPDF({
     orientation: "portrait",
@@ -70,15 +86,23 @@ export async function generateProtocolPdf(protocol: Protocol, items: ProtocolIte
   const hasCyrillicFont = await ensureCyrillicFonts(doc);
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 20;
-  let yPos = 20;
+  let yPos = 15;
 
   // If fonts failed, fall back to transliteration to avoid "tofu" squares
   const t = (text: string) => (hasCyrillicFont ? text : transliterate(text));
 
-  // Header
+  // Load and add logo
+  const logoBase64 = await loadImageAsBase64("/images/renowell-logo-black.png");
+  if (logoBase64) {
+    const logoWidth = 25;
+    const logoHeight = 25;
+    doc.addImage(logoBase64, "PNG", margin, yPos - 5, logoWidth, logoHeight);
+  }
+
+  // Header with company name (next to logo)
   doc.setFont(hasCyrillicFont ? "Roboto" : "helvetica", "bold");
   doc.setFontSize(12);
-  doc.text(t("КОМПАНИЯ РЕНОВЭЛЛ"), pageWidth / 2, yPos, { align: "center" });
+  doc.text(t("КОМПАНИЯ РЕНОВЭЛЛ"), pageWidth / 2, yPos + 5, { align: "center" });
 
   yPos += 15;
 
