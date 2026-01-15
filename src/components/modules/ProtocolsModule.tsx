@@ -519,6 +519,17 @@ function PendingItemRow({ item, projects, employees, onUpdate, onRemove }: Pendi
           className="input-base text-sm"
         />
       </div>
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={item.create_task}
+          onChange={(e) => onUpdate({ create_task: e.target.checked })}
+          className="w-4 h-4 rounded border-input text-primary focus:ring-ring"
+        />
+        <span className="text-sm text-muted-foreground">
+          Создать задачу на канбан
+        </span>
+      </label>
     </div>
   );
 }
