@@ -10,6 +10,7 @@ import { ThemeProvider } from "next-themes";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import ProtocolEditorPage from "./pages/ProtocolEditor";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -53,6 +54,22 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <Index />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/protocols/new"
+                  element={
+                    <ProtectedRoute>
+                      <ProtocolEditorPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/protocols/edit/:id"
+                  element={
+                    <ProtectedRoute>
+                      <ProtocolEditorPage />
                     </ProtectedRoute>
                   }
                 />

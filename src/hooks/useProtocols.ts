@@ -132,6 +132,7 @@ export function useUpdateProtocolItem() {
       item_text?: string;
       responsible?: string | null;
       due_date?: string | null;
+      task_id?: string | null;
     }) => {
       const { proxyUpdate } = await import("@/lib/dbProxy");
       const { data, error } = await proxyUpdate<DbProtocolItem>(
