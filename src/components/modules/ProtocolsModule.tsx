@@ -1,8 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
-import { Plus, ChevronDown, ChevronUp, Trash2, FolderOpen, CheckCircle2, Download, Pencil, Check, X, Calendar, User } from "lucide-react";
-import { useProtocols, useProtocolItems, useCreateProtocol, useCreateProtocolItem, useDeleteProtocolItem, useUpdateProtocolItem, useNextProtocolNumber, DbProtocolItem } from "@/hooks/useProtocols";
+import { Plus, ChevronDown, ChevronUp, Trash2, FolderOpen, CheckCircle2, Download, Pencil, Check, X, Calendar, User, Copy } from "lucide-react";
+import { useProtocols, useProtocolItems, useCreateProtocol, useCreateProtocolItem, useDeleteProtocolItem, useUpdateProtocolItem, useNextProtocolNumber, DbProtocolItem, DbProtocol } from "@/hooks/useProtocols";
 import { useProjects } from "@/hooks/useProjects";
 import { useEmployees } from "@/hooks/useEmployees";
 import { useCreateTask, useUpdateTask } from "@/hooks/useTasks";
@@ -15,6 +15,16 @@ interface ProtocolItemForm {
   item_text: string;
   responsible_ids: string[];
   due_date: string;
+  create_task: boolean;
+}
+
+// Temporary item for copying protocol (before save)
+interface PendingItem {
+  tempId: string;
+  project_id: string | null;
+  item_text: string;
+  responsible: string | null;
+  due_date: string | null;
   create_task: boolean;
 }
 
@@ -31,6 +41,10 @@ export function ProtocolsModule() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingProtocolId, setEditingProtocolId] = useState<string | null>(null);
+  
+  // Copy mode state
+  const [copySourceId, setCopySourceId] = useState<string | null>(null);
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   
   // Form for new protocol
   const [form, setForm] = useState({
@@ -56,6 +70,8 @@ export function ProtocolsModule() {
       organizer_id: "",
       attendee_ids: [],
     });
+    setPendingItems([]);
+    setCopySourceId(null);
   };
 
   const resetItemForm = () => {
@@ -66,6 +82,41 @@ export function ProtocolsModule() {
       due_date: "",
       create_task: false,
     });
+  };
+
+  // Handle copying a protocol
+  const handleCopyProtocol = (protocol: DbProtocol, sourceItems: DbProtocolItem[]) => {
+    // Find organizer employee ID from name
+    const organizerEmployee = protocol.organizer 
+      ? employees.find(e => e.full_name === protocol.organizer) 
+      : null;
+    
+    // Find attendee employee IDs from names
+    const attendeeIds = protocol.attendees
+      .map(name => employees.find(e => e.full_name === name)?.id)
+      .filter(Boolean) as string[];
+
+    // Prefill form with source protocol data
+    setForm({
+      date: new Date().toISOString().slice(0, 10), // Today's date for the copy
+      title: protocol.title,
+      organizer_id: organizerEmployee?.id || "",
+      attendee_ids: attendeeIds,
+    });
+
+    // Copy items as pending items
+    const copiedItems: PendingItem[] = sourceItems.map((item, index) => ({
+      tempId: `temp-${Date.now()}-${index}`,
+      project_id: item.project_id,
+      item_text: item.item_text,
+      responsible: item.responsible,
+      due_date: item.due_date,
+      create_task: false, // Don't auto-create tasks for copied items
+    }));
+
+    setPendingItems(copiedItems);
+    setCopySourceId(protocol.id);
+    setIsModalOpen(true);
   };
 
   const handleCreateProtocol = async (e: React.FormEvent) => {
@@ -90,7 +141,25 @@ export function ProtocolsModule() {
         attendees: attendeeNames,
       });
       
-      toast.success("Протокол создан");
+      // If we have pending items from copy, create them
+      if (pendingItems.length > 0) {
+        for (let i = 0; i < pendingItems.length; i++) {
+          const item = pendingItems[i];
+          await createProtocolItem.mutateAsync({
+            protocol_id: result.id,
+            project_id: item.project_id,
+            item_text: item.item_text,
+            responsible: item.responsible,
+            due_date: item.due_date,
+            create_task: item.create_task,
+            sort_order: i,
+          });
+        }
+        toast.success("Протокол скопирован");
+      } else {
+        toast.success("Протокол создан");
+      }
+
       resetForm();
       setIsModalOpen(false);
       setEditingProtocolId(result.id);
@@ -98,6 +167,28 @@ export function ProtocolsModule() {
     } catch (error) {
       toast.error("Ошибка при создании протокола");
     }
+  };
+
+  // Pending items management for copy mode
+  const handleRemovePendingItem = (tempId: string) => {
+    setPendingItems(prev => prev.filter(item => item.tempId !== tempId));
+  };
+
+  const handleUpdatePendingItem = (tempId: string, updates: Partial<PendingItem>) => {
+    setPendingItems(prev => prev.map(item => 
+      item.tempId === tempId ? { ...item, ...updates } : item
+    ));
+  };
+
+  const handleAddPendingItem = () => {
+    setPendingItems(prev => [...prev, {
+      tempId: `temp-${Date.now()}`,
+      project_id: null,
+      item_text: "",
+      responsible: null,
+      due_date: null,
+      create_task: false,
+    }]);
   };
 
   const handleAddItem = async (protocolId: string) => {
@@ -206,6 +297,7 @@ export function ProtocolsModule() {
               onAddItem={() => handleAddItem(protocol.id)}
               onDeleteItem={(itemId) => handleDeleteItem(itemId, protocol.id)}
               resetItemForm={resetItemForm}
+              onCopyProtocol={handleCopyProtocol}
             />
           ))
         )}
@@ -214,9 +306,12 @@ export function ProtocolsModule() {
       {/* Modal for creating new protocol */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Новый протокол"
-        size="md"
+        onClose={() => {
+          setIsModalOpen(false);
+          resetForm();
+        }}
+        title={copySourceId ? "Копирование протокола" : "Новый протокол"}
+        size="lg"
       >
         <form onSubmit={handleCreateProtocol} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -286,16 +381,64 @@ export function ProtocolsModule() {
             />
           </div>
 
+          {/* Pending items section for copy mode */}
+          {pendingItems.length > 0 && (
+            <div className="border-t border-border pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-medium text-foreground">
+                  Пункты протокола ({pendingItems.length})
+                </h4>
+                <button
+                  type="button"
+                  onClick={handleAddPendingItem}
+                  className="btn-secondary text-xs flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  Добавить
+                </button>
+              </div>
+              <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                {pendingItems.map((item) => (
+                  <PendingItemRow
+                    key={item.tempId}
+                    item={item}
+                    projects={projects}
+                    employees={employees}
+                    onUpdate={(updates) => handleUpdatePendingItem(item.tempId, updates)}
+                    onRemove={() => handleRemovePendingItem(item.tempId)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Add items button if not in copy mode */}
+          {copySourceId === null && pendingItems.length === 0 && (
+            <div className="border-t border-border pt-4">
+              <button
+                type="button"
+                onClick={handleAddPendingItem}
+                className="btn-secondary text-sm flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Добавить пункты сразу
+              </button>
+            </div>
+          )}
+
           <div className="flex justify-end gap-3 pt-4">
             <button
               type="button"
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => {
+                setIsModalOpen(false);
+                resetForm();
+              }}
               className="btn-secondary"
             >
               Отмена
             </button>
             <button type="submit" className="btn-primary" disabled={createProtocol.isPending}>
-              {createProtocol.isPending ? "Создание..." : "Создать протокол"}
+              {createProtocol.isPending ? "Создание..." : copySourceId ? "Создать копию" : "Создать протокол"}
             </button>
           </div>
         </form>
@@ -304,15 +447,84 @@ export function ProtocolsModule() {
   );
 }
 
-interface ProtocolCardProps {
-  protocol: {
-    id: string;
-    number: number;
-    date: string;
-    title: string;
-    organizer: string | null;
-    attendees: string[];
+// Component for editing pending items in modal
+interface PendingItemRowProps {
+  item: PendingItem;
+  projects: { id: string; name: string }[];
+  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null }[];
+  onUpdate: (updates: Partial<PendingItem>) => void;
+  onRemove: () => void;
+}
+
+function PendingItemRow({ item, projects, employees, onUpdate, onRemove }: PendingItemRowProps) {
+  // Convert responsible string to IDs for the multi-select
+  const getEmployeeIdsFromResponsible = (responsible: string | null): string[] => {
+    if (!responsible) return [];
+    const names = responsible.split(", ").map(n => n.trim());
+    return names
+      .map(name => employees.find(e => e.full_name === name)?.id)
+      .filter(Boolean) as string[];
   };
+
+  const handleResponsibleChange = (ids: string[]) => {
+    const responsibleNames = ids
+      .map(id => employees.find(e => e.id === id)?.full_name)
+      .filter(Boolean)
+      .join(", ");
+    onUpdate({ responsible: responsibleNames || null });
+  };
+
+  return (
+    <div className="p-3 bg-secondary/50 rounded-lg space-y-2">
+      <div className="flex items-start gap-2">
+        <input
+          type="text"
+          value={item.item_text}
+          onChange={(e) => onUpdate({ item_text: e.target.value })}
+          className="input-base flex-1 text-sm"
+          placeholder="Текст пункта"
+        />
+        <button
+          type="button"
+          onClick={onRemove}
+          className="p-1.5 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded shrink-0"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <select
+          value={item.project_id || ""}
+          onChange={(e) => onUpdate({ project_id: e.target.value || null })}
+          className="input-base text-sm"
+        >
+          <option value="">Без проекта</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+        <div className="min-w-0">
+          <EmployeeMultiSelect
+            employees={employees}
+            selectedIds={getEmployeeIdsFromResponsible(item.responsible)}
+            onChange={handleResponsibleChange}
+            placeholder="Ответственные"
+            usePortal
+          />
+        </div>
+        <input
+          type="date"
+          value={item.due_date || ""}
+          onChange={(e) => onUpdate({ due_date: e.target.value || null })}
+          className="input-base text-sm"
+        />
+      </div>
+    </div>
+  );
+}
+
+interface ProtocolCardProps {
+  protocol: DbProtocol;
   projects: { id: string; name: string }[];
   employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null }[];
   isExpanded: boolean;
@@ -325,6 +537,7 @@ interface ProtocolCardProps {
   onAddItem: () => void;
   onDeleteItem: (itemId: string) => void;
   resetItemForm: () => void;
+  onCopyProtocol: (protocol: DbProtocol, items: DbProtocolItem[]) => void;
 }
 
 function ProtocolCard({
@@ -341,6 +554,7 @@ function ProtocolCard({
   onAddItem,
   onDeleteItem,
   resetItemForm,
+  onCopyProtocol,
 }: ProtocolCardProps) {
   const { data: items = [] } = useProtocolItems(protocol.id);
   const updateProtocolItem = useUpdateProtocolItem();
@@ -522,7 +736,14 @@ function ProtocolCard({
             {protocol.attendees.length} участников
           </span>
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onCopyProtocol(protocol, items)}
+            className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+            title="Копировать протокол"
+          >
+            <Copy className="w-4 h-4" />
+          </button>
           <button
             onClick={handleExportPdf}
             className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
@@ -530,11 +751,13 @@ function ProtocolCard({
           >
             <Download className="w-4 h-4" />
           </button>
-          {isExpanded ? (
-            <ChevronUp className="w-5 h-5 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="w-5 h-5 text-muted-foreground" />
-          )}
+          <button onClick={onToggleExpand} className="p-2">
+            {isExpanded ? (
+              <ChevronUp className="w-5 h-5 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-muted-foreground" />
+            )}
+          </button>
         </div>
       </div>
 
