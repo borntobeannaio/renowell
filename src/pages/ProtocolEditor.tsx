@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Check, FolderOpen, CheckCircle2, Pencil, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Check, FolderOpen, CheckCircle2, Pencil, Loader2, Save } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import {
   useProtocols,
@@ -461,17 +462,17 @@ export default function ProtocolEditor() {
               )}
 
               {isNew && (
-                <button
+                <Button
                   onClick={handleCreate}
-                  className="btn-primary"
+                  size="lg"
                   disabled={createProtocol.isPending || !form.title.trim()}
+                  className="gap-2 text-base font-semibold px-8"
                 >
+                  <Save className="w-5 h-5" />
                   {createProtocol.isPending
-                    ? "Создание..."
-                    : isCopyMode
-                      ? "Создать копию"
-                      : "Создать протокол"}
-                </button>
+                    ? "Сохранение..."
+                    : "Сохранить протокол"}
+                </Button>
               )}
             </div>
 
