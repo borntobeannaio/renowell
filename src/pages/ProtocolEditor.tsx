@@ -512,6 +512,21 @@ export default function ProtocolEditor() {
                 </p>
               )}
             </div>
+
+            {/* Bottom save button */}
+            <div className="pt-4 flex justify-center border-t border-border">
+              <Button
+                onClick={handleCreate}
+                size="lg"
+                disabled={createProtocol.isPending || !form.title.trim()}
+                className="gap-2 text-base font-semibold px-8"
+              >
+                <Save className="w-5 h-5" />
+                {createProtocol.isPending
+                  ? "Сохранение..."
+                  : "Сохранить протокол"}
+              </Button>
+            </div>
           </section>
         )}
 
