@@ -105,7 +105,7 @@ export function EmployeeMultiSelect({
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Поиск..."
           className="input-base w-full h-8 text-sm"
-          autoFocus
+          autoFocus={!usePortal}
         />
       </div>
       <div className="overflow-y-auto max-h-48">
