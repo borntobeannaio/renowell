@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ProtocolMetadata } from "@/components/protocols/ProtocolMetadata";
 import { UniversalSection } from "@/components/protocols/UniversalSection";
+import { TenderSection } from "@/components/protocols/TenderSection";
 import { ProtocolItemData, ProtocolItemEditor } from "@/components/protocols/ProtocolItemEditor";
 import { GoalItemData, GoalItemEditor } from "@/components/protocols/GoalItemEditor";
 import { SectionTypeModal } from "@/components/protocols/SectionTypeModal";
@@ -45,6 +46,13 @@ import { toast } from "sonner";
 // Unified item type for both regular items and goals
 type UniversalItemData = ProtocolItemData | GoalItemData;
 
+// Company group for tenders
+interface CompanyGroup {
+  id: string;
+  companyName: string;
+  items: ProtocolItemData[];
+}
+
 interface SectionGroup {
   id: string; // section id (can be temp id)
   sectionType: SectionType;
@@ -52,6 +60,8 @@ interface SectionGroup {
   entityName: string | null;
   defaultResponsible: string | null;
   items: UniversalItemData[];
+  // For tender section - company groups
+  companyGroups?: CompanyGroup[];
 }
 
 export default function ProtocolEditor() {
@@ -294,6 +304,15 @@ export default function ProtocolEditor() {
 
   // Helper functions
   const handleAddSection = (type: SectionType, entityId: string | null, entityName: string | null) => {
+    // For tender, check if one already exists - only allow one tender section
+    if (type === 'tender') {
+      const hasTender = sectionGroups.some(g => g.sectionType === 'tender');
+      if (hasTender) {
+        toast.error("Секция тендеров уже существует. Добавьте компанию внутри неё.");
+        return;
+      }
+    }
+    
     setSectionGroups(prev => [...prev, {
       id: generateTempId(),
       sectionType: type,
@@ -301,6 +320,7 @@ export default function ProtocolEditor() {
       entityName,
       defaultResponsible: null,
       items: [],
+      companyGroups: type === 'tender' ? [] : undefined,
     }]);
   };
 
@@ -405,6 +425,99 @@ export default function ProtocolEditor() {
         ? { ...g, items: g.items.filter(item => item.id !== itemId) }
         : g
     ));
+  };
+
+  // ===== Tender company handlers =====
+  const handleAddCompany = (groupIndex: number, companyName: string) => {
+    setSectionGroups(prev => prev.map((g, i) => {
+      if (i !== groupIndex || g.sectionType !== 'tender') return g;
+      const newCompany: CompanyGroup = {
+        id: generateTempId(),
+        companyName,
+        items: [],
+      };
+      return { ...g, companyGroups: [...(g.companyGroups || []), newCompany] };
+    }));
+  };
+
+  const handleRemoveCompany = (groupIndex: number, companyId: string) => {
+    setSectionGroups(prev => prev.map((g, i) => {
+      if (i !== groupIndex || g.sectionType !== 'tender') return g;
+      return { 
+        ...g, 
+        companyGroups: (g.companyGroups || []).filter(c => c.id !== companyId) 
+      };
+    }));
+  };
+
+  const handleRenameCompany = (groupIndex: number, companyId: string, newName: string) => {
+    setSectionGroups(prev => prev.map((g, i) => {
+      if (i !== groupIndex || g.sectionType !== 'tender') return g;
+      return {
+        ...g,
+        companyGroups: (g.companyGroups || []).map(c =>
+          c.id === companyId ? { ...c, companyName: newName } : c
+        ),
+      };
+    }));
+  };
+
+  const handleAddTenderItem = (groupIndex: number, companyId: string) => {
+    setSectionGroups(prev => prev.map((g, i) => {
+      if (i !== groupIndex || g.sectionType !== 'tender') return g;
+      const newItem: ProtocolItemData = {
+        id: generateTempId(),
+        project_id: null,
+        item_text: "",
+        responsible: null,
+        due_date: null,
+        create_task: false,
+      };
+      return {
+        ...g,
+        companyGroups: (g.companyGroups || []).map(c =>
+          c.id === companyId ? { ...c, items: [...c.items, newItem] } : c
+        ),
+      };
+    }));
+  };
+
+  const handleUpdateTenderItem = (groupIndex: number, companyId: string, itemId: string, updates: Partial<ProtocolItemData>) => {
+    setSectionGroups(prev => prev.map((g, i) => {
+      if (i !== groupIndex || g.sectionType !== 'tender') return g;
+      return {
+        ...g,
+        companyGroups: (g.companyGroups || []).map(c =>
+          c.id === companyId
+            ? { ...c, items: c.items.map(item => item.id === itemId ? { ...item, ...updates } : item) }
+            : c
+        ),
+      };
+    }));
+  };
+
+  const handleRemoveTenderItem = async (groupIndex: number, companyId: string, itemId: string) => {
+    // For edit mode, also delete from DB if it's a real item
+    if (isEditMode && !itemId.startsWith("temp-")) {
+      try {
+        await deleteProtocolItem.mutateAsync({ id: itemId, protocol_id: id! });
+      } catch (error) {
+        toast.error("Ошибка удаления пункта");
+        return;
+      }
+    }
+
+    setSectionGroups(prev => prev.map((g, i) => {
+      if (i !== groupIndex || g.sectionType !== 'tender') return g;
+      return {
+        ...g,
+        companyGroups: (g.companyGroups || []).map(c =>
+          c.id === companyId
+            ? { ...c, items: c.items.filter(item => item.id !== itemId) }
+            : c
+        ),
+      };
+    }));
   };
 
   // DnD state
@@ -584,46 +697,93 @@ export default function ProtocolEditor() {
           sort_order: sectionSortOrder++,
         });
 
-        for (const item of group.items) {
-          if (!item.item_text.trim()) continue;
+        // Handle tender sections with company groups
+        if (group.sectionType === 'tender' && group.companyGroups) {
+          for (const company of group.companyGroups) {
+            for (const item of company.items) {
+              if (!item.item_text.trim()) continue;
 
-          const effectiveResponsible = item.responsible ?? group.defaultResponsible;
-          const isGoal = group.sectionType === 'goals';
-          const goalItem = item as GoalItemData;
+              const effectiveResponsible = item.responsible ?? group.defaultResponsible;
 
-          const createdItem = await createProtocolItem.mutateAsync({
-            protocol_id: result.id,
-            project_id: group.sectionType === 'project' ? group.entityId : null,
-            section_id: createdSection.id,
-            item_text: item.item_text,
-            responsible: effectiveResponsible,
-            due_date: item.due_date,
-            create_task: item.create_task,
-            sort_order: sortOrder++,
-            kpi: isGoal ? goalItem.kpi : null,
-            status: isGoal ? goalItem.status : null,
-            status_date: isGoal ? goalItem.status_date : null,
-          });
+              const createdItem = await createProtocolItem.mutateAsync({
+                protocol_id: result.id,
+                project_id: null,
+                section_id: createdSection.id,
+                item_text: `[${company.companyName}] ${item.item_text}`,
+                responsible: effectiveResponsible,
+                due_date: item.due_date,
+                create_task: item.create_task,
+                sort_order: sortOrder++,
+                kpi: null,
+                status: null,
+                status_date: null,
+              });
 
-          if (item.create_task) {
-            const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-            const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
-            const assigneeProfileId = firstEmployee?.profile_id || null;
+              if (item.create_task) {
+                const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
+                const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
+                const assigneeProfileId = firstEmployee?.profile_id || null;
 
-            const taskResult = await createTask.mutateAsync({
-              title: item.item_text,
-              assignee_id: assigneeProfileId,
-              project_id: group.sectionType === 'project' ? group.entityId : null,
-              due_date: item.due_date || null,
-              status: "new",
-              priority: "normal",
-            });
+                const taskResult = await createTask.mutateAsync({
+                  title: item.item_text,
+                  assignee_id: assigneeProfileId,
+                  project_id: null,
+                  due_date: item.due_date || null,
+                  status: "new",
+                  priority: "normal",
+                });
 
-            await updateProtocolItem.mutateAsync({
-              id: createdItem.id,
+                await updateProtocolItem.mutateAsync({
+                  id: createdItem.id,
+                  protocol_id: result.id,
+                  task_id: taskResult.id,
+                });
+              }
+            }
+          }
+        } else {
+          // Regular items
+          for (const item of group.items) {
+            if (!item.item_text.trim()) continue;
+
+            const effectiveResponsible = item.responsible ?? group.defaultResponsible;
+            const isGoal = group.sectionType === 'goals';
+            const goalItem = item as GoalItemData;
+
+            const createdItem = await createProtocolItem.mutateAsync({
               protocol_id: result.id,
-              task_id: taskResult.id,
+              project_id: group.sectionType === 'project' ? group.entityId : null,
+              section_id: createdSection.id,
+              item_text: item.item_text,
+              responsible: effectiveResponsible,
+              due_date: item.due_date,
+              create_task: item.create_task,
+              sort_order: sortOrder++,
+              kpi: isGoal ? goalItem.kpi : null,
+              status: isGoal ? goalItem.status : null,
+              status_date: isGoal ? goalItem.status_date : null,
             });
+
+            if (item.create_task) {
+              const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
+              const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
+              const assigneeProfileId = firstEmployee?.profile_id || null;
+
+              const taskResult = await createTask.mutateAsync({
+                title: item.item_text,
+                assignee_id: assigneeProfileId,
+                project_id: group.sectionType === 'project' ? group.entityId : null,
+                due_date: item.due_date || null,
+                status: "new",
+                priority: "normal",
+              });
+
+              await updateProtocolItem.mutateAsync({
+                id: createdItem.id,
+                protocol_id: result.id,
+                task_id: taskResult.id,
+              });
+            }
           }
         }
       }
@@ -686,76 +846,152 @@ export default function ProtocolEditor() {
           });
         }
 
-        for (const item of group.items) {
-          if (!item.item_text.trim()) continue;
+        // Handle tender sections with company groups
+        if (group.sectionType === 'tender' && group.companyGroups) {
+          for (const company of group.companyGroups) {
+            for (const item of company.items) {
+              if (!item.item_text.trim()) continue;
 
-          const effectiveResponsible = item.responsible ?? group.defaultResponsible;
-          const isGoal = group.sectionType === 'goals';
-          const goalItem = item as GoalItemData;
+              const effectiveResponsible = item.responsible ?? group.defaultResponsible;
 
-          if (item.id.startsWith("temp-")) {
-            const createdItem = await createProtocolItem.mutateAsync({
-              protocol_id: id,
-              project_id: group.sectionType === 'project' ? group.entityId : null,
-              section_id: sectionId,
-              item_text: item.item_text,
-              responsible: effectiveResponsible,
-              due_date: item.due_date,
-              create_task: item.create_task,
-              sort_order: sortOrder++,
-              kpi: isGoal ? goalItem.kpi : null,
-              status: isGoal ? goalItem.status : null,
-              status_date: isGoal ? goalItem.status_date : null,
-            });
+              if (item.id.startsWith("temp-")) {
+                const createdItem = await createProtocolItem.mutateAsync({
+                  protocol_id: id,
+                  project_id: null,
+                  section_id: sectionId,
+                  item_text: `[${company.companyName}] ${item.item_text}`,
+                  responsible: effectiveResponsible,
+                  due_date: item.due_date,
+                  create_task: item.create_task,
+                  sort_order: sortOrder++,
+                  kpi: null,
+                  status: null,
+                  status_date: null,
+                });
 
-            if (item.create_task) {
-              const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-              const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
-              const assigneeProfileId = firstEmployee?.profile_id || null;
+                if (item.create_task) {
+                  const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
+                  const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
+                  const assigneeProfileId = firstEmployee?.profile_id || null;
 
-              const taskResult = await createTask.mutateAsync({
-                title: item.item_text,
-                assignee_id: assigneeProfileId,
-                project_id: group.sectionType === 'project' ? group.entityId : null,
-                due_date: item.due_date || null,
-                status: "new",
-                priority: "normal",
-              });
+                  const taskResult = await createTask.mutateAsync({
+                    title: item.item_text,
+                    assignee_id: assigneeProfileId,
+                    project_id: null,
+                    due_date: item.due_date || null,
+                    status: "new",
+                    priority: "normal",
+                  });
 
-              await updateProtocolItem.mutateAsync({
-                id: createdItem.id,
-                protocol_id: id,
-                task_id: taskResult.id,
-              });
-            }
-          } else {
-            await updateProtocolItem.mutateAsync({
-              id: item.id,
-              protocol_id: id,
-              project_id: group.sectionType === 'project' ? group.entityId : null,
-              section_id: sectionId,
-              item_text: item.item_text,
-              responsible: effectiveResponsible,
-              due_date: item.due_date,
-              kpi: isGoal ? goalItem.kpi : null,
-              status: isGoal ? goalItem.status : null,
-              status_date: isGoal ? goalItem.status_date : null,
-            });
+                  await updateProtocolItem.mutateAsync({
+                    id: createdItem.id,
+                    protocol_id: id,
+                    task_id: taskResult.id,
+                  });
+                }
+              } else {
+                await updateProtocolItem.mutateAsync({
+                  id: item.id,
+                  protocol_id: id,
+                  project_id: null,
+                  section_id: sectionId,
+                  item_text: `[${company.companyName}] ${item.item_text}`,
+                  responsible: effectiveResponsible,
+                  due_date: item.due_date,
+                  kpi: null,
+                  status: null,
+                  status_date: null,
+                });
 
-            if (item.task_id) {
-              const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-              const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
-              const assigneeProfileId = firstEmployee?.profile_id || null;
+                if (item.task_id) {
+                  const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
+                  const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
+                  const assigneeProfileId = firstEmployee?.profile_id || null;
 
-              await updateTask.mutateAsync({
-                id: item.task_id,
-                title: item.item_text,
-                assignee_id: assigneeProfileId,
-                due_date: item.due_date || null,
-              });
+                  await updateTask.mutateAsync({
+                    id: item.task_id,
+                    title: item.item_text,
+                    assignee_id: assigneeProfileId,
+                    due_date: item.due_date || null,
+                  });
+                }
+              }
+              sortOrder++;
             }
           }
-          sortOrder++;
+        } else {
+          // Regular items
+          for (const item of group.items) {
+            if (!item.item_text.trim()) continue;
+
+            const effectiveResponsible = item.responsible ?? group.defaultResponsible;
+            const isGoal = group.sectionType === 'goals';
+            const goalItem = item as GoalItemData;
+
+            if (item.id.startsWith("temp-")) {
+              const createdItem = await createProtocolItem.mutateAsync({
+                protocol_id: id,
+                project_id: group.sectionType === 'project' ? group.entityId : null,
+                section_id: sectionId,
+                item_text: item.item_text,
+                responsible: effectiveResponsible,
+                due_date: item.due_date,
+                create_task: item.create_task,
+                sort_order: sortOrder++,
+                kpi: isGoal ? goalItem.kpi : null,
+                status: isGoal ? goalItem.status : null,
+                status_date: isGoal ? goalItem.status_date : null,
+              });
+
+              if (item.create_task) {
+                const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
+                const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
+                const assigneeProfileId = firstEmployee?.profile_id || null;
+
+                const taskResult = await createTask.mutateAsync({
+                  title: item.item_text,
+                  assignee_id: assigneeProfileId,
+                  project_id: group.sectionType === 'project' ? group.entityId : null,
+                  due_date: item.due_date || null,
+                  status: "new",
+                  priority: "normal",
+                });
+
+                await updateProtocolItem.mutateAsync({
+                  id: createdItem.id,
+                  protocol_id: id,
+                  task_id: taskResult.id,
+                });
+              }
+            } else {
+              await updateProtocolItem.mutateAsync({
+                id: item.id,
+                protocol_id: id,
+                project_id: group.sectionType === 'project' ? group.entityId : null,
+                section_id: sectionId,
+                item_text: item.item_text,
+                responsible: effectiveResponsible,
+                due_date: item.due_date,
+                kpi: isGoal ? goalItem.kpi : null,
+                status: isGoal ? goalItem.status : null,
+                status_date: isGoal ? goalItem.status_date : null,
+              });
+
+              if (item.task_id) {
+                const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
+                const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
+                const assigneeProfileId = firstEmployee?.profile_id || null;
+
+                await updateTask.mutateAsync({
+                  id: item.task_id,
+                  title: item.item_text,
+                  assignee_id: assigneeProfileId,
+                  due_date: item.due_date || null,
+                });
+              }
+            }
+            sortOrder++;
+          }
         }
       }
 
@@ -782,7 +1018,12 @@ export default function ProtocolEditor() {
     ? "Копирование протокола"
     : "Новый протокол";
 
-  const totalItems = sectionGroups.reduce((sum, g) => sum + g.items.length, 0);
+  const totalItems = sectionGroups.reduce((sum, g) => {
+    if (g.sectionType === 'tender' && g.companyGroups) {
+      return sum + g.companyGroups.reduce((cs, c) => cs + c.items.length, 0);
+    }
+    return sum + g.items.length;
+  }, 0);
   const isLoading = isCopyDataLoading || isEditDataLoading;
   const isSaving = createProtocol.isPending || updateProtocol.isPending;
 
@@ -871,24 +1112,42 @@ export default function ProtocolEditor() {
                 onDragEnd={handleDragEnd}
               >
                 {sectionGroups.map((group, index) => (
-                  <UniversalSection
-                    key={group.id}
-                    sectionId={group.id}
-                    sectionType={group.sectionType}
-                    entityId={group.entityId}
-                    entityName={group.entityName}
-                    items={group.items}
-                    employees={employees}
-                    projects={projects}
-                    defaultResponsible={group.defaultResponsible}
-                    onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
-                    onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
-                    onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
-                    onAddItem={() => handleAddItemToSection(index)}
-                    onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
-                    onRemoveSection={sectionGroups.length > 1 ? () => handleRemoveSection(index) : undefined}
-                    canEdit={!isEditMode || group.id.startsWith("temp-")}
-                  />
+                  group.sectionType === 'tender' ? (
+                    <TenderSection
+                      key={group.id}
+                      sectionId={group.id}
+                      companyGroups={group.companyGroups || []}
+                      employees={employees}
+                      defaultResponsible={group.defaultResponsible}
+                      onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
+                      onUpdateItem={(companyId, itemId, updates) => handleUpdateTenderItem(index, companyId, itemId, updates)}
+                      onRemoveItem={(companyId, itemId) => handleRemoveTenderItem(index, companyId, itemId)}
+                      onAddItem={(companyId) => handleAddTenderItem(index, companyId)}
+                      onAddCompany={(companyName) => handleAddCompany(index, companyName)}
+                      onRemoveCompany={(companyId) => handleRemoveCompany(index, companyId)}
+                      onRenameCompany={(companyId, newName) => handleRenameCompany(index, companyId, newName)}
+                      onRemoveSection={sectionGroups.length > 1 ? () => handleRemoveSection(index) : undefined}
+                    />
+                  ) : (
+                    <UniversalSection
+                      key={group.id}
+                      sectionId={group.id}
+                      sectionType={group.sectionType}
+                      entityId={group.entityId}
+                      entityName={group.entityName}
+                      items={group.items}
+                      employees={employees}
+                      projects={projects}
+                      defaultResponsible={group.defaultResponsible}
+                      onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
+                      onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
+                      onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
+                      onAddItem={() => handleAddItemToSection(index)}
+                      onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
+                      onRemoveSection={sectionGroups.length > 1 ? () => handleRemoveSection(index) : undefined}
+                      canEdit={!isEditMode || group.id.startsWith("temp-")}
+                    />
+                  )
                 ))}
 
                 <DragOverlay>
