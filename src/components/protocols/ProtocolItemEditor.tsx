@@ -117,6 +117,7 @@ export function ProtocolItemEditor({
             selectedIds={getEmployeeIdsFromResponsible(effectiveResponsible)}
             onChange={handleResponsibleChange}
             placeholder={isInheritingResponsible ? "Наследует от проекта" : "Выберите ответственных"}
+            usePortal={true}
           />
         </div>
         <div>

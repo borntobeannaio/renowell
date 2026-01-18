@@ -63,7 +63,7 @@ export function ProjectSection({
     : null;
 
   return (
-    <div className="card-base overflow-hidden">
+    <div className="card-base overflow-visible">
       {/* Header */}
       <div className="flex items-center gap-2 p-4 bg-muted/30">
         <button
@@ -130,6 +130,7 @@ export function ProjectSection({
               selectedIds={getEmployeeIdsFromResponsible(defaultResponsible)}
               onChange={handleDefaultResponsibleChange}
               placeholder="Выберите ответственных"
+              usePortal={true}
             />
           </div>
           {defaultResponsibleNames && (
