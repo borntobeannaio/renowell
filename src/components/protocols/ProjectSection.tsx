@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, FolderOpen, Plus, Trash2, Users } from "lucide-react";
-import { ProtocolItemEditor, ProtocolItemData } from "./ProtocolItemEditor";
+import { ProtocolItemData } from "./ProtocolItemEditor";
+import { DroppableSection } from "./DroppableSection";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 
 interface ProjectSectionProps {
@@ -147,16 +148,14 @@ export function ProjectSection({
               Нет пунктов. Добавьте первый пункт.
             </p>
           ) : (
-            items.map((item) => (
-              <ProtocolItemEditor
-                key={item.id}
-                item={item}
-                employees={employees}
-                projectDefaultResponsible={defaultResponsible}
-                onUpdate={(updates) => onUpdateItem(item.id, updates)}
-                onRemove={() => onRemoveItem(item.id)}
-              />
-            ))
+            <DroppableSection
+              sectionId={`section-${projectId || 'no-project'}`}
+              items={items}
+              employees={employees}
+              projectDefaultResponsible={defaultResponsible}
+              onUpdateItem={onUpdateItem}
+              onRemoveItem={onRemoveItem}
+            />
           )}
 
           <button
