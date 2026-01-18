@@ -39,11 +39,8 @@ export function SectionTypeModal({
     // For project type, go to project selection
     if (type === 'project') {
       setStep('details');
-    } else if (type === 'tender') {
-      // For tender, need company name
-      setStep('details');
     } else {
-      // For hr, business, goals - create directly
+      // For tender, hr, business, goals - create directly (tender now has internal company groups)
       onSelect(type, null, SECTION_TYPE_LABELS[type]);
       handleClose();
     }
@@ -54,8 +51,6 @@ export function SectionTypeModal({
 
     if (selectedType === 'project') {
       onSelect('project', selectedProjectId, null);
-    } else if (selectedType === 'tender') {
-      onSelect('tender', null, entityName.trim() || 'Компания');
     }
     
     handleClose();
@@ -104,7 +99,7 @@ export function SectionTypeModal({
                     <div className="font-medium text-foreground">{SECTION_TYPE_LABELS[type]}</div>
                     <div className="text-sm text-muted-foreground">
                       {type === 'project' && 'Выбор из справочника проектов'}
-                      {type === 'tender' && 'Укажите название компании'}
+                      {type === 'tender' && 'Компании с пунктами внутри секции'}
                       {type === 'hr' && 'Пункты по подбору персонала'}
                       {type === 'business' && 'Общие бизнес задачи'}
                       {type === 'goals' && 'Цели с KPI и статусами'}
@@ -148,31 +143,6 @@ export function SectionTypeModal({
             </div>
           )}
 
-          {step === 'details' && selectedType === 'tender' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Название компании
-                </label>
-                <input
-                  type="text"
-                  value={entityName}
-                  onChange={(e) => setEntityName(e.target.value)}
-                  className="input-base w-full"
-                  placeholder="Введите название компании"
-                  autoFocus
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setStep('type')}>
-                  Назад
-                </Button>
-                <Button onClick={handleConfirm} disabled={!entityName.trim()}>
-                  Добавить
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
