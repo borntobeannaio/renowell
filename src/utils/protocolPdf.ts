@@ -91,18 +91,10 @@ export async function generateProtocolPdf(protocol: Protocol, items: ProtocolIte
   // If fonts failed, fall back to transliteration to avoid "tofu" squares
   const t = (text: string) => (hasCyrillicFont ? text : transliterate(text));
 
-  // Load and add logo
-  const logoBase64 = await loadImageAsBase64("/images/renowell-logo-black.png");
-  if (logoBase64) {
-    const logoWidth = 25;
-    const logoHeight = 25;
-    doc.addImage(logoBase64, "PNG", margin, yPos - 5, logoWidth, logoHeight);
-  }
-
-  // Header with company name (next to logo)
+  // Header with company name
   doc.setFont(hasCyrillicFont ? "Roboto" : "helvetica", "bold");
   doc.setFontSize(12);
-  doc.text(t("КОМПАНИЯ РЕНОВЭЛЛ"), pageWidth / 2, yPos + 5, { align: "center" });
+  doc.text(t("компания Реновель"), pageWidth / 2, yPos + 5, { align: "center" });
 
   yPos += 15;
 
