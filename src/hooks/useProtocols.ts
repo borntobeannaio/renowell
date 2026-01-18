@@ -206,6 +206,30 @@ export function useDeleteProtocolItem() {
   });
 }
 
+export function useDeleteProtocol() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // First delete all protocol items
+      const { error: itemsError } = await proxyDelete("protocol_items", [
+        { column: "protocol_id", operator: "eq", value: id },
+      ]);
+      if (itemsError) throw new Error(itemsError.message);
+
+      // Then delete the protocol
+      const { error } = await proxyDelete("protocols", [
+        { column: "id", operator: "eq", value: id },
+      ]);
+      if (error) throw new Error(error.message);
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["protocols"] });
+    },
+  });
+}
+
 export function useNextProtocolNumber() {
   return useQuery({
     queryKey: ["next_protocol_number"],
