@@ -1,17 +1,31 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, ChevronDown, ChevronUp, Download, Pencil, Copy, FolderOpen, User, Calendar, CheckCircle2 } from "lucide-react";
-import { useProtocols, useProtocolItems, DbProtocol, DbProtocolItem } from "@/hooks/useProtocols";
+import { Plus, ChevronDown, ChevronUp, Download, Pencil, Copy, FolderOpen, User, Calendar, CheckCircle2, Trash2, Loader2 } from "lucide-react";
+import { useProtocols, useProtocolItems, useDeleteProtocol, DbProtocol, DbProtocolItem } from "@/hooks/useProtocols";
 import { useProjects } from "@/hooks/useProjects";
+import { proxySelect } from "@/lib/dbProxy";
 import { generateProtocolPdf } from "@/utils/protocolPdf";
 import { formatDisplayDate } from "@/utils/dateFormat";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export function ProtocolsModule() {
   const navigate = useNavigate();
   const { data: protocols = [], isLoading } = useProtocols();
   const { data: projects = [] } = useProjects();
+  const deleteProtocol = useDeleteProtocol();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [protocolToDelete, setProtocolToDelete] = useState<DbProtocol | null>(null);
 
   const handleNewProtocol = () => {
     window.open('/protocols/new', '_blank');
@@ -23,6 +37,23 @@ export function ProtocolsModule() {
 
   const handleEditProtocol = (protocolId: string) => {
     window.open(`/protocols/edit/${protocolId}`, '_blank');
+  };
+
+  const handleDeleteClick = (protocol: DbProtocol) => {
+    setProtocolToDelete(protocol);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!protocolToDelete) return;
+    try {
+      await deleteProtocol.mutateAsync(protocolToDelete.id);
+      toast.success("Протокол удалён");
+      setDeleteDialogOpen(false);
+      setProtocolToDelete(null);
+    } catch (error) {
+      toast.error("Ошибка удаления протокола");
+    }
   };
 
   return (
@@ -60,10 +91,37 @@ export function ProtocolsModule() {
               onToggleExpand={() => setExpandedId(expandedId === protocol.id ? null : protocol.id)}
               onEdit={() => handleEditProtocol(protocol.id)}
               onCopy={() => handleCopyProtocol(protocol.id)}
+              onDelete={() => handleDeleteClick(protocol)}
             />
           ))
         )}
       </div>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить протокол?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Протокол №{protocolToDelete?.number} от {protocolToDelete ? formatDisplayDate(protocolToDelete.date) : ""} будет удалён вместе со всеми пунктами. Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteProtocol.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-2" />
+              )}
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -75,6 +133,7 @@ interface ProtocolCardProps {
   onToggleExpand: () => void;
   onEdit: () => void;
   onCopy: () => void;
+  onDelete: () => void;
 }
 
 function ProtocolCard({
@@ -84,16 +143,29 @@ function ProtocolCard({
   onToggleExpand,
   onEdit,
   onCopy,
+  onDelete,
 }: ProtocolCardProps) {
   const { data: items = [] } = useProtocolItems(isExpanded ? protocol.id : null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleExportPdf = async () => {
+    setIsExporting(true);
     try {
-      await generateProtocolPdf(protocol, items, projects);
+      // Always fetch fresh items for PDF export
+      const { data: freshItems, error } = await proxySelect<DbProtocol & { project_id: string | null; item_text: string; responsible: string | null; due_date: string | null }>('protocol_items', {
+        filters: [{ column: 'protocol_id', operator: 'eq', value: protocol.id }],
+        order: [{ column: 'sort_order', ascending: true }],
+      });
+      
+      if (error) throw new Error(error.message);
+      
+      await generateProtocolPdf(protocol, freshItems || [], projects);
       toast.success("PDF экспортирован");
     } catch (error) {
       console.error("PDF export error:", error);
       toast.error("Ошибка экспорта PDF");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -149,10 +221,18 @@ function ProtocolCard({
           </button>
           <button
             onClick={handleExportPdf}
-            className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+            disabled={isExporting}
+            className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors disabled:opacity-50"
             title="Экспорт в PDF"
           >
-            <Download className="w-4 h-4" />
+            {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={onDelete}
+            className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+            title="Удалить протокол"
+          >
+            <Trash2 className="w-4 h-4" />
           </button>
           <button onClick={onToggleExpand} className="p-2">
             {isExpanded ? (
