@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Trash2, CheckCircle2, GripVertical } from "lucide-react";
+import { Trash2, CheckCircle2, GripVertical, Link2, Unlink } from "lucide-react";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 
 export interface ProtocolItemData {
@@ -15,6 +14,7 @@ export interface ProtocolItemData {
 interface ProtocolItemEditorProps {
   item: ProtocolItemData;
   employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null }[];
+  projectDefaultResponsible: string | null;
   onUpdate: (updates: Partial<ProtocolItemData>) => void;
   onRemove: () => void;
   showDragHandle?: boolean;
@@ -24,11 +24,18 @@ interface ProtocolItemEditorProps {
 export function ProtocolItemEditor({
   item,
   employees,
+  projectDefaultResponsible,
   onUpdate,
   onRemove,
   showDragHandle = false,
   disabled = false,
 }: ProtocolItemEditorProps) {
+  // Check if item is inheriting from project
+  const isInheritingResponsible = item.responsible === null && projectDefaultResponsible !== null;
+  
+  // Get effective responsible (inherited or own)
+  const effectiveResponsible = item.responsible ?? projectDefaultResponsible;
+  
   // Convert responsible string to employee IDs
   const getEmployeeIdsFromResponsible = (responsible: string | null): string[] => {
     if (!responsible) return [];
@@ -43,11 +50,17 @@ export function ProtocolItemEditor({
       .map(id => employees.find(e => e.id === id)?.full_name)
       .filter(Boolean)
       .join(", ");
+    // Setting value explicitly breaks inheritance
     onUpdate({ responsible: responsibleNames || null });
   };
 
+  const handleResetToProjectDefault = () => {
+    // Setting responsible to null will make it inherit from project
+    onUpdate({ responsible: null });
+  };
+
   return (
-    <div className="p-3 bg-secondary/50 rounded-lg space-y-3 border border-border/50">
+    <div className={`p-3 rounded-lg space-y-3 border ${isInheritingResponsible ? 'bg-primary/5 border-primary/20' : 'bg-secondary/50 border-border/50'}`}>
       {/* Item text row */}
       <div className="flex items-start gap-2">
         {showDragHandle && (
@@ -77,12 +90,33 @@ export function ProtocolItemEditor({
       {/* Controls row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-muted-foreground mb-1">Ответственные</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs text-muted-foreground flex items-center gap-1">
+              Ответственные
+              {isInheritingResponsible && (
+                <span className="inline-flex items-center gap-0.5 text-primary">
+                  <Link2 className="w-3 h-3" />
+                  <span className="text-[10px]">от проекта</span>
+                </span>
+              )}
+            </label>
+            {item.responsible !== null && projectDefaultResponsible !== null && (
+              <button
+                type="button"
+                onClick={handleResetToProjectDefault}
+                className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
+                title="Использовать ответственных от проекта"
+              >
+                <Unlink className="w-3 h-3" />
+                Сбросить
+              </button>
+            )}
+          </div>
           <EmployeeMultiSelect
             employees={employees}
-            selectedIds={getEmployeeIdsFromResponsible(item.responsible)}
+            selectedIds={getEmployeeIdsFromResponsible(effectiveResponsible)}
             onChange={handleResponsibleChange}
-            placeholder="Выберите ответственных"
+            placeholder={isInheritingResponsible ? "Наследует от проекта" : "Выберите ответственных"}
           />
         </div>
         <div>
