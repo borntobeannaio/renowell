@@ -2,13 +2,24 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { ProtocolItemEditor, ProtocolItemData } from "./ProtocolItemEditor";
+import { GoalItemEditor, GoalItemData } from "./GoalItemEditor";
+import { SectionType } from "@/hooks/useProtocolSections";
+
+// Union type for all item types
+export type UniversalItemData = ProtocolItemData | GoalItemData;
+
+// Type guard to check if item is a GoalItemData
+function isGoalItem(item: UniversalItemData): item is GoalItemData {
+  return 'kpi' in item || 'status' in item || 'status_date' in item || 'section_id' in item;
+}
 
 interface DraggableItemProps {
-  item: ProtocolItemData;
+  item: UniversalItemData;
   employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null }[];
   projectDefaultResponsible: string | null;
-  onUpdate: (updates: Partial<ProtocolItemData>) => void;
+  onUpdate: (updates: Partial<UniversalItemData>) => void;
   onRemove: () => void;
+  sectionType?: SectionType;
 }
 
 export function DraggableItem({
@@ -17,6 +28,7 @@ export function DraggableItem({
   projectDefaultResponsible,
   onUpdate,
   onRemove,
+  sectionType = 'project',
 }: DraggableItemProps) {
   const {
     attributes,
@@ -33,6 +45,8 @@ export function DraggableItem({
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const isGoal = sectionType === 'goals';
+
   return (
     <div ref={setNodeRef} style={style} className="relative">
       <div className="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 z-10">
@@ -46,13 +60,23 @@ export function DraggableItem({
         </button>
       </div>
       <div className="pl-6">
-        <ProtocolItemEditor
-          item={item}
-          employees={employees}
-          projectDefaultResponsible={projectDefaultResponsible}
-          onUpdate={onUpdate}
-          onRemove={onRemove}
-        />
+        {isGoal ? (
+          <GoalItemEditor
+            item={item as GoalItemData}
+            employees={employees}
+            projectDefaultResponsible={projectDefaultResponsible}
+            onUpdate={onUpdate as (updates: Partial<GoalItemData>) => void}
+            onRemove={onRemove}
+          />
+        ) : (
+          <ProtocolItemEditor
+            item={item as ProtocolItemData}
+            employees={employees}
+            projectDefaultResponsible={projectDefaultResponsible}
+            onUpdate={onUpdate as (updates: Partial<ProtocolItemData>) => void}
+            onRemove={onRemove}
+          />
+        )}
       </div>
     </div>
   );
