@@ -18,12 +18,17 @@ export interface DbProtocolItem {
   id: string;
   protocol_id: string;
   project_id: string | null;
+  section_id: string | null;
   item_text: string;
   responsible: string | null;
   due_date: string | null;
   create_task: boolean;
   task_id: string | null;
   sort_order: number;
+  // Goal-specific fields
+  kpi: string | null;
+  status: string | null;
+  status_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -133,22 +138,31 @@ export function useCreateProtocolItem() {
     mutationFn: async (item: {
       protocol_id: string;
       project_id?: string | null;
+      section_id?: string | null;
       item_text: string;
       responsible?: string | null;
       due_date?: string | null;
       create_task?: boolean;
       sort_order?: number;
+      // Goal-specific fields
+      kpi?: string | null;
+      status?: string | null;
+      status_date?: string | null;
     }) => {
       const { data, error } = await proxyInsert<DbProtocolItem>(
         "protocol_items",
         {
           protocol_id: item.protocol_id,
           project_id: item.project_id || null,
+          section_id: item.section_id || null,
           item_text: item.item_text,
           responsible: item.responsible || null,
           due_date: item.due_date || null,
           create_task: item.create_task || false,
           sort_order: item.sort_order || 0,
+          kpi: item.kpi || null,
+          status: item.status || null,
+          status_date: item.status_date || null,
         },
         "*"
       );
@@ -169,10 +183,16 @@ export function useUpdateProtocolItem() {
     mutationFn: async ({ id, protocol_id, ...updates }: {
       id: string;
       protocol_id: string;
+      project_id?: string | null;
+      section_id?: string | null;
       item_text?: string;
       responsible?: string | null;
       due_date?: string | null;
       task_id?: string | null;
+      // Goal-specific fields
+      kpi?: string | null;
+      status?: string | null;
+      status_date?: string | null;
     }) => {
       const { data, error } = await proxyUpdate<DbProtocolItem>(
         "protocol_items",

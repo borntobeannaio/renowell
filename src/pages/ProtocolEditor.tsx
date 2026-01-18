@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Plus, Loader2, Save, Download } from "lucide-react";
 import {
@@ -14,8 +14,10 @@ import {
 } from "@dnd-kit/core";
 import { Button } from "@/components/ui/button";
 import { ProtocolMetadata } from "@/components/protocols/ProtocolMetadata";
-import { ProjectSection } from "@/components/protocols/ProjectSection";
+import { UniversalSection } from "@/components/protocols/UniversalSection";
 import { ProtocolItemData, ProtocolItemEditor } from "@/components/protocols/ProtocolItemEditor";
+import { GoalItemData, GoalItemEditor } from "@/components/protocols/GoalItemEditor";
+import { SectionTypeModal } from "@/components/protocols/SectionTypeModal";
 import {
   useProtocols,
   useProtocolItems,
@@ -26,16 +28,30 @@ import {
   useUpdateProtocolItem,
   useNextProtocolNumber,
 } from "@/hooks/useProtocols";
+import {
+  useProtocolSections,
+  useCreateProtocolSection,
+  useUpdateProtocolSection,
+  useDeleteProtocolSection,
+  SectionType,
+  getSectionDisplayName,
+} from "@/hooks/useProtocolSections";
 import { useProjects } from "@/hooks/useProjects";
 import { useEmployees } from "@/hooks/useEmployees";
 import { useCreateTask, useUpdateTask } from "@/hooks/useTasks";
 import { generateProtocolPdf } from "@/utils/protocolPdf";
 import { toast } from "sonner";
 
-interface ProjectGroup {
-  projectId: string | null;
+// Unified item type for both regular items and goals
+type UniversalItemData = ProtocolItemData | GoalItemData;
+
+interface SectionGroup {
+  id: string; // section id (can be temp id)
+  sectionType: SectionType;
+  entityId: string | null;
+  entityName: string | null;
   defaultResponsible: string | null;
-  items: ProtocolItemData[];
+  items: UniversalItemData[];
 }
 
 export default function ProtocolEditor() {
@@ -60,18 +76,25 @@ export default function ProtocolEditor() {
   const updateProtocolItem = useUpdateProtocolItem();
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
+  
+  // Section hooks
+  const createSection = useCreateProtocolSection();
+  const updateSection = useUpdateProtocolSection();
+  const deleteSection = useDeleteProtocolSection();
 
   // Existing protocol data
   const existingProtocol = isEditMode ? protocols.find(p => p.id === id) : null;
   const { data: existingItems = [], isLoading: existingItemsLoading } = useProtocolItems(isEditMode ? id : null);
+  const { data: existingSections = [], isLoading: existingSectionsLoading } = useProtocolSections(isEditMode ? id : null);
 
   // Source protocol for copy mode
   const sourceProtocol = isCopyMode ? protocols.find(p => p.id === copyFromId) : null;
   const { data: sourceItems = [], isLoading: sourceItemsLoading } = useProtocolItems(isCopyMode ? copyFromId : null);
+  const { data: sourceSections = [], isLoading: sourceSectionsLoading } = useProtocolSections(isCopyMode ? copyFromId : null);
 
   // Loading states
-  const isCopyDataLoading = isCopyMode && (protocolsLoading || employeesLoading || sourceItemsLoading || !sourceProtocol);
-  const isEditDataLoading = isEditMode && (protocolsLoading || employeesLoading || existingItemsLoading);
+  const isCopyDataLoading = isCopyMode && (protocolsLoading || employeesLoading || sourceItemsLoading || sourceSectionsLoading || !sourceProtocol);
+  const isEditDataLoading = isEditMode && (protocolsLoading || employeesLoading || existingItemsLoading || existingSectionsLoading);
 
   // Form state
   const [form, setForm] = useState({
@@ -81,13 +104,14 @@ export default function ProtocolEditor() {
     attendee_ids: [] as string[],
   });
 
-  // Project groups with items (unified state for both new and edit modes)
-  const [projectGroups, setProjectGroups] = useState<ProjectGroup[]>([
-    { projectId: null, defaultResponsible: null, items: [] }
+  // Section groups with items (unified state for both new and edit modes)
+  const [sectionGroups, setSectionGroups] = useState<SectionGroup[]>([
+    { id: 'temp-default', sectionType: 'project', entityId: null, entityName: null, defaultResponsible: null, items: [] }
   ]);
 
   const [copyApplied, setCopyApplied] = useState(false);
   const [editInitialized, setEditInitialized] = useState(false);
+  const [showSectionModal, setShowSectionModal] = useState(false);
 
   // Helper to generate temp IDs
   const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -103,7 +127,7 @@ export default function ProtocolEditor() {
 
   // Initialize for edit mode
   useEffect(() => {
-    if (isEditMode && existingProtocol && !editInitialized && employees.length > 0 && !existingItemsLoading) {
+    if (isEditMode && existingProtocol && !editInitialized && employees.length > 0 && !existingItemsLoading && !existingSectionsLoading) {
       const organizerEmployee = existingProtocol.organizer
         ? employees.find((e) => e.full_name === existingProtocol.organizer)
         : null;
@@ -119,40 +143,56 @@ export default function ProtocolEditor() {
         attendee_ids: attendeeIds,
       });
 
-      // Group existing items by project
-      const groups: Record<string, ProtocolItemData[]> = {};
-      existingItems.forEach(item => {
-        const key = item.project_id || "no_project";
-        if (!groups[key]) groups[key] = [];
-        groups[key].push({
-          id: item.id,
-          project_id: item.project_id,
-          item_text: item.item_text,
-          responsible: item.responsible,
-          due_date: item.due_date,
-          create_task: item.create_task,
-          task_id: item.task_id,
+      // Build section groups from sections and items
+      if (existingSections.length > 0) {
+        const groups: SectionGroup[] = existingSections.map(section => ({
+          id: section.id,
+          sectionType: section.section_type,
+          entityId: section.entity_id,
+          entityName: section.entity_name,
+          defaultResponsible: section.default_responsible,
+          items: existingItems
+            .filter(item => item.section_id === section.id)
+            .map(item => createItemFromDb(item, section.section_type)),
+        }));
+        
+        if (groups.length === 0) {
+          groups.push({ id: 'temp-default', sectionType: 'project', entityId: null, entityName: null, defaultResponsible: null, items: [] });
+        }
+        
+        setSectionGroups(groups);
+      } else {
+        // Legacy: group by project_id for old protocols without sections
+        const groups: Record<string, UniversalItemData[]> = {};
+        existingItems.forEach(item => {
+          const key = item.project_id || "no_project";
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(createItemFromDb(item, 'project'));
         });
-      });
 
-      const projectGroupsList: ProjectGroup[] = Object.entries(groups).map(([key, items]) => ({
-        projectId: key === "no_project" ? null : key,
-        defaultResponsible: null,
-        items: items.sort((a, b) => existingItems.findIndex(i => i.id === a.id) - existingItems.findIndex(i => i.id === b.id)),
-      }));
+        const sectionGroupsList: SectionGroup[] = Object.entries(groups).map(([key, items]) => ({
+          id: generateTempId(),
+          sectionType: 'project' as SectionType,
+          entityId: key === "no_project" ? null : key,
+          entityName: null,
+          defaultResponsible: null,
+          items: items.sort((a, b) => existingItems.findIndex(i => i.id === a.id) - existingItems.findIndex(i => i.id === b.id)),
+        }));
 
-      if (projectGroupsList.length === 0) {
-        projectGroupsList.push({ projectId: null, defaultResponsible: null, items: [] });
+        if (sectionGroupsList.length === 0) {
+          sectionGroupsList.push({ id: 'temp-default', sectionType: 'project', entityId: null, entityName: null, defaultResponsible: null, items: [] });
+        }
+
+        setSectionGroups(sectionGroupsList);
       }
-
-      setProjectGroups(projectGroupsList);
+      
       setEditInitialized(true);
     }
-  }, [isEditMode, existingProtocol, employees, editInitialized, existingItems, existingItemsLoading]);
+  }, [isEditMode, existingProtocol, employees, editInitialized, existingItems, existingItemsLoading, existingSections, existingSectionsLoading]);
 
   // Initialize for copy mode
   useEffect(() => {
-    if (isCopyMode && sourceProtocol && !copyApplied && employees.length > 0 && !sourceItemsLoading) {
+    if (isCopyMode && sourceProtocol && !copyApplied && employees.length > 0 && !sourceItemsLoading && !sourceSectionsLoading) {
       const organizerEmployee = sourceProtocol.organizer
         ? employees.find((e) => e.full_name === sourceProtocol.organizer)
         : null;
@@ -168,87 +208,176 @@ export default function ProtocolEditor() {
         attendee_ids: attendeeIds,
       });
 
-      // Group source items by project
-      const groups: Record<string, ProtocolItemData[]> = {};
-      sourceItems.forEach((item, index) => {
-        const key = item.project_id || "no_project";
-        if (!groups[key]) groups[key] = [];
-        groups[key].push({
+      // Build section groups from source
+      if (sourceSections.length > 0) {
+        const groups: SectionGroup[] = sourceSections.map(section => ({
           id: generateTempId(),
-          project_id: item.project_id,
-          item_text: item.item_text,
-          responsible: item.responsible,
-          due_date: item.due_date,
-          create_task: false, // Don't auto-create tasks for copied items
+          sectionType: section.section_type,
+          entityId: section.entity_id,
+          entityName: section.entity_name,
+          defaultResponsible: section.default_responsible,
+          items: sourceItems
+            .filter(item => item.section_id === section.id)
+            .map(item => ({
+              ...createItemFromDb(item, section.section_type),
+              id: generateTempId(),
+              create_task: false,
+              task_id: null,
+            })),
+        }));
+        
+        if (groups.length === 0) {
+          groups.push({ id: 'temp-default', sectionType: 'project', entityId: null, entityName: null, defaultResponsible: null, items: [] });
+        }
+        
+        setSectionGroups(groups);
+      } else {
+        // Legacy: group by project_id
+        const groups: Record<string, UniversalItemData[]> = {};
+        sourceItems.forEach(item => {
+          const key = item.project_id || "no_project";
+          if (!groups[key]) groups[key] = [];
+          groups[key].push({
+            ...createItemFromDb(item, 'project'),
+            id: generateTempId(),
+            create_task: false,
+            task_id: null,
+          });
         });
-      });
 
-      const projectGroupsList: ProjectGroup[] = Object.entries(groups).map(([key, items]) => ({
-        projectId: key === "no_project" ? null : key,
-        defaultResponsible: null,
-        items,
-      }));
+        const sectionGroupsList: SectionGroup[] = Object.entries(groups).map(([key, items]) => ({
+          id: generateTempId(),
+          sectionType: 'project' as SectionType,
+          entityId: key === "no_project" ? null : key,
+          entityName: null,
+          defaultResponsible: null,
+          items,
+        }));
 
-      if (projectGroupsList.length === 0) {
-        projectGroupsList.push({ projectId: null, defaultResponsible: null, items: [] });
+        if (sectionGroupsList.length === 0) {
+          sectionGroupsList.push({ id: 'temp-default', sectionType: 'project', entityId: null, entityName: null, defaultResponsible: null, items: [] });
+        }
+
+        setSectionGroups(sectionGroupsList);
       }
 
-      setProjectGroups(projectGroupsList);
       setCopyApplied(true);
     }
-  }, [isCopyMode, sourceProtocol, sourceItems, employees, copyApplied, sourceItemsLoading]);
+  }, [isCopyMode, sourceProtocol, sourceItems, employees, copyApplied, sourceItemsLoading, sourceSections, sourceSectionsLoading]);
+
+  // Helper to create item from DB record
+  function createItemFromDb(item: any, sectionType: SectionType): UniversalItemData {
+    if (sectionType === 'goals') {
+      return {
+        id: item.id,
+        section_id: item.section_id,
+        item_text: item.item_text,
+        responsible: item.responsible,
+        due_date: item.due_date,
+        kpi: item.kpi,
+        status: item.status,
+        status_date: item.status_date,
+        create_task: item.create_task,
+        task_id: item.task_id,
+      } as GoalItemData;
+    }
+    return {
+      id: item.id,
+      project_id: item.project_id,
+      item_text: item.item_text,
+      responsible: item.responsible,
+      due_date: item.due_date,
+      create_task: item.create_task,
+      task_id: item.task_id,
+    } as ProtocolItemData;
+  }
 
   // Helper functions
-  const getProjectName = (projectId: string | null) => {
-    if (!projectId) return "Без проекта (общие вопросы)";
-    return projects.find((p) => p.id === projectId)?.name || "Неизвестный проект";
-  };
-
-  const handleAddProject = () => {
-    // Find first project not yet added
-    const usedProjectIds = projectGroups.map(g => g.projectId);
-    const availableProject = projects.find(p => !usedProjectIds.includes(p.id));
-    
-    setProjectGroups(prev => [...prev, {
-      projectId: availableProject?.id || null,
+  const handleAddSection = (type: SectionType, entityId: string | null, entityName: string | null) => {
+    setSectionGroups(prev => [...prev, {
+      id: generateTempId(),
+      sectionType: type,
+      entityId,
+      entityName,
       defaultResponsible: null,
       items: [],
     }]);
   };
 
-  const handleChangeProjectResponsible = (groupIndex: number, responsible: string | null) => {
-    setProjectGroups(prev => prev.map((g, idx) => 
+  const handleChangeDefaultResponsible = async (groupIndex: number, responsible: string | null) => {
+    const group = sectionGroups[groupIndex];
+    
+    setSectionGroups(prev => prev.map((g, idx) => 
       idx === groupIndex ? { ...g, defaultResponsible: responsible } : g
     ));
+
+    // If editing and section exists in DB, update it
+    if (isEditMode && id && !group.id.startsWith('temp-')) {
+      try {
+        await updateSection.mutateAsync({
+          id: group.id,
+          protocol_id: id,
+          default_responsible: responsible,
+        });
+      } catch (error) {
+        console.error('Failed to update section default responsible:', error);
+      }
+    }
   };
 
-  const handleRemoveProjectSection = (index: number) => {
-    setProjectGroups(prev => prev.filter((_, i) => i !== index));
+  const handleRemoveSection = async (index: number) => {
+    const group = sectionGroups[index];
+    
+    // If editing and section exists in DB, delete it
+    if (isEditMode && id && !group.id.startsWith('temp-')) {
+      try {
+        await deleteSection.mutateAsync({ id: group.id, protocol_id: id });
+      } catch (error) {
+        toast.error("Ошибка удаления секции");
+        return;
+      }
+    }
+    
+    setSectionGroups(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleChangeProject = (index: number, newProjectId: string | null) => {
-    setProjectGroups(prev => prev.map((group, i) => 
-      i === index ? { ...group, projectId: newProjectId } : group
+  const handleChangeEntity = (index: number, entityId: string | null, entityName: string | null) => {
+    setSectionGroups(prev => prev.map((group, i) => 
+      i === index ? { ...group, entityId, entityName } : group
     ));
   };
 
-  const handleAddItemToProject = (groupIndex: number) => {
-    const group = projectGroups[groupIndex];
-    const newItem: ProtocolItemData = {
-      id: generateTempId(),
-      project_id: group.projectId,
-      item_text: "",
-      responsible: null,
-      due_date: null,
-      create_task: false,
-    };
-    setProjectGroups(prev => prev.map((g, i) =>
+  const handleAddItemToSection = (groupIndex: number) => {
+    const group = sectionGroups[groupIndex];
+    
+    const newItem: UniversalItemData = group.sectionType === 'goals' 
+      ? {
+          id: generateTempId(),
+          section_id: group.id,
+          item_text: "",
+          responsible: null,
+          due_date: null,
+          kpi: null,
+          status: null,
+          status_date: null,
+          create_task: false,
+        } as GoalItemData
+      : {
+          id: generateTempId(),
+          project_id: group.entityId,
+          item_text: "",
+          responsible: null,
+          due_date: null,
+          create_task: false,
+        } as ProtocolItemData;
+    
+    setSectionGroups(prev => prev.map((g, i) =>
       i === groupIndex ? { ...g, items: [...g.items, newItem] } : g
     ));
   };
 
-  const handleUpdateItem = (groupIndex: number, itemId: string, updates: Partial<ProtocolItemData>) => {
-    setProjectGroups(prev => prev.map((g, i) =>
+  const handleUpdateItem = (groupIndex: number, itemId: string, updates: Partial<UniversalItemData>) => {
+    setSectionGroups(prev => prev.map((g, i) =>
       i === groupIndex
         ? {
             ...g,
@@ -271,7 +400,7 @@ export default function ProtocolEditor() {
       }
     }
     
-    setProjectGroups(prev => prev.map((g, i) =>
+    setSectionGroups(prev => prev.map((g, i) =>
       i === groupIndex
         ? { ...g, items: g.items.filter(item => item.id !== itemId) }
         : g
@@ -290,9 +419,9 @@ export default function ProtocolEditor() {
   );
 
   // Find item by id across all groups
-  const findItemById = (id: string): { item: ProtocolItemData; groupIndex: number } | null => {
-    for (let i = 0; i < projectGroups.length; i++) {
-      const item = projectGroups[i].items.find(item => item.id === id);
+  const findItemById = (itemId: string): { item: UniversalItemData; groupIndex: number } | null => {
+    for (let i = 0; i < sectionGroups.length; i++) {
+      const item = sectionGroups[i].items.find(item => item.id === itemId);
       if (item) return { item, groupIndex: i };
     }
     return null;
@@ -300,10 +429,8 @@ export default function ProtocolEditor() {
 
   // Find group index by section id
   const findGroupIndexBySectionId = (sectionId: string): number => {
-    const projectId = sectionId.replace('section-', '');
-    return projectGroups.findIndex(g => 
-      (g.projectId || 'no-project') === projectId
-    );
+    const actualSectionId = sectionId.replace('section-', '');
+    return sectionGroups.findIndex(g => g.id === actualSectionId);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -314,58 +441,51 @@ export default function ProtocolEditor() {
     const { active, over } = event;
     if (!over) return;
 
-    const activeId = active.id as string;
+    const activeItemId = active.id as string;
     const overId = over.id as string;
 
-    // Find source item and group
-    const activeResult = findItemById(activeId);
+    const activeResult = findItemById(activeItemId);
     if (!activeResult) return;
 
     const { groupIndex: activeGroupIndex } = activeResult;
     
-    // Determine target group
     let overGroupIndex: number;
     
-    // Check if over is a section (droppable container)
     if (overId.startsWith('section-')) {
       overGroupIndex = findGroupIndexBySectionId(overId);
     } else {
-      // Over is another item
       const overResult = findItemById(overId);
       if (!overResult) return;
       overGroupIndex = overResult.groupIndex;
     }
 
-    // If moving to different group
+    // Only allow moving within same section type (can't mix goals with regular items)
+    if (sectionGroups[activeGroupIndex].sectionType !== sectionGroups[overGroupIndex].sectionType) {
+      return;
+    }
+
     if (activeGroupIndex !== overGroupIndex) {
-      setProjectGroups(prev => {
+      setSectionGroups(prev => {
         const newGroups = [...prev];
-        const activeItem = newGroups[activeGroupIndex].items.find(i => i.id === activeId);
+        const activeItem = newGroups[activeGroupIndex].items.find(i => i.id === activeItemId);
         if (!activeItem) return prev;
 
-        // Remove from source
         newGroups[activeGroupIndex] = {
           ...newGroups[activeGroupIndex],
-          items: newGroups[activeGroupIndex].items.filter(i => i.id !== activeId),
+          items: newGroups[activeGroupIndex].items.filter(i => i.id !== activeItemId),
         };
 
-        // Add to target (update project_id)
-        const updatedItem = {
-          ...activeItem,
-          project_id: newGroups[overGroupIndex].projectId,
-          // Reset responsible if moving to different project (optional)
-          // responsible: null,
-        };
+        const updatedItem = { ...activeItem };
+        if ('project_id' in updatedItem) {
+          updatedItem.project_id = newGroups[overGroupIndex].entityId;
+        }
 
-        // Find insertion index
         if (overId.startsWith('section-')) {
-          // Drop at end of section
           newGroups[overGroupIndex] = {
             ...newGroups[overGroupIndex],
             items: [...newGroups[overGroupIndex].items, updatedItem],
           };
         } else {
-          // Drop before/after specific item
           const overIndex = newGroups[overGroupIndex].items.findIndex(i => i.id === overId);
           const newItems = [...newGroups[overGroupIndex].items];
           newItems.splice(overIndex, 0, updatedItem);
@@ -386,25 +506,23 @@ export default function ProtocolEditor() {
 
     if (!over) return;
 
-    const activeId = active.id as string;
+    const activeItemId = active.id as string;
     const overId = over.id as string;
 
-    if (activeId === overId) return;
+    if (activeItemId === overId) return;
 
-    // Find the item and its group
-    const activeResult = findItemById(activeId);
+    const activeResult = findItemById(activeItemId);
     if (!activeResult) return;
 
     const { groupIndex } = activeResult;
 
-    // Handle reordering within same group
     if (!overId.startsWith('section-')) {
       const overResult = findItemById(overId);
       if (overResult && overResult.groupIndex === groupIndex) {
-        setProjectGroups(prev => {
+        setSectionGroups(prev => {
           const newGroups = [...prev];
           const group = newGroups[groupIndex];
-          const oldIndex = group.items.findIndex(i => i.id === activeId);
+          const oldIndex = group.items.findIndex(i => i.id === activeItemId);
           const newIndex = group.items.findIndex(i => i.id === overId);
           
           if (oldIndex !== -1 && newIndex !== -1) {
@@ -424,7 +542,6 @@ export default function ProtocolEditor() {
     }
   };
 
-  // Get active item for overlay
   const activeItem = activeId ? findItemById(activeId)?.item : null;
   const activeGroupIndex = activeId ? findItemById(activeId)?.groupIndex : null;
 
@@ -439,7 +556,7 @@ export default function ProtocolEditor() {
       ? employees.find((e) => e.id === form.organizer_id)?.full_name || null
       : null;
     const attendeeNames = form.attendee_ids
-      .map((id) => employees.find((e) => e.id === id)?.full_name)
+      .map((empId) => employees.find((e) => e.id === empId)?.full_name)
       .filter(Boolean) as string[];
 
     try {
@@ -452,26 +569,42 @@ export default function ProtocolEditor() {
         attendees: attendeeNames,
       });
 
-      // Create all items
+      // Create all sections and items
       let sortOrder = 0;
-      for (const group of projectGroups) {
+      let sectionSortOrder = 0;
+      
+      for (const group of sectionGroups) {
+        // Create section in DB
+        const createdSection = await createSection.mutateAsync({
+          protocol_id: result.id,
+          section_type: group.sectionType,
+          entity_id: group.entityId,
+          entity_name: group.entityName,
+          default_responsible: group.defaultResponsible,
+          sort_order: sectionSortOrder++,
+        });
+
         for (const item of group.items) {
           if (!item.item_text.trim()) continue;
 
-          // Use project default responsible if item has none
           const effectiveResponsible = item.responsible ?? group.defaultResponsible;
+          const isGoal = group.sectionType === 'goals';
+          const goalItem = item as GoalItemData;
 
           const createdItem = await createProtocolItem.mutateAsync({
             protocol_id: result.id,
-            project_id: group.projectId,
+            project_id: group.sectionType === 'project' ? group.entityId : null,
+            section_id: createdSection.id,
             item_text: item.item_text,
             responsible: effectiveResponsible,
             due_date: item.due_date,
             create_task: item.create_task,
             sort_order: sortOrder++,
+            kpi: isGoal ? goalItem.kpi : null,
+            status: isGoal ? goalItem.status : null,
+            status_date: isGoal ? goalItem.status_date : null,
           });
 
-          // Create task if needed
           if (item.create_task) {
             const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
             const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
@@ -480,13 +613,12 @@ export default function ProtocolEditor() {
             const taskResult = await createTask.mutateAsync({
               title: item.item_text,
               assignee_id: assigneeProfileId,
-              project_id: group.projectId,
+              project_id: group.sectionType === 'project' ? group.entityId : null,
               due_date: item.due_date || null,
               status: "new",
               priority: "normal",
             });
 
-            // Link task to protocol item
             await updateProtocolItem.mutateAsync({
               id: createdItem.id,
               protocol_id: result.id,
@@ -517,7 +649,6 @@ export default function ProtocolEditor() {
       .filter(Boolean) as string[];
 
     try {
-      // Update protocol metadata
       await updateProtocol.mutateAsync({
         id,
         date: form.date,
@@ -527,28 +658,56 @@ export default function ProtocolEditor() {
         attendees: attendeeNames,
       });
 
-      // Sync items
       let sortOrder = 0;
-      for (const group of projectGroups) {
+      let sectionSortOrder = 0;
+      
+      for (const group of sectionGroups) {
+        // Create section if it's new
+        let sectionId = group.id;
+        if (group.id.startsWith('temp-')) {
+          const createdSection = await createSection.mutateAsync({
+            protocol_id: id,
+            section_type: group.sectionType,
+            entity_id: group.entityId,
+            entity_name: group.entityName,
+            default_responsible: group.defaultResponsible,
+            sort_order: sectionSortOrder++,
+          });
+          sectionId = createdSection.id;
+        } else {
+          // Update existing section
+          await updateSection.mutateAsync({
+            id: group.id,
+            protocol_id: id,
+            entity_id: group.entityId,
+            entity_name: group.entityName,
+            default_responsible: group.defaultResponsible,
+            sort_order: sectionSortOrder++,
+          });
+        }
+
         for (const item of group.items) {
           if (!item.item_text.trim()) continue;
 
-          // Use project default responsible if item has none
           const effectiveResponsible = item.responsible ?? group.defaultResponsible;
+          const isGoal = group.sectionType === 'goals';
+          const goalItem = item as GoalItemData;
 
           if (item.id.startsWith("temp-")) {
-            // Create new item
             const createdItem = await createProtocolItem.mutateAsync({
               protocol_id: id,
-              project_id: group.projectId,
+              project_id: group.sectionType === 'project' ? group.entityId : null,
+              section_id: sectionId,
               item_text: item.item_text,
               responsible: effectiveResponsible,
               due_date: item.due_date,
               create_task: item.create_task,
               sort_order: sortOrder++,
+              kpi: isGoal ? goalItem.kpi : null,
+              status: isGoal ? goalItem.status : null,
+              status_date: isGoal ? goalItem.status_date : null,
             });
 
-            // Create task if needed
             if (item.create_task) {
               const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
               const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
@@ -557,7 +716,7 @@ export default function ProtocolEditor() {
               const taskResult = await createTask.mutateAsync({
                 title: item.item_text,
                 assignee_id: assigneeProfileId,
-                project_id: group.projectId,
+                project_id: group.sectionType === 'project' ? group.entityId : null,
                 due_date: item.due_date || null,
                 status: "new",
                 priority: "normal",
@@ -570,16 +729,19 @@ export default function ProtocolEditor() {
               });
             }
           } else {
-            // Update existing item
             await updateProtocolItem.mutateAsync({
               id: item.id,
               protocol_id: id,
+              project_id: group.sectionType === 'project' ? group.entityId : null,
+              section_id: sectionId,
               item_text: item.item_text,
               responsible: effectiveResponsible,
               due_date: item.due_date,
+              kpi: isGoal ? goalItem.kpi : null,
+              status: isGoal ? goalItem.status : null,
+              status_date: isGoal ? goalItem.status_date : null,
             });
 
-            // Update linked task if exists
             if (item.task_id) {
               const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
               const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
@@ -620,9 +782,13 @@ export default function ProtocolEditor() {
     ? "Копирование протокола"
     : "Новый протокол";
 
-  const totalItems = projectGroups.reduce((sum, g) => sum + g.items.length, 0);
+  const totalItems = sectionGroups.reduce((sum, g) => sum + g.items.length, 0);
   const isLoading = isCopyDataLoading || isEditDataLoading;
   const isSaving = createProtocol.isPending || updateProtocol.isPending;
+
+  const usedProjectIds = sectionGroups
+    .filter(g => g.sectionType === 'project' && g.entityId)
+    .map(g => g.entityId!);
 
   return (
     <div className="min-h-screen bg-background">
@@ -663,7 +829,6 @@ export default function ProtocolEditor() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Loading state */}
         {isLoading && (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -673,7 +838,6 @@ export default function ProtocolEditor() {
 
         {!isLoading && (
           <>
-            {/* Protocol metadata (collapsible) */}
             <ProtocolMetadata
               form={form}
               onChange={(updates) => setForm(prev => ({ ...prev, ...updates }))}
@@ -683,20 +847,19 @@ export default function ProtocolEditor() {
               defaultCollapsed={isEditMode}
             />
 
-            {/* Project sections with DnD */}
             <section className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-medium text-foreground">
                   Пункты протокола ({totalItems})
                 </h2>
                 <Button
-                  onClick={handleAddProject}
+                  onClick={() => setShowSectionModal(true)}
                   variant="outline"
                   size="sm"
                   className="gap-2"
                 >
                   <Plus className="w-4 h-4" />
-                  Добавить проект
+                  Добавить секцию
                 </Button>
               </div>
 
@@ -707,43 +870,55 @@ export default function ProtocolEditor() {
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
               >
-                {projectGroups.map((group, index) => (
-                  <ProjectSection
-                    key={`${group.projectId}-${index}`}
-                    projectId={group.projectId}
-                    projectName={getProjectName(group.projectId)}
+                {sectionGroups.map((group, index) => (
+                  <UniversalSection
+                    key={group.id}
+                    sectionId={group.id}
+                    sectionType={group.sectionType}
+                    entityId={group.entityId}
+                    entityName={group.entityName}
                     items={group.items}
                     employees={employees}
                     projects={projects}
                     defaultResponsible={group.defaultResponsible}
-                    onChangeDefaultResponsible={(responsible) => handleChangeProjectResponsible(index, responsible)}
+                    onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
                     onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
                     onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
-                    onAddItem={() => handleAddItemToProject(index)}
-                    onChangeProject={(newProjectId) => handleChangeProject(index, newProjectId)}
-                    onRemoveSection={projectGroups.length > 1 ? () => handleRemoveProjectSection(index) : undefined}
-                    canChangeProject={!isEditMode || group.items.every(i => i.id.startsWith("temp-"))}
+                    onAddItem={() => handleAddItemToSection(index)}
+                    onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
+                    onRemoveSection={sectionGroups.length > 1 ? () => handleRemoveSection(index) : undefined}
+                    canEdit={!isEditMode || group.id.startsWith("temp-")}
                   />
                 ))}
 
                 <DragOverlay>
                   {activeItem && activeGroupIndex !== null ? (
                     <div className="opacity-90 shadow-lg">
-                      <ProtocolItemEditor
-                        item={activeItem}
-                        employees={employees}
-                        projectDefaultResponsible={projectGroups[activeGroupIndex]?.defaultResponsible ?? null}
-                        onUpdate={() => {}}
-                        onRemove={() => {}}
-                        disabled
-                      />
+                      {sectionGroups[activeGroupIndex]?.sectionType === 'goals' ? (
+                        <GoalItemEditor
+                          item={activeItem as GoalItemData}
+                          employees={employees}
+                          projectDefaultResponsible={sectionGroups[activeGroupIndex]?.defaultResponsible ?? null}
+                          onUpdate={() => {}}
+                          onRemove={() => {}}
+                          disabled
+                        />
+                      ) : (
+                        <ProtocolItemEditor
+                          item={activeItem as ProtocolItemData}
+                          employees={employees}
+                          projectDefaultResponsible={sectionGroups[activeGroupIndex]?.defaultResponsible ?? null}
+                          onUpdate={() => {}}
+                          onRemove={() => {}}
+                          disabled
+                        />
+                      )}
                     </div>
                   ) : null}
                 </DragOverlay>
               </DndContext>
             </section>
 
-            {/* Bottom save button */}
             <div className="pt-4 flex justify-center border-t border-border">
               <Button
                 onClick={isEditMode ? handleSaveChanges : handleCreate}
@@ -758,6 +933,14 @@ export default function ProtocolEditor() {
           </>
         )}
       </main>
+
+      <SectionTypeModal
+        open={showSectionModal}
+        onClose={() => setShowSectionModal(false)}
+        onSelect={handleAddSection}
+        projects={projects}
+        usedProjectIds={usedProjectIds}
+      />
     </div>
   );
 }

@@ -355,10 +355,14 @@ export type Database = {
           due_date: string | null
           id: string
           item_text: string
+          kpi: string | null
           project_id: string | null
           protocol_id: string
           responsible: string | null
+          section_id: string | null
           sort_order: number | null
+          status: string | null
+          status_date: string | null
           task_id: string | null
           updated_at: string
         }
@@ -368,10 +372,14 @@ export type Database = {
           due_date?: string | null
           id?: string
           item_text: string
+          kpi?: string | null
           project_id?: string | null
           protocol_id: string
           responsible?: string | null
+          section_id?: string | null
           sort_order?: number | null
+          status?: string | null
+          status_date?: string | null
           task_id?: string | null
           updated_at?: string
         }
@@ -381,10 +389,14 @@ export type Database = {
           due_date?: string | null
           id?: string
           item_text?: string
+          kpi?: string | null
           project_id?: string | null
           protocol_id?: string
           responsible?: string | null
+          section_id?: string | null
           sort_order?: number | null
+          status?: string | null
+          status_date?: string | null
           task_id?: string | null
           updated_at?: string
         }
@@ -404,10 +416,68 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "protocol_items_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "protocol_sections"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "protocol_items_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      protocol_sections: {
+        Row: {
+          created_at: string
+          default_responsible: string | null
+          entity_id: string | null
+          entity_name: string | null
+          id: string
+          protocol_id: string
+          section_type: string
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_responsible?: string | null
+          entity_id?: string | null
+          entity_name?: string | null
+          id?: string
+          protocol_id: string
+          section_type?: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_responsible?: string | null
+          entity_id?: string | null
+          entity_name?: string | null
+          id?: string
+          protocol_id?: string
+          section_type?: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "protocol_sections_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "protocol_sections_protocol_id_fkey"
+            columns: ["protocol_id"]
+            isOneToOne: false
+            referencedRelation: "protocols"
             referencedColumns: ["id"]
           },
         ]
