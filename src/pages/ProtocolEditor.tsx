@@ -1,10 +1,21 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Plus, Loader2, Save, Download } from "lucide-react";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverEvent,
+  DragStartEvent,
+  DragOverlay,
+  closestCorners,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 import { Button } from "@/components/ui/button";
 import { ProtocolMetadata } from "@/components/protocols/ProtocolMetadata";
 import { ProjectSection } from "@/components/protocols/ProjectSection";
-import { ProtocolItemData } from "@/components/protocols/ProtocolItemEditor";
+import { ProtocolItemData, ProtocolItemEditor } from "@/components/protocols/ProtocolItemEditor";
 import {
   useProtocols,
   useProtocolItems,
@@ -267,6 +278,156 @@ export default function ProtocolEditor() {
     ));
   };
 
+  // DnD state
+  const [activeId, setActiveId] = useState<string | null>(null);
+  
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  // Find item by id across all groups
+  const findItemById = (id: string): { item: ProtocolItemData; groupIndex: number } | null => {
+    for (let i = 0; i < projectGroups.length; i++) {
+      const item = projectGroups[i].items.find(item => item.id === id);
+      if (item) return { item, groupIndex: i };
+    }
+    return null;
+  };
+
+  // Find group index by section id
+  const findGroupIndexBySectionId = (sectionId: string): number => {
+    const projectId = sectionId.replace('section-', '');
+    return projectGroups.findIndex(g => 
+      (g.projectId || 'no-project') === projectId
+    );
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // Find source item and group
+    const activeResult = findItemById(activeId);
+    if (!activeResult) return;
+
+    const { groupIndex: activeGroupIndex } = activeResult;
+    
+    // Determine target group
+    let overGroupIndex: number;
+    
+    // Check if over is a section (droppable container)
+    if (overId.startsWith('section-')) {
+      overGroupIndex = findGroupIndexBySectionId(overId);
+    } else {
+      // Over is another item
+      const overResult = findItemById(overId);
+      if (!overResult) return;
+      overGroupIndex = overResult.groupIndex;
+    }
+
+    // If moving to different group
+    if (activeGroupIndex !== overGroupIndex) {
+      setProjectGroups(prev => {
+        const newGroups = [...prev];
+        const activeItem = newGroups[activeGroupIndex].items.find(i => i.id === activeId);
+        if (!activeItem) return prev;
+
+        // Remove from source
+        newGroups[activeGroupIndex] = {
+          ...newGroups[activeGroupIndex],
+          items: newGroups[activeGroupIndex].items.filter(i => i.id !== activeId),
+        };
+
+        // Add to target (update project_id)
+        const updatedItem = {
+          ...activeItem,
+          project_id: newGroups[overGroupIndex].projectId,
+          // Reset responsible if moving to different project (optional)
+          // responsible: null,
+        };
+
+        // Find insertion index
+        if (overId.startsWith('section-')) {
+          // Drop at end of section
+          newGroups[overGroupIndex] = {
+            ...newGroups[overGroupIndex],
+            items: [...newGroups[overGroupIndex].items, updatedItem],
+          };
+        } else {
+          // Drop before/after specific item
+          const overIndex = newGroups[overGroupIndex].items.findIndex(i => i.id === overId);
+          const newItems = [...newGroups[overGroupIndex].items];
+          newItems.splice(overIndex, 0, updatedItem);
+          newGroups[overGroupIndex] = {
+            ...newGroups[overGroupIndex],
+            items: newItems,
+          };
+        }
+
+        return newGroups;
+      });
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    if (activeId === overId) return;
+
+    // Find the item and its group
+    const activeResult = findItemById(activeId);
+    if (!activeResult) return;
+
+    const { groupIndex } = activeResult;
+
+    // Handle reordering within same group
+    if (!overId.startsWith('section-')) {
+      const overResult = findItemById(overId);
+      if (overResult && overResult.groupIndex === groupIndex) {
+        setProjectGroups(prev => {
+          const newGroups = [...prev];
+          const group = newGroups[groupIndex];
+          const oldIndex = group.items.findIndex(i => i.id === activeId);
+          const newIndex = group.items.findIndex(i => i.id === overId);
+          
+          if (oldIndex !== -1 && newIndex !== -1) {
+            const newItems = [...group.items];
+            const [movedItem] = newItems.splice(oldIndex, 1);
+            newItems.splice(newIndex, 0, movedItem);
+            
+            newGroups[groupIndex] = {
+              ...group,
+              items: newItems,
+            };
+          }
+          
+          return newGroups;
+        });
+      }
+    }
+  };
+
+  // Get active item for overlay
+  const activeItem = activeId ? findItemById(activeId)?.item : null;
+  const activeGroupIndex = activeId ? findItemById(activeId)?.groupIndex : null;
+
   // Save handlers
   const handleCreate = async () => {
     if (!form.title.trim()) {
@@ -522,7 +683,7 @@ export default function ProtocolEditor() {
               defaultCollapsed={isEditMode}
             />
 
-            {/* Project sections */}
+            {/* Project sections with DnD */}
             <section className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-medium text-foreground">
@@ -539,24 +700,47 @@ export default function ProtocolEditor() {
                 </Button>
               </div>
 
-              {projectGroups.map((group, index) => (
-                <ProjectSection
-                  key={`${group.projectId}-${index}`}
-                  projectId={group.projectId}
-                  projectName={getProjectName(group.projectId)}
-                  items={group.items}
-                  employees={employees}
-                  projects={projects}
-                  defaultResponsible={group.defaultResponsible}
-                  onChangeDefaultResponsible={(responsible) => handleChangeProjectResponsible(index, responsible)}
-                  onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
-                  onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
-                  onAddItem={() => handleAddItemToProject(index)}
-                  onChangeProject={(newProjectId) => handleChangeProject(index, newProjectId)}
-                  onRemoveSection={projectGroups.length > 1 ? () => handleRemoveProjectSection(index) : undefined}
-                  canChangeProject={!isEditMode || group.items.every(i => i.id.startsWith("temp-"))}
-                />
-              ))}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCorners}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragEnd={handleDragEnd}
+              >
+                {projectGroups.map((group, index) => (
+                  <ProjectSection
+                    key={`${group.projectId}-${index}`}
+                    projectId={group.projectId}
+                    projectName={getProjectName(group.projectId)}
+                    items={group.items}
+                    employees={employees}
+                    projects={projects}
+                    defaultResponsible={group.defaultResponsible}
+                    onChangeDefaultResponsible={(responsible) => handleChangeProjectResponsible(index, responsible)}
+                    onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
+                    onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
+                    onAddItem={() => handleAddItemToProject(index)}
+                    onChangeProject={(newProjectId) => handleChangeProject(index, newProjectId)}
+                    onRemoveSection={projectGroups.length > 1 ? () => handleRemoveProjectSection(index) : undefined}
+                    canChangeProject={!isEditMode || group.items.every(i => i.id.startsWith("temp-"))}
+                  />
+                ))}
+
+                <DragOverlay>
+                  {activeItem && activeGroupIndex !== null ? (
+                    <div className="opacity-90 shadow-lg">
+                      <ProtocolItemEditor
+                        item={activeItem}
+                        employees={employees}
+                        projectDefaultResponsible={projectGroups[activeGroupIndex]?.defaultResponsible ?? null}
+                        onUpdate={() => {}}
+                        onRemove={() => {}}
+                        disabled
+                      />
+                    </div>
+                  ) : null}
+                </DragOverlay>
+              </DndContext>
             </section>
 
             {/* Bottom save button */}
