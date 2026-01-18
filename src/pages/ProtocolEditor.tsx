@@ -821,7 +821,7 @@ export default function ProtocolEditor() {
               disabled={isSaving || !form.title.trim()}
               className="gap-2"
             >
-              <Save className="w-4 h-4" />
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {isSaving ? "Сохранение..." : "Сохранить"}
             </Button>
           </div>
@@ -926,7 +926,7 @@ export default function ProtocolEditor() {
                 disabled={isSaving || !form.title.trim()}
                 className="gap-2 text-base font-semibold px-8"
               >
-                <Save className="w-5 h-5" />
+                {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                 {isSaving ? "Сохранение..." : "Сохранить протокол"}
               </Button>
             </div>
