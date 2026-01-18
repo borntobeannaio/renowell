@@ -23,6 +23,7 @@ import { toast } from "sonner";
 
 interface ProjectGroup {
   projectId: string | null;
+  defaultResponsible: string | null;
   items: ProtocolItemData[];
 }
 
@@ -71,7 +72,7 @@ export default function ProtocolEditor() {
 
   // Project groups with items (unified state for both new and edit modes)
   const [projectGroups, setProjectGroups] = useState<ProjectGroup[]>([
-    { projectId: null, items: [] }
+    { projectId: null, defaultResponsible: null, items: [] }
   ]);
 
   const [copyApplied, setCopyApplied] = useState(false);
@@ -125,11 +126,12 @@ export default function ProtocolEditor() {
 
       const projectGroupsList: ProjectGroup[] = Object.entries(groups).map(([key, items]) => ({
         projectId: key === "no_project" ? null : key,
+        defaultResponsible: null,
         items: items.sort((a, b) => existingItems.findIndex(i => i.id === a.id) - existingItems.findIndex(i => i.id === b.id)),
       }));
 
       if (projectGroupsList.length === 0) {
-        projectGroupsList.push({ projectId: null, items: [] });
+        projectGroupsList.push({ projectId: null, defaultResponsible: null, items: [] });
       }
 
       setProjectGroups(projectGroupsList);
@@ -172,11 +174,12 @@ export default function ProtocolEditor() {
 
       const projectGroupsList: ProjectGroup[] = Object.entries(groups).map(([key, items]) => ({
         projectId: key === "no_project" ? null : key,
+        defaultResponsible: null,
         items,
       }));
 
       if (projectGroupsList.length === 0) {
-        projectGroupsList.push({ projectId: null, items: [] });
+        projectGroupsList.push({ projectId: null, defaultResponsible: null, items: [] });
       }
 
       setProjectGroups(projectGroupsList);
@@ -197,8 +200,15 @@ export default function ProtocolEditor() {
     
     setProjectGroups(prev => [...prev, {
       projectId: availableProject?.id || null,
+      defaultResponsible: null,
       items: [],
     }]);
+  };
+
+  const handleChangeProjectResponsible = (groupIndex: number, responsible: string | null) => {
+    setProjectGroups(prev => prev.map((g, idx) => 
+      idx === groupIndex ? { ...g, defaultResponsible: responsible } : g
+    ));
   };
 
   const handleRemoveProjectSection = (index: number) => {
@@ -287,11 +297,14 @@ export default function ProtocolEditor() {
         for (const item of group.items) {
           if (!item.item_text.trim()) continue;
 
+          // Use project default responsible if item has none
+          const effectiveResponsible = item.responsible ?? group.defaultResponsible;
+
           const createdItem = await createProtocolItem.mutateAsync({
             protocol_id: result.id,
             project_id: group.projectId,
             item_text: item.item_text,
-            responsible: item.responsible,
+            responsible: effectiveResponsible,
             due_date: item.due_date,
             create_task: item.create_task,
             sort_order: sortOrder++,
@@ -299,7 +312,7 @@ export default function ProtocolEditor() {
 
           // Create task if needed
           if (item.create_task) {
-            const responsibleIds = getEmployeeIdsFromResponsible(item.responsible);
+            const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
             const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
             const assigneeProfileId = firstEmployee?.profile_id || null;
 
@@ -359,13 +372,16 @@ export default function ProtocolEditor() {
         for (const item of group.items) {
           if (!item.item_text.trim()) continue;
 
+          // Use project default responsible if item has none
+          const effectiveResponsible = item.responsible ?? group.defaultResponsible;
+
           if (item.id.startsWith("temp-")) {
             // Create new item
             const createdItem = await createProtocolItem.mutateAsync({
               protocol_id: id,
               project_id: group.projectId,
               item_text: item.item_text,
-              responsible: item.responsible,
+              responsible: effectiveResponsible,
               due_date: item.due_date,
               create_task: item.create_task,
               sort_order: sortOrder++,
@@ -373,7 +389,7 @@ export default function ProtocolEditor() {
 
             // Create task if needed
             if (item.create_task) {
-              const responsibleIds = getEmployeeIdsFromResponsible(item.responsible);
+              const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
               const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
               const assigneeProfileId = firstEmployee?.profile_id || null;
 
@@ -398,13 +414,13 @@ export default function ProtocolEditor() {
               id: item.id,
               protocol_id: id,
               item_text: item.item_text,
-              responsible: item.responsible,
+              responsible: effectiveResponsible,
               due_date: item.due_date,
             });
 
             // Update linked task if exists
             if (item.task_id) {
-              const responsibleIds = getEmployeeIdsFromResponsible(item.responsible);
+              const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
               const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
               const assigneeProfileId = firstEmployee?.profile_id || null;
 
@@ -531,6 +547,8 @@ export default function ProtocolEditor() {
                   items={group.items}
                   employees={employees}
                   projects={projects}
+                  defaultResponsible={group.defaultResponsible}
+                  onChangeDefaultResponsible={(responsible) => handleChangeProjectResponsible(index, responsible)}
                   onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
                   onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
                   onAddItem={() => handleAddItemToProject(index)}

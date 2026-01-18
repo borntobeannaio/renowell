@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, FolderOpen, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, FolderOpen, Plus, Trash2, Users } from "lucide-react";
 import { ProtocolItemEditor, ProtocolItemData } from "./ProtocolItemEditor";
+import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 
 interface ProjectSectionProps {
   projectId: string | null;
@@ -8,6 +9,8 @@ interface ProjectSectionProps {
   items: ProtocolItemData[];
   employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null }[];
   projects: { id: string; name: string }[];
+  defaultResponsible: string | null;
+  onChangeDefaultResponsible: (responsible: string | null) => void;
   onUpdateItem: (itemId: string, updates: Partial<ProtocolItemData>) => void;
   onRemoveItem: (itemId: string) => void;
   onAddItem: () => void;
@@ -23,6 +26,8 @@ export function ProjectSection({
   items,
   employees,
   projects,
+  defaultResponsible,
+  onChangeDefaultResponsible,
   onUpdateItem,
   onRemoveItem,
   onAddItem,
@@ -33,6 +38,28 @@ export function ProjectSection({
 }: ProjectSectionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [isEditingProject, setIsEditingProject] = useState(false);
+
+  // Convert responsible string to employee IDs
+  const getEmployeeIdsFromResponsible = (responsible: string | null): string[] => {
+    if (!responsible) return [];
+    const names = responsible.split(", ").map(n => n.trim());
+    return names
+      .map(name => employees.find(e => e.full_name === name)?.id)
+      .filter(Boolean) as string[];
+  };
+
+  const handleDefaultResponsibleChange = (ids: string[]) => {
+    const responsibleNames = ids
+      .map(id => employees.find(e => e.id === id)?.full_name)
+      .filter(Boolean)
+      .join(", ");
+    onChangeDefaultResponsible(responsibleNames || null);
+  };
+
+  // Get display names for default responsible
+  const defaultResponsibleNames = defaultResponsible
+    ? defaultResponsible.split(", ").slice(0, 2).join(", ") + (defaultResponsible.split(", ").length > 2 ? "..." : "")
+    : null;
 
   return (
     <div className="card-base overflow-hidden">
@@ -91,6 +118,27 @@ export function ProjectSection({
         )}
       </div>
 
+      {/* Default responsible row - always visible when expanded */}
+      {isExpanded && (
+        <div className="px-4 py-3 bg-muted/10 border-b border-border/50 flex items-center gap-3">
+          <Users className="w-4 h-4 text-muted-foreground shrink-0" />
+          <span className="text-sm text-muted-foreground shrink-0">Ответственные по умолчанию:</span>
+          <div className="flex-1 max-w-xs">
+            <EmployeeMultiSelect
+              employees={employees}
+              selectedIds={getEmployeeIdsFromResponsible(defaultResponsible)}
+              onChange={handleDefaultResponsibleChange}
+              placeholder="Выберите ответственных"
+            />
+          </div>
+          {defaultResponsibleNames && (
+            <span className="text-xs text-muted-foreground hidden md:block">
+              Наследуется всеми пунктами
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Items */}
       {isExpanded && (
         <div className="p-4 space-y-3">
@@ -104,6 +152,7 @@ export function ProjectSection({
                 key={item.id}
                 item={item}
                 employees={employees}
+                projectDefaultResponsible={defaultResponsible}
                 onUpdate={(updates) => onUpdateItem(item.id, updates)}
                 onRemove={() => onRemoveItem(item.id)}
               />
