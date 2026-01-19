@@ -1056,13 +1056,38 @@ export default function ProtocolEditor() {
                   item_text: `[${company.companyName}] ${item.item_text}`,
                   responsible: effectiveResponsible,
                   due_date: item.due_date,
+                  create_task: item.create_task,
                   kpi: null,
                   status: null,
                   status_date: null,
                   sort_order: sortOrder++,
                 });
 
-                if (item.task_id) {
+                // Create task if checkbox was set and no task exists yet
+                if (item.create_task && !item.task_id) {
+                  const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
+                  const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
+                  const assigneeProfileId = firstEmployee?.profile_id || null;
+
+                  const taskResult = await createTask.mutateAsync({
+                    title: item.item_text,
+                    assignee_id: assigneeProfileId,
+                    project_id: null,
+                    due_date: item.due_date || null,
+                    status: "new",
+                    priority: "normal",
+                  });
+
+                  await updateProtocolItem.mutateAsync({
+                    id: item.id,
+                    protocol_id: id,
+                    task_id: taskResult.id,
+                  });
+
+                  item.task_id = taskResult.id;
+                  toast.success(`Задача "${item.item_text}" создана на канбан`);
+                } else if (item.task_id) {
+                  // Update existing task
                   const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
                   const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
                   const assigneeProfileId = firstEmployee?.profile_id || null;
@@ -1133,13 +1158,38 @@ export default function ProtocolEditor() {
                 item_text: item.item_text,
                 responsible: effectiveResponsible,
                 due_date: item.due_date,
+                create_task: item.create_task,
                 kpi: isGoal ? goalItem.kpi : null,
                 status: isGoal ? goalItem.status : null,
                 status_date: isGoal ? goalItem.status_date : null,
                 sort_order: sortOrder++,
               });
 
-              if (item.task_id) {
+              // Create task if checkbox was set and no task exists yet
+              if (item.create_task && !item.task_id) {
+                const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
+                const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
+                const assigneeProfileId = firstEmployee?.profile_id || null;
+
+                const taskResult = await createTask.mutateAsync({
+                  title: item.item_text,
+                  assignee_id: assigneeProfileId,
+                  project_id: group.sectionType === "project" ? group.entityId : null,
+                  due_date: item.due_date || null,
+                  status: "new",
+                  priority: "normal",
+                });
+
+                await updateProtocolItem.mutateAsync({
+                  id: item.id,
+                  protocol_id: id,
+                  task_id: taskResult.id,
+                });
+
+                item.task_id = taskResult.id;
+                toast.success(`Задача "${item.item_text}" создана на канбан`);
+              } else if (item.task_id) {
+                // Update existing task
                 const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
                 const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
                 const assigneeProfileId = firstEmployee?.profile_id || null;
