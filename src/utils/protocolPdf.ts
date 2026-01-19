@@ -348,30 +348,38 @@ function renderSectionTypeTable(
   // ===== Tender: group by [Company] like in the sample PDF =====
   if (sectionType === "tender") {
     const companyOrder: string[] = [];
-    const byCompany: Record<string, ProtocolItem[]> = {};
+    const byCompany: Record<string, { items: ProtocolItem[]; responsible: string | null }> = {};
+
+    // Also get default responsible from the section
+    const sectionResponsibles: Record<string, string | null> = {};
+    sections.forEach((s) => {
+      sectionResponsibles[s.id] = s.default_responsible;
+    });
 
     sectionItems.forEach((it) => {
       const parsed = parseTenderCompany(it.item_text);
       if (!parsed) return;
       if (!byCompany[parsed.company]) {
-        byCompany[parsed.company] = [];
+        // Try to find section responsible for this item
+        const sectionResp = it.section_id ? sectionResponsibles[it.section_id] : null;
+        byCompany[parsed.company] = { items: [], responsible: sectionResp };
         companyOrder.push(parsed.company);
       }
-      byCompany[parsed.company].push({ ...it, item_text: parsed.text });
+      byCompany[parsed.company].items.push({ ...it, item_text: parsed.text });
     });
 
     const rows: any[] = [];
     let n = 1;
 
     companyOrder.forEach((company) => {
-      // Company row: number + company name (other columns blank)
-      rows.push([String(n), t(company), "", "", ""]);
+      const { items: companyItems, responsible: companyResp } = byCompany[company];
+      // Company row: number + company name + responsible (other columns blank)
+      rows.push([String(n), t(company), companyResp ? t(companyResp) : "", ""]);
 
-      byCompany[company].forEach((it, idx) => {
+      companyItems.forEach((it, idx) => {
         rows.push([
           `${n}.${idx + 1}`,
           t(it.item_text),
-          "",
           it.responsible ? t(it.responsible) : "",
           formatDate(it.due_date),
         ]);
@@ -382,7 +390,7 @@ function renderSectionTypeTable(
 
     autoTable(doc, {
       startY,
-      head: [["№", "", "", t("Ответственные"), t("Сроки")]],
+      head: [["№", t("Задачи/действия"), t("Ответственные"), t("Сроки")]],
       body: rows,
       margin: { left: margin, right: margin },
       styles: {
@@ -401,14 +409,25 @@ function renderSectionTypeTable(
       columnStyles: {
         0: { cellWidth: 12 },
         1: { cellWidth: "auto" },
-        2: { cellWidth: 22 },
-        3: { cellWidth: 40 },
-        4: { cellWidth: 25 },
+        2: { cellWidth: 40 },
+        3: { cellWidth: 25 },
       },
       didParseCell: (data) => {
         if (data.section === "body" && data.column.index === 0) {
           const txt = String(data.cell.raw);
-          if (/^\d+$/.test(txt)) data.cell.styles.fontStyle = "bold";
+          // Bold the company rows (just a number like "1", "2", etc.)
+          if (/^\d+$/.test(txt)) {
+            data.cell.styles.fontStyle = "bold";
+            data.cell.styles.fillColor = [230, 240, 250];
+          }
+        }
+        // Also bold the company name in column 1
+        if (data.section === "body" && data.column.index === 1 && data.row.index !== undefined) {
+          const numCell = data.row.cells[0];
+          if (numCell && /^\d+$/.test(String(numCell.raw))) {
+            data.cell.styles.fontStyle = "bold";
+            data.cell.styles.fillColor = [230, 240, 250];
+          }
         }
       },
     });
