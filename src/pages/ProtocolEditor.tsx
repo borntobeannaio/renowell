@@ -866,7 +866,9 @@ export default function ProtocolEditor() {
       toast.success(isCopyMode ? "Протокол скопирован" : "Протокол создан");
       navigate(`/protocols/edit/${result.id}`);
     } catch (error) {
-      toast.error("Ошибка при создании протокола");
+      console.error("Protocol create failed:", error);
+      const message = error instanceof Error ? error.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при создании протокола: ${message}`);
     } finally {
       setIsSavingAll(false);
     }
@@ -1084,7 +1086,9 @@ export default function ProtocolEditor() {
       setHasUnsavedChanges(false);
       toast.success("Протокол сохранён");
     } catch (error) {
-      toast.error("Ошибка при сохранении");
+      console.error("Protocol save failed:", error);
+      const message = error instanceof Error ? error.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при сохранении: ${message}`);
     } finally {
       setIsSavingAll(false);
     }
