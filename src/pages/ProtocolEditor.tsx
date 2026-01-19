@@ -164,16 +164,34 @@ export default function ProtocolEditor() {
 
       // Build section groups from sections and items
       if (existingSections.length > 0) {
-        const groups: SectionGroup[] = existingSections.map(section => ({
-          id: section.id,
-          sectionType: section.section_type,
-          entityId: section.entity_id,
-          entityName: section.entity_name,
-          defaultResponsible: section.default_responsible,
-          items: existingItems
+        const groups: SectionGroup[] = existingSections.map(section => {
+          const sectionItems = existingItems
             .filter(item => item.section_id === section.id)
-            .map(item => createItemFromDb(item, section.section_type)),
-        }));
+            .map(item => createItemFromDb(item, section.section_type));
+          
+          // For tender sections, parse [Company] prefix and build companyGroups
+          if (section.section_type === 'tender') {
+            const companyGroups = parseTenderItemsToGroups(sectionItems, generateTempId);
+            return {
+              id: section.id,
+              sectionType: section.section_type,
+              entityId: section.entity_id,
+              entityName: section.entity_name,
+              defaultResponsible: section.default_responsible,
+              items: [],
+              companyGroups,
+            };
+          }
+          
+          return {
+            id: section.id,
+            sectionType: section.section_type,
+            entityId: section.entity_id,
+            entityName: section.entity_name,
+            defaultResponsible: section.default_responsible,
+            items: sectionItems,
+          };
+        });
         
         if (groups.length === 0) {
           groups.push({ id: 'temp-default', sectionType: 'project', entityId: null, entityName: null, defaultResponsible: null, items: [] });
@@ -229,21 +247,39 @@ export default function ProtocolEditor() {
 
       // Build section groups from source
       if (sourceSections.length > 0) {
-        const groups: SectionGroup[] = sourceSections.map(section => ({
-          id: generateTempId(),
-          sectionType: section.section_type,
-          entityId: section.entity_id,
-          entityName: section.entity_name,
-          defaultResponsible: section.default_responsible,
-          items: sourceItems
+        const groups: SectionGroup[] = sourceSections.map(section => {
+          const sectionItems = sourceItems
             .filter(item => item.section_id === section.id)
             .map(item => ({
               ...createItemFromDb(item, section.section_type),
               id: generateTempId(),
               create_task: false,
               task_id: null,
-            })),
-        }));
+            }));
+          
+          // For tender sections, parse [Company] prefix and build companyGroups
+          if (section.section_type === 'tender') {
+            const companyGroups = parseTenderItemsToGroups(sectionItems, generateTempId);
+            return {
+              id: generateTempId(),
+              sectionType: section.section_type,
+              entityId: section.entity_id,
+              entityName: section.entity_name,
+              defaultResponsible: section.default_responsible,
+              items: [],
+              companyGroups,
+            };
+          }
+          
+          return {
+            id: generateTempId(),
+            sectionType: section.section_type,
+            entityId: section.entity_id,
+            entityName: section.entity_name,
+            defaultResponsible: section.default_responsible,
+            items: sectionItems,
+          };
+        });
         
         if (groups.length === 0) {
           groups.push({ id: 'temp-default', sectionType: 'project', entityId: null, entityName: null, defaultResponsible: null, items: [] });
@@ -309,6 +345,44 @@ export default function ProtocolEditor() {
       create_task: item.create_task,
       task_id: item.task_id,
     } as ProtocolItemData;
+  }
+
+  // Helper to parse [Company] prefix from tender items and group them
+  function parseTenderItemsToGroups(items: UniversalItemData[], genId: () => string): CompanyGroup[] {
+    const companyOrder: string[] = [];
+    const byCompany: Record<string, ProtocolItemData[]> = {};
+    
+    items.forEach(item => {
+      const match = item.item_text.match(/^\[([^\]]+)\]\s*(.*)$/);
+      if (match) {
+        const companyName = match[1].trim();
+        const text = (match[2] || "").trim();
+        
+        if (!byCompany[companyName]) {
+          byCompany[companyName] = [];
+          companyOrder.push(companyName);
+        }
+        
+        byCompany[companyName].push({
+          ...item,
+          item_text: text,
+        } as ProtocolItemData);
+      } else {
+        // Item without [Company] prefix - add to "Без названия"
+        const defaultCompany = "Без названия";
+        if (!byCompany[defaultCompany]) {
+          byCompany[defaultCompany] = [];
+          companyOrder.push(defaultCompany);
+        }
+        byCompany[defaultCompany].push(item as ProtocolItemData);
+      }
+    });
+    
+    return companyOrder.map(companyName => ({
+      id: genId(),
+      companyName,
+      items: byCompany[companyName],
+    }));
   }
 
   // Helper functions
