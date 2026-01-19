@@ -105,6 +105,13 @@ function formatDate(dateStr: string | null): string {
   return date.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
+function parseTenderCompany(itemText: string): { company: string; text: string } | null {
+  const m = itemText.match(/^\[([^\]]+)\]\s*(.*)$/);
+  if (!m) return null;
+  return { company: m[1].trim(), text: (m[2] || "").trim() };
+}
+
+
 export async function generateProtocolPdf(
   protocol: Protocol,
   items: ProtocolItem[],
@@ -318,7 +325,7 @@ function renderSectionTypeTable(
   pageWidth: number
 ): number {
   // Check if we need a new page
-  if (startY > doc.internal.pageSize.getHeight() - 50) {
+  if (startY > doc.internal.pageSize.getHeight() - 60) {
     doc.addPage();
     startY = 20;
   }
@@ -329,19 +336,173 @@ function renderSectionTypeTable(
   doc.text(t(SECTION_TYPE_TITLES[sectionType] || sectionType), margin, startY);
   startY += 10;
 
-  if (sectionType === "goals") {
-    return renderGoalsTable(doc, sections, items, t, hasCyrillicFont, startY, margin, pageWidth);
+  const sectionItems = sections
+    .flatMap((section) =>
+      items
+        .filter((item) => item.section_id === section.id)
+        .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    );
+
+  if (sectionItems.length === 0) return startY;
+
+  // ===== Tender: group by [Company] like in the sample PDF =====
+  if (sectionType === "tender") {
+    const companyOrder: string[] = [];
+    const byCompany: Record<string, ProtocolItem[]> = {};
+
+    sectionItems.forEach((it) => {
+      const parsed = parseTenderCompany(it.item_text);
+      if (!parsed) return;
+      if (!byCompany[parsed.company]) {
+        byCompany[parsed.company] = [];
+        companyOrder.push(parsed.company);
+      }
+      byCompany[parsed.company].push({ ...it, item_text: parsed.text });
+    });
+
+    const rows: any[] = [];
+    let n = 1;
+
+    companyOrder.forEach((company) => {
+      // Company row: number + company name (other columns blank)
+      rows.push([String(n), t(company), "", "", ""]);
+
+      byCompany[company].forEach((it, idx) => {
+        rows.push([
+          `${n}.${idx + 1}`,
+          t(it.item_text),
+          "",
+          it.responsible ? t(it.responsible) : "",
+          formatDate(it.due_date),
+        ]);
+      });
+
+      n++;
+    });
+
+    autoTable(doc, {
+      startY,
+      head: [["№", "", "", t("Ответственные"), t("Сроки")]],
+      body: rows,
+      margin: { left: margin, right: margin },
+      styles: {
+        font: hasCyrillicFont ? "Roboto" : "helvetica",
+        fontStyle: "normal",
+        fontSize: 9,
+        cellPadding: 3,
+      },
+      headStyles: {
+        font: hasCyrillicFont ? "Roboto" : "helvetica",
+        fontStyle: "bold",
+        fillColor: [5, 42, 110],
+        textColor: [255, 255, 255],
+        fontSize: 9,
+      },
+      columnStyles: {
+        0: { cellWidth: 12 },
+        1: { cellWidth: "auto" },
+        2: { cellWidth: 22 },
+        3: { cellWidth: 40 },
+        4: { cellWidth: 25 },
+      },
+      didParseCell: (data) => {
+        if (data.section === "body" && data.column.index === 0) {
+          const txt = String(data.cell.raw);
+          if (/^\d+$/.test(txt)) data.cell.styles.fontStyle = "bold";
+        }
+      },
+    });
+
+    return (doc as any).lastAutoTable.finalY + 15;
   }
 
-  // Standard table for tender/hr/business
+  // ===== HR / Business: two-row layout (responsible+date row, then description row) =====
+  if (sectionType === "hr" || sectionType === "business") {
+    const rows: any[] = [];
+    sectionItems.forEach((it) => {
+      rows.push([it.responsible ? t(it.responsible) : "", formatDate(it.due_date)]);
+      rows.push([{ content: t(it.item_text), colSpan: 2 }]);
+    });
+
+    autoTable(doc, {
+      startY,
+      head: [[t("Ответственные"), t("Сроки")]],
+      body: rows,
+      margin: { left: margin, right: margin },
+      styles: {
+        font: hasCyrillicFont ? "Roboto" : "helvetica",
+        fontStyle: "normal",
+        fontSize: 9,
+        cellPadding: 3,
+      },
+      headStyles: {
+        font: hasCyrillicFont ? "Roboto" : "helvetica",
+        fontStyle: "bold",
+        fillColor: [5, 42, 110],
+        textColor: [255, 255, 255],
+        fontSize: 9,
+      },
+      columnStyles: {
+        0: { cellWidth: "auto" },
+        1: { cellWidth: 35 },
+      },
+    });
+
+    return (doc as any).lastAutoTable.finalY + 15;
+  }
+
+  // ===== Goals: keep existing goals table format =====
+  if (sectionType === "goals") {
+    const tableData: string[][] = sectionItems.map((it) => [
+      t(it.item_text),
+      it.responsible ? t(it.responsible) : "",
+      it.kpi ? t(it.kpi) : "",
+      formatDate(it.due_date),
+      it.status ? t(it.status) : "",
+    ]);
+
+    const tableHeaders = [t("ЗАДАЧИ"), t("ОТВЕТСТВЕННЫЕ"), t("KPI"), t("СРОКИ"), t("СТАТУС")];
+
+    autoTable(doc, {
+      startY,
+      head: [tableHeaders],
+      body: tableData,
+      margin: { left: margin, right: margin },
+      styles: {
+        font: hasCyrillicFont ? "Roboto" : "helvetica",
+        fontStyle: "normal",
+      },
+      headStyles: {
+        font: hasCyrillicFont ? "Roboto" : "helvetica",
+        fontStyle: "bold",
+        fillColor: [5, 42, 110],
+        textColor: [255, 255, 255],
+        fontSize: 9,
+      },
+      bodyStyles: {
+        fontSize: 8,
+        cellPadding: 2,
+      },
+      columnStyles: {
+        0: { cellWidth: "auto" },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 25 },
+        3: { cellWidth: 20 },
+        4: { cellWidth: 25 },
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245],
+      },
+    });
+
+    return (doc as any).lastAutoTable.finalY + 15;
+  }
+
+  // Fallback: keep previous 4-col layout
   const tableData: (string | number)[][] = [];
   let itemNumber = 1;
 
   sections.forEach((section) => {
-    const sectionItems = items
-      .filter((item) => item.section_id === section.id)
-      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-
     const sectionTitle = section.entity_name ? t(section.entity_name) : "";
     const sectionResponsible = section.default_responsible ? t(section.default_responsible) : "";
 
@@ -349,10 +510,12 @@ function renderSectionTypeTable(
       tableData.push([`${itemNumber}`, sectionTitle, sectionResponsible, ""]);
     }
 
-    sectionItems.forEach((item, idx) => {
-      const itemText = sectionTitle 
-        ? `${itemNumber}.${idx + 1}. ${t(item.item_text)}`
-        : `${itemNumber + idx}. ${t(item.item_text)}`;
+    const sItems = items
+      .filter((item) => item.section_id === section.id)
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+
+    sItems.forEach((item, idx) => {
+      const itemText = sectionTitle ? `${itemNumber}.${idx + 1}. ${t(item.item_text)}` : `${itemNumber + idx}. ${t(item.item_text)}`;
       const responsible = item.responsible ? t(item.responsible) : "";
       const dueDate = formatDate(item.due_date);
       tableData.push(["", itemText, responsible, dueDate]);
@@ -363,11 +526,9 @@ function renderSectionTypeTable(
 
   if (tableData.length === 0) return startY;
 
-  const tableHeaders = ["№", t("Задачи/действия"), t("Ответственные"), t("Сроки")];
-
   autoTable(doc, {
     startY,
-    head: [tableHeaders],
+    head: [["№", t("Задачи/действия"), t("Ответственные"), t("Сроки")]],
     body: tableData,
     margin: { left: margin, right: margin },
     styles: {
@@ -414,6 +575,7 @@ function renderGoalsTable(
   margin: number,
   pageWidth: number
 ): number {
+  // kept for backward compatibility; now handled in renderSectionTypeTable
   const tableData: string[][] = [];
 
   sections.forEach((section) => {
@@ -470,6 +632,7 @@ function renderGoalsTable(
 
   return (doc as any).lastAutoTable.finalY + 15;
 }
+
 
 function generateLegacyPdf(
   doc: jsPDF,
