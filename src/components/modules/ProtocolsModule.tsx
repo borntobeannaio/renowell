@@ -376,6 +376,9 @@ function ProtocolCard({
               ) : (
                 Object.entries(itemsBySection).map(([sectionId, sectionItems]) => {
                   const SectionIcon = getSectionIcon(sectionId);
+                  const section = sections.find(s => s.id === sectionId);
+                  const isTableSection = section?.section_type === 'hr' || section?.section_type === 'business';
+                  
                   return (
                     <div key={sectionId} className="mb-4">
                       <div className="flex items-center gap-2 mb-2">
@@ -384,11 +387,36 @@ function ProtocolCard({
                           {getSectionName(sectionId)}
                         </span>
                       </div>
-                      <div className="ml-6 space-y-2">
-                        {sectionItems.map((item) => (
-                          <ProtocolItemView key={item.id} item={item} />
-                        ))}
-                      </div>
+                      {isTableSection ? (
+                        <div className="ml-6 overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-border">
+                                <th className="text-left py-2 px-3 font-medium text-muted-foreground">Задача</th>
+                                <th className="text-left py-2 px-3 font-medium text-muted-foreground">Ответственный</th>
+                                <th className="text-left py-2 px-3 font-medium text-muted-foreground">Срок</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sectionItems.map((item) => (
+                                <tr key={item.id} className="border-b border-border/50">
+                                  <td className="py-2 px-3 text-foreground">{item.item_text}</td>
+                                  <td className="py-2 px-3 text-muted-foreground">{item.responsible || '—'}</td>
+                                  <td className="py-2 px-3 text-muted-foreground">
+                                    {item.due_date ? formatDisplayDate(item.due_date) : '—'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="ml-6 space-y-2">
+                          {sectionItems.map((item) => (
+                            <ProtocolItemView key={item.id} item={item} />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })
