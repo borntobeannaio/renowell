@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, ChevronDown, ChevronUp, Download, Pencil, Copy, FolderOpen, User, Calendar, CheckCircle2, Trash2, Loader2 } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp, Download, Pencil, Copy, FolderOpen, User, Calendar, CheckCircle2, Trash2, Loader2, Building, Users, Briefcase, Target } from "lucide-react";
 import { useProtocols, useProtocolItems, useDeleteProtocol, DbProtocol, DbProtocolItem } from "@/hooks/useProtocols";
 import { useProjects } from "@/hooks/useProjects";
 import { proxySelect } from "@/lib/dbProxy";
@@ -151,15 +151,31 @@ function ProtocolCard({
   const handleExportPdf = async () => {
     setIsExporting(true);
     try {
-      // Always fetch fresh items for PDF export
-      const { data: freshItems, error } = await proxySelect<DbProtocol & { project_id: string | null; item_text: string; responsible: string | null; due_date: string | null }>('protocol_items', {
+      // Fetch fresh items for PDF export
+      const { data: freshItems, error: itemsError } = await proxySelect<DbProtocolItem>('protocol_items', {
         filters: [{ column: 'protocol_id', operator: 'eq', value: protocol.id }],
         order: [{ column: 'sort_order', ascending: true }],
       });
       
-      if (error) throw new Error(error.message);
+      if (itemsError) throw new Error(itemsError.message);
       
-      await generateProtocolPdf(protocol, freshItems || [], projects);
+      // Fetch sections for proper PDF grouping
+      const { data: sections, error: sectionsError } = await proxySelect<{
+        id: string;
+        protocol_id: string;
+        section_type: string;
+        entity_id: string | null;
+        entity_name: string | null;
+        default_responsible: string | null;
+        sort_order: number | null;
+      }>('protocol_sections', {
+        filters: [{ column: 'protocol_id', operator: 'eq', value: protocol.id }],
+        order: [{ column: 'sort_order', ascending: true }],
+      });
+      
+      if (sectionsError) throw new Error(sectionsError.message);
+      
+      await generateProtocolPdf(protocol, freshItems || [], projects, sections || undefined);
       toast.success("PDF экспортирован");
     } catch (error) {
       console.error("PDF export error:", error);
@@ -169,20 +185,105 @@ function ProtocolCard({
     }
   };
 
-  // Group items by project
-  const itemsByProject = useMemo(() => {
-    const groups: Record<string, typeof items> = {};
-    items.forEach((item) => {
-      const key = item.project_id || "no_project";
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(item);
-    });
-    return groups;
-  }, [items]);
+  // Fetch sections when expanded
+  const [sections, setSections] = useState<{
+    id: string;
+    protocol_id: string;
+    section_type: string;
+    entity_id: string | null;
+    entity_name: string | null;
+    default_responsible: string | null;
+    sort_order: number | null;
+  }[]>([]);
 
-  const getProjectName = (projectId: string | null) => {
-    if (!projectId) return "Без проекта";
-    return projects.find((p) => p.id === projectId)?.name || "Неизвестный проект";
+  // Load sections when expanded
+  useMemo(() => {
+    if (isExpanded && protocol.id) {
+      proxySelect<{
+        id: string;
+        protocol_id: string;
+        section_type: string;
+        entity_id: string | null;
+        entity_name: string | null;
+        default_responsible: string | null;
+        sort_order: number | null;
+      }>('protocol_sections', {
+        filters: [{ column: 'protocol_id', operator: 'eq', value: protocol.id }],
+        order: [{ column: 'sort_order', ascending: true }],
+      }).then(({ data }) => {
+        setSections(data || []);
+      });
+    }
+  }, [isExpanded, protocol.id]);
+
+  // Group items by section
+  const itemsBySection = useMemo(() => {
+    const groups: Record<string, typeof items> = {};
+    
+    // If we have sections, group by section_id
+    if (sections.length > 0) {
+      sections.forEach(section => {
+        groups[section.id] = items.filter(item => item.section_id === section.id);
+      });
+      // Items without section_id
+      const orphanItems = items.filter(item => !item.section_id);
+      if (orphanItems.length > 0) {
+        groups["no_section"] = orphanItems;
+      }
+    } else {
+      // Fallback to project grouping for legacy protocols
+      items.forEach((item) => {
+        const key = item.project_id || "no_project";
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(item);
+      });
+    }
+    return groups;
+  }, [items, sections]);
+
+  const getSectionName = (sectionId: string) => {
+    if (sectionId === "no_section") return "Без секции";
+    if (sectionId === "no_project") return "Без проекта";
+    
+    const section = sections.find(s => s.id === sectionId);
+    if (!section) {
+      // Legacy: treat as project_id
+      const project = projects.find(p => p.id === sectionId);
+      return project?.name || "Неизвестный проект";
+    }
+    
+    switch (section.section_type) {
+      case 'project':
+        if (section.entity_id) {
+          const project = projects.find(p => p.id === section.entity_id);
+          return project?.name || "Неизвестный проект";
+        }
+        return "Без проекта";
+      case 'tender':
+        return `Тендер: ${section.entity_name || 'Без названия'}`;
+      case 'hr':
+        return section.entity_name || 'Подбор персонала';
+      case 'business':
+        return section.entity_name || 'Бизнес задачи';
+      case 'goals':
+        return section.entity_name || 'Цели компании';
+      default:
+        return section.entity_name || 'Секция';
+    }
+  };
+
+  const getSectionIcon = (sectionId: string) => {
+    if (sectionId === "no_section" || sectionId === "no_project") return FolderOpen;
+    const section = sections.find(s => s.id === sectionId);
+    if (!section) return FolderOpen;
+    
+    switch (section.section_type) {
+      case 'tender': return Building;
+      case 'hr': return Users;
+      case 'business': return Briefcase;
+      case 'goals': return Target;
+      default: return FolderOpen;
+    }
   };
 
   return (
@@ -264,30 +365,33 @@ function ProtocolCard({
               </div>
             )}
 
-            {/* Items grouped by project */}
+            {/* Items grouped by section */}
             <div>
               <h4 className="text-sm font-medium text-muted-foreground mb-3">
                 Пункты протокола
               </h4>
 
-              {Object.entries(itemsByProject).length === 0 ? (
+              {Object.entries(itemsBySection).length === 0 ? (
                 <p className="text-sm text-muted-foreground">Нет пунктов</p>
               ) : (
-                Object.entries(itemsByProject).map(([projectId, projectItems]) => (
-                  <div key={projectId} className="mb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <FolderOpen className="w-4 h-4 text-primary" />
-                      <span className="font-medium text-foreground">
-                        {getProjectName(projectId === "no_project" ? null : projectId)}
-                      </span>
+                Object.entries(itemsBySection).map(([sectionId, sectionItems]) => {
+                  const SectionIcon = getSectionIcon(sectionId);
+                  return (
+                    <div key={sectionId} className="mb-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <SectionIcon className="w-4 h-4 text-primary" />
+                        <span className="font-medium text-foreground">
+                          {getSectionName(sectionId)}
+                        </span>
+                      </div>
+                      <div className="ml-6 space-y-2">
+                        {sectionItems.map((item) => (
+                          <ProtocolItemView key={item.id} item={item} />
+                        ))}
+                      </div>
                     </div>
-                    <div className="ml-6 space-y-2">
-                      {projectItems.map((item) => (
-                        <ProtocolItemView key={item.id} item={item} />
-                      ))}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
