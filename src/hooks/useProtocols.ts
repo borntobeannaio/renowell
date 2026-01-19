@@ -189,6 +189,7 @@ export function useUpdateProtocolItem() {
       responsible?: string | null;
       due_date?: string | null;
       task_id?: string | null;
+      sort_order?: number;
       // Goal-specific fields
       kpi?: string | null;
       status?: string | null;
