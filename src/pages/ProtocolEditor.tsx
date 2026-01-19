@@ -122,6 +122,12 @@ export default function ProtocolEditor() {
   const [copyApplied, setCopyApplied] = useState(false);
   const [editInitialized, setEditInitialized] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // Track changes to form and sections
+  const markAsChanged = useCallback(() => {
+    setHasUnsavedChanges(true);
+  }, []);
 
   // Helper to generate temp IDs
   const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -322,6 +328,7 @@ export default function ProtocolEditor() {
       items: [],
       companyGroups: type === 'tender' ? [] : undefined,
     }]);
+    markAsChanged();
   };
 
   const handleChangeDefaultResponsible = async (groupIndex: number, responsible: string | null) => {
@@ -330,6 +337,7 @@ export default function ProtocolEditor() {
     setSectionGroups(prev => prev.map((g, idx) => 
       idx === groupIndex ? { ...g, defaultResponsible: responsible } : g
     ));
+    markAsChanged();
 
     // If editing and section exists in DB, update it
     if (isEditMode && id && !group.id.startsWith('temp-')) {
@@ -359,12 +367,14 @@ export default function ProtocolEditor() {
     }
     
     setSectionGroups(prev => prev.filter((_, i) => i !== index));
+    markAsChanged();
   };
 
   const handleChangeEntity = (index: number, entityId: string | null, entityName: string | null) => {
     setSectionGroups(prev => prev.map((group, i) => 
       i === index ? { ...group, entityId, entityName } : group
     ));
+    markAsChanged();
   };
 
   const handleAddItemToSection = (groupIndex: number) => {
@@ -394,6 +404,7 @@ export default function ProtocolEditor() {
     setSectionGroups(prev => prev.map((g, i) =>
       i === groupIndex ? { ...g, items: [...g.items, newItem] } : g
     ));
+    markAsChanged();
   };
 
   const handleUpdateItem = (groupIndex: number, itemId: string, updates: Partial<UniversalItemData>) => {
@@ -407,6 +418,7 @@ export default function ProtocolEditor() {
           }
         : g
     ));
+    markAsChanged();
   };
 
   const handleRemoveItem = async (groupIndex: number, itemId: string) => {
@@ -425,6 +437,7 @@ export default function ProtocolEditor() {
         ? { ...g, items: g.items.filter(item => item.id !== itemId) }
         : g
     ));
+    markAsChanged();
   };
 
   // ===== Tender company handlers =====
@@ -438,6 +451,7 @@ export default function ProtocolEditor() {
       };
       return { ...g, companyGroups: [...(g.companyGroups || []), newCompany] };
     }));
+    markAsChanged();
   };
 
   const handleRemoveCompany = (groupIndex: number, companyId: string) => {
@@ -448,6 +462,7 @@ export default function ProtocolEditor() {
         companyGroups: (g.companyGroups || []).filter(c => c.id !== companyId) 
       };
     }));
+    markAsChanged();
   };
 
   const handleRenameCompany = (groupIndex: number, companyId: string, newName: string) => {
@@ -460,6 +475,7 @@ export default function ProtocolEditor() {
         ),
       };
     }));
+    markAsChanged();
   };
 
   const handleAddTenderItem = (groupIndex: number, companyId: string) => {
@@ -480,6 +496,7 @@ export default function ProtocolEditor() {
         ),
       };
     }));
+    markAsChanged();
   };
 
   const handleUpdateTenderItem = (groupIndex: number, companyId: string, itemId: string, updates: Partial<ProtocolItemData>) => {
@@ -494,6 +511,7 @@ export default function ProtocolEditor() {
         ),
       };
     }));
+    markAsChanged();
   };
 
   const handleRemoveTenderItem = async (groupIndex: number, companyId: string, itemId: string) => {
@@ -518,6 +536,7 @@ export default function ProtocolEditor() {
         ),
       };
     }));
+    markAsChanged();
   };
 
   // DnD state
@@ -995,6 +1014,7 @@ export default function ProtocolEditor() {
         }
       }
 
+      setHasUnsavedChanges(false);
       toast.success("Протокол сохранён");
     } catch (error) {
       toast.error("Ошибка при сохранении");
@@ -1046,6 +1066,15 @@ export default function ProtocolEditor() {
             <h1 className="text-xl font-semibold text-foreground">{pageTitle}</h1>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setShowSectionModal(true)}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Секция</span>
+            </Button>
             {isEditMode && (
               <Button
                 onClick={handleExportPdf}
@@ -1060,9 +1089,18 @@ export default function ProtocolEditor() {
             <Button
               onClick={isEditMode ? handleSaveChanges : handleCreate}
               disabled={isSaving || !form.title.trim()}
-              className="gap-2"
+              className={`gap-2 ${hasUnsavedChanges && !isSaving ? 'ring-2 ring-orange-400 ring-offset-2 ring-offset-background' : ''}`}
             >
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {isSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : hasUnsavedChanges ? (
+                <span className="relative">
+                  <Save className="w-4 h-4" />
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full" />
+                </span>
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
               {isSaving ? "Сохранение..." : "Сохранить"}
             </Button>
           </div>
@@ -1081,7 +1119,10 @@ export default function ProtocolEditor() {
           <>
             <ProtocolMetadata
               form={form}
-              onChange={(updates) => setForm(prev => ({ ...prev, ...updates }))}
+              onChange={(updates) => {
+                setForm(prev => ({ ...prev, ...updates }));
+                markAsChanged();
+              }}
               employees={employees}
               protocolNumber={isEditMode ? existingProtocol?.number || nextNumber : nextNumber}
               isEditMode={isEditMode}
@@ -1089,20 +1130,9 @@ export default function ProtocolEditor() {
             />
 
             <section className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-medium text-foreground">
-                  Пункты протокола ({totalItems})
-                </h2>
-                <Button
-                  onClick={() => setShowSectionModal(true)}
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Добавить секцию
-                </Button>
-              </div>
+              <h2 className="text-lg font-medium text-foreground">
+                Пункты протокола ({totalItems})
+              </h2>
 
               <DndContext
                 sensors={sensors}
