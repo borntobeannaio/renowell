@@ -435,17 +435,17 @@ function renderSectionTypeTable(
     return (doc as any).lastAutoTable.finalY + 15;
   }
 
-  // ===== HR / Business: two-row layout (responsible+date row, then description row) =====
+  // ===== HR / Business: table format (Задача | Ответственный | Срок) =====
   if (sectionType === "hr" || sectionType === "business") {
-    const rows: any[] = [];
-    sectionItems.forEach((it) => {
-      rows.push([it.responsible ? t(it.responsible) : "", formatDate(it.due_date)]);
-      rows.push([{ content: t(it.item_text), colSpan: 2 }]);
-    });
+    const rows: string[][] = sectionItems.map((it) => [
+      t(it.item_text),
+      it.responsible ? t(it.responsible) : "",
+      formatDate(it.due_date),
+    ]);
 
     autoTable(doc, {
       startY,
-      head: [[t("Ответственные"), t("Сроки")]],
+      head: [[t("Задача"), t("Ответственный"), t("Срок")]],
       body: rows,
       margin: { left: margin, right: margin },
       styles: {
@@ -463,7 +463,8 @@ function renderSectionTypeTable(
       },
       columnStyles: {
         0: { cellWidth: "auto" },
-        1: { cellWidth: 35 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 25 },
       },
     });
 

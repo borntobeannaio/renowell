@@ -977,149 +977,37 @@ export default function ProtocolEditor() {
       let sortOrder = 0;
       let sectionSortOrder = 0;
 
-      for (const group of groupsSnapshot) {
-        // Create section if it's new
-        let sectionId = group.id;
-        if (group.id.startsWith("temp-")) {
-          const createdSection = await createSection.mutateAsync({
-            protocol_id: id,
-            section_type: group.sectionType,
-            entity_id: group.entityId,
-            entity_name: group.entityName,
-            default_responsible: group.defaultResponsible,
-            sort_order: sectionSortOrder++,
-          });
-          sectionId = createdSection.id;
-          group.id = createdSection.id;
-        } else {
-          await updateSection.mutateAsync({
-            id: group.id,
-            protocol_id: id,
-            entity_id: group.entityId,
-            entity_name: group.entityName,
-            default_responsible: group.defaultResponsible,
-            sort_order: sectionSortOrder++,
-          });
-        }
-
-        if (group.sectionType === "tender" && group.companyGroups) {
-          for (const company of group.companyGroups) {
-            for (const item of company.items) {
-              if (!item.item_text.trim()) continue;
-
-              const effectiveResponsible = item.responsible ?? group.defaultResponsible;
-
-              if (item.id.startsWith("temp-")) {
-                const createdItem = await createProtocolItem.mutateAsync({
-                  protocol_id: id,
-                  project_id: null,
-                  section_id: sectionId,
-                  item_text: `[${company.companyName}] ${item.item_text}`,
-                  responsible: effectiveResponsible,
-                  due_date: item.due_date,
-                  create_task: item.create_task,
-                  sort_order: sortOrder++,
-                  kpi: null,
-                  status: null,
-                  status_date: null,
-                });
-                item.id = createdItem.id;
-
-                if (item.create_task) {
-                  const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-                  const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
-                  const assigneeProfileId = firstEmployee?.profile_id || null;
-
-                  const taskResult = await createTask.mutateAsync({
-                    title: item.item_text,
-                    assignee_id: assigneeProfileId,
-                    project_id: null,
-                    due_date: item.due_date || null,
-                    status: "new",
-                    priority: "normal",
-                  });
-
-                  await updateProtocolItem.mutateAsync({
-                    id: createdItem.id,
-                    protocol_id: id,
-                    task_id: taskResult.id,
-                  });
-
-                  item.task_id = taskResult.id;
-                }
-              } else {
-                await updateProtocolItem.mutateAsync({
-                  id: item.id,
-                  protocol_id: id,
-                  project_id: null,
-                  section_id: sectionId,
-                  item_text: `[${company.companyName}] ${item.item_text}`,
-                  responsible: effectiveResponsible,
-                  due_date: item.due_date,
-                  create_task: item.create_task,
-                  kpi: null,
-                  status: null,
-                  status_date: null,
-                  sort_order: sortOrder++,
-                });
-
-                // Create task if checkbox was set and no task exists yet
-                if (item.create_task && !item.task_id) {
-                  const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-                  const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
-                  const assigneeProfileId = firstEmployee?.profile_id || null;
-
-                  const taskResult = await createTask.mutateAsync({
-                    title: item.item_text,
-                    assignee_id: assigneeProfileId,
-                    project_id: null,
-                    due_date: item.due_date || null,
-                    status: "new",
-                    priority: "normal",
-                  });
-
-                  await updateProtocolItem.mutateAsync({
-                    id: item.id,
-                    protocol_id: id,
-                    task_id: taskResult.id,
-                  });
-
-                  item.task_id = taskResult.id;
-                  toast.success(`Задача "${item.item_text}" создана на канбан`);
-                } else if (item.task_id) {
-                  // Update existing task
-                  const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-                  const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
-                  const assigneeProfileId = firstEmployee?.profile_id || null;
-
-                  await updateTask.mutateAsync({
-                    id: item.task_id,
-                    title: item.item_text,
-                    assignee_id: assigneeProfileId,
-                    due_date: item.due_date || null,
-                  });
-                }
-              }
-            }
-          }
-        } else {
-          for (const item of group.items) {
-            if (!item.item_text.trim()) continue;
-
-            const effectiveResponsible = item.responsible ?? group.defaultResponsible;
-            const isGoal = group.sectionType === "goals";
+      // Helper to process items in parallel
+      const processItemsInParallel = async (
+        items: UniversalItemData[],
+        sectionId: string,
+        projectId: string | null,
+        defaultResponsible: string | null,
+        isGoal: boolean,
+        isTender: boolean,
+        companyName?: string
+      ) => {
+        const itemPromises = items
+          .filter((item) => item.item_text.trim())
+          .map(async (item, idx) => {
+            const effectiveResponsible = item.responsible ?? defaultResponsible;
             const goalItem = item as GoalItemData;
+            const itemText = isTender && companyName 
+              ? `[${companyName}] ${item.item_text}` 
+              : item.item_text;
+            const currentSortOrder = sortOrder++;
 
             if (item.id.startsWith("temp-")) {
+              // Create new item
               const createdItem = await createProtocolItem.mutateAsync({
                 protocol_id: id,
-                project_id: group.sectionType === "project" ? group.entityId : null,
+                project_id: projectId,
                 section_id: sectionId,
-                item_text: item.item_text,
+                item_text: itemText,
                 responsible: effectiveResponsible,
                 due_date: item.due_date,
                 create_task: item.create_task,
-                sort_order: sortOrder++,
+                sort_order: currentSortOrder,
                 kpi: isGoal ? goalItem.kpi : null,
                 status: isGoal ? goalItem.status : null,
                 status_date: isGoal ? goalItem.status_date : null,
@@ -1127,6 +1015,7 @@ export default function ProtocolEditor() {
 
               item.id = createdItem.id;
 
+              // Create task if needed
               if (item.create_task) {
                 const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
                 const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
@@ -1135,7 +1024,7 @@ export default function ProtocolEditor() {
                 const taskResult = await createTask.mutateAsync({
                   title: item.item_text,
                   assignee_id: assigneeProfileId,
-                  project_id: group.sectionType === "project" ? group.entityId : null,
+                  project_id: projectId,
                   due_date: item.due_date || null,
                   status: "new",
                   priority: "normal",
@@ -1150,19 +1039,20 @@ export default function ProtocolEditor() {
                 item.task_id = taskResult.id;
               }
             } else {
+              // Update existing item
               await updateProtocolItem.mutateAsync({
                 id: item.id,
                 protocol_id: id,
-                project_id: group.sectionType === "project" ? group.entityId : null,
+                project_id: projectId,
                 section_id: sectionId,
-                item_text: item.item_text,
+                item_text: itemText,
                 responsible: effectiveResponsible,
                 due_date: item.due_date,
                 create_task: item.create_task,
                 kpi: isGoal ? goalItem.kpi : null,
                 status: isGoal ? goalItem.status : null,
                 status_date: isGoal ? goalItem.status_date : null,
-                sort_order: sortOrder++,
+                sort_order: currentSortOrder,
               });
 
               // Create task if checkbox was set and no task exists yet
@@ -1174,7 +1064,7 @@ export default function ProtocolEditor() {
                 const taskResult = await createTask.mutateAsync({
                   title: item.item_text,
                   assignee_id: assigneeProfileId,
-                  project_id: group.sectionType === "project" ? group.entityId : null,
+                  project_id: projectId,
                   due_date: item.due_date || null,
                   status: "new",
                   priority: "normal",
@@ -1202,7 +1092,64 @@ export default function ProtocolEditor() {
                 });
               }
             }
-          }
+          });
+
+        await Promise.all(itemPromises);
+      };
+
+      // Process sections - sections need to be sequential (need IDs), but items within can be parallel
+      for (const group of groupsSnapshot) {
+        // Create section if it's new
+        let sectionId = group.id;
+        if (group.id.startsWith("temp-")) {
+          const createdSection = await createSection.mutateAsync({
+            protocol_id: id,
+            section_type: group.sectionType,
+            entity_id: group.entityId,
+            entity_name: group.entityName,
+            default_responsible: group.defaultResponsible,
+            sort_order: sectionSortOrder++,
+          });
+          sectionId = createdSection.id;
+          group.id = createdSection.id;
+        } else {
+          await updateSection.mutateAsync({
+            id: group.id,
+            protocol_id: id,
+            entity_id: group.entityId,
+            entity_name: group.entityName,
+            default_responsible: group.defaultResponsible,
+            sort_order: sectionSortOrder++,
+          });
+        }
+
+        const projectId = group.sectionType === "project" ? group.entityId : null;
+        const isGoal = group.sectionType === "goals";
+
+        if (group.sectionType === "tender" && group.companyGroups) {
+          // Process all company groups in parallel
+          const companyPromises = group.companyGroups.map((company) =>
+            processItemsInParallel(
+              company.items,
+              sectionId,
+              null,
+              group.defaultResponsible,
+              false,
+              true,
+              company.companyName
+            )
+          );
+          await Promise.all(companyPromises);
+        } else {
+          // Process items in parallel
+          await processItemsInParallel(
+            group.items,
+            sectionId,
+            projectId,
+            group.defaultResponsible,
+            isGoal,
+            false
+          );
         }
       }
 
