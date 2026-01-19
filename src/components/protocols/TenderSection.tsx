@@ -1,8 +1,20 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Building, Plus, Trash2, Edit2, Check, X, Users } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Building,
+  Plus,
+  Trash2,
+  Edit2,
+  Check,
+  X,
+  Users,
+  GripVertical,
+} from "lucide-react";
 import { ProtocolItemData } from "./ProtocolItemEditor";
 import { DroppableSection } from "./DroppableSection";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
+import type { SortableHandleProps } from "./SortableProtocolSection";
 
 interface CompanyGroup {
   id: string;
@@ -13,7 +25,17 @@ interface CompanyGroup {
 interface TenderSectionProps {
   sectionId: string;
   companyGroups: CompanyGroup[];
-  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null }[];
+  employees: {
+    id: string;
+    full_name: string;
+    position: string;
+    avatar_url: string | null;
+    phone: string | null;
+    email: string | null;
+    department: string | null;
+    birthday: string | null;
+    profile_id: string | null;
+  }[];
   defaultResponsible: string | null;
   onChangeDefaultResponsible: (responsible: string | null) => void;
   onUpdateItem: (companyId: string, itemId: string, updates: Partial<ProtocolItemData>) => void;
@@ -25,6 +47,7 @@ interface TenderSectionProps {
   onRemoveSection?: () => void;
   canEdit?: boolean;
   defaultExpanded?: boolean;
+  dragHandle?: SortableHandleProps;
 }
 
 export function TenderSection({
@@ -42,6 +65,7 @@ export function TenderSection({
   onRemoveSection,
   canEdit = true,
   defaultExpanded = true,
+  dragHandle,
 }: TenderSectionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [newCompanyName, setNewCompanyName] = useState("");
@@ -54,15 +78,15 @@ export function TenderSection({
   // Convert responsible string to employee IDs
   const getEmployeeIdsFromResponsible = (responsible: string | null): string[] => {
     if (!responsible) return [];
-    const names = responsible.split(", ").map(n => n.trim());
+    const names = responsible.split(", ").map((n) => n.trim());
     return names
-      .map(name => employees.find(e => e.full_name === name)?.id)
+      .map((name) => employees.find((e) => e.full_name === name)?.id)
       .filter(Boolean) as string[];
   };
 
   const handleDefaultResponsibleChange = (ids: string[]) => {
     const responsibleNames = ids
-      .map(id => employees.find(e => e.id === id)?.full_name)
+      .map((id) => employees.find((e) => e.id === id)?.full_name)
       .filter(Boolean)
       .join(", ");
     onChangeDefaultResponsible(responsibleNames || null);
@@ -98,6 +122,18 @@ export function TenderSection({
     <div className="card-base overflow-visible">
       {/* Main Header */}
       <div className="flex items-center gap-2 p-4 bg-blue-500/5">
+        {dragHandle && (
+          <button
+            type="button"
+            className="p-1 hover:bg-secondary rounded transition-colors cursor-grab active:cursor-grabbing"
+            aria-label="Переместить секцию"
+            {...dragHandle.attributes}
+            {...dragHandle.listeners}
+          >
+            <GripVertical className="w-4 h-4 text-muted-foreground" />
+          </button>
+        )}
+
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           className="p-1 hover:bg-secondary rounded transition-colors"
@@ -108,14 +144,14 @@ export function TenderSection({
             <ChevronDown className="w-4 h-4 text-muted-foreground" />
           )}
         </button>
-        
+
         <Building className="w-5 h-5 text-blue-600" />
         <span className="font-medium text-foreground flex-1">Тендеры</span>
-        
+
         <span className="chip text-xs shrink-0">
-          {companyGroups.length} {companyGroups.length === 1 ? 'компания' : companyGroups.length >= 2 && companyGroups.length <= 4 ? 'компании' : 'компаний'}
-          {' · '}
-          {totalItems} {totalItems === 1 ? 'пункт' : totalItems >= 2 && totalItems <= 4 ? 'пункта' : 'пунктов'}
+          {companyGroups.length} {companyGroups.length === 1 ? "компания" : companyGroups.length >= 2 && companyGroups.length <= 4 ? "компании" : "компаний"}
+          {" · "}
+          {totalItems} {totalItems === 1 ? "пункт" : totalItems >= 2 && totalItems <= 4 ? "пункта" : "пунктов"}
         </span>
 
         {onRemoveSection && companyGroups.length === 0 && (
@@ -178,8 +214,8 @@ export function TenderSection({
                 value={newCompanyName}
                 onChange={(e) => setNewCompanyName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddCompanySubmit();
-                  if (e.key === 'Escape') {
+                  if (e.key === "Enter") handleAddCompanySubmit();
+                  if (e.key === "Escape") {
                     setShowAddCompany(false);
                     setNewCompanyName("");
                   }
@@ -224,7 +260,17 @@ export function TenderSection({
 // Sub-component for each company
 interface CompanySubSectionProps {
   company: CompanyGroup;
-  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null }[];
+  employees: {
+    id: string;
+    full_name: string;
+    position: string;
+    avatar_url: string | null;
+    phone: string | null;
+    email: string | null;
+    department: string | null;
+    birthday: string | null;
+    profile_id: string | null;
+  }[];
   defaultResponsible: string | null;
   isEditing: boolean;
   editingName: string;
@@ -271,9 +317,9 @@ function CompanySubSection({
             <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
           )}
         </button>
-        
+
         <Building className="w-4 h-4 text-blue-500" />
-        
+
         {isEditing ? (
           <div className="flex-1 flex items-center gap-2">
             <input
@@ -283,8 +329,8 @@ function CompanySubSection({
               className="input-base flex-1 py-1 text-sm"
               autoFocus
               onKeyDown={(e) => {
-                if (e.key === 'Enter') onConfirmEdit();
-                if (e.key === 'Escape') onCancelEdit();
+                if (e.key === "Enter") onConfirmEdit();
+                if (e.key === "Escape") onCancelEdit();
               }}
             />
             <button
@@ -314,9 +360,9 @@ function CompanySubSection({
             )}
           </>
         )}
-        
+
         <span className="chip text-xs shrink-0">
-          {company.items.length} {company.items.length === 1 ? 'пункт' : company.items.length >= 2 && company.items.length <= 4 ? 'пункта' : 'пунктов'}
+          {company.items.length} {company.items.length === 1 ? "пункт" : company.items.length >= 2 && company.items.length <= 4 ? "пункта" : "пунктов"}
         </span>
 
         {canEdit && company.items.length === 0 && (
@@ -334,9 +380,7 @@ function CompanySubSection({
       {isExpanded && (
         <div className="p-3 space-y-2">
           {company.items.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-2">
-              Нет пунктов
-            </p>
+            <p className="text-xs text-muted-foreground text-center py-2">Нет пунктов</p>
           ) : (
             <DroppableSection
               sectionId={`company-${company.id}`}

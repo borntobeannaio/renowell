@@ -12,6 +12,7 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { Button } from "@/components/ui/button";
 import { ProtocolMetadata } from "@/components/protocols/ProtocolMetadata";
 import { UniversalSection } from "@/components/protocols/UniversalSection";
@@ -19,6 +20,7 @@ import { TenderSection } from "@/components/protocols/TenderSection";
 import { ProtocolItemData, ProtocolItemEditor } from "@/components/protocols/ProtocolItemEditor";
 import { GoalItemData, GoalItemEditor } from "@/components/protocols/GoalItemEditor";
 import { SectionTypeModal } from "@/components/protocols/SectionTypeModal";
+import { SortableProtocolSection } from "@/components/protocols/SortableProtocolSection";
 import {
   useProtocols,
   useProtocolItems,
@@ -42,6 +44,7 @@ import { useEmployees } from "@/hooks/useEmployees";
 import { useCreateTask, useUpdateTask } from "@/hooks/useTasks";
 import { generateProtocolPdf } from "@/utils/protocolPdf";
 import { toast } from "sonner";
+
 
 // Unified item type for both regular items and goals
 type UniversalItemData = ProtocolItemData | GoalItemData;
@@ -541,7 +544,8 @@ export default function ProtocolEditor() {
 
   // DnD state
   const [activeId, setActiveId] = useState<string | null>(null);
-  
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -550,10 +554,12 @@ export default function ProtocolEditor() {
     })
   );
 
+  const isSectionDragId = (dragId: string) => dragId.startsWith("section-group-");
+
   // Find item by id across all groups
   const findItemById = (itemId: string): { item: UniversalItemData; groupIndex: number } | null => {
     for (let i = 0; i < sectionGroups.length; i++) {
-      const item = sectionGroups[i].items.find(item => item.id === itemId);
+      const item = sectionGroups[i].items.find((item) => item.id === itemId);
       if (item) return { item, groupIndex: i };
     }
     return null;
@@ -561,12 +567,19 @@ export default function ProtocolEditor() {
 
   // Find group index by section id
   const findGroupIndexBySectionId = (sectionId: string): number => {
-    const actualSectionId = sectionId.replace('section-', '');
-    return sectionGroups.findIndex(g => g.id === actualSectionId);
+    const actualSectionId = sectionId.replace("section-", "");
+    return sectionGroups.findIndex((g) => g.id === actualSectionId);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
+    const idStr = event.active.id as string;
+    if (isSectionDragId(idStr)) {
+      setActiveSectionId(idStr);
+      setActiveId(null);
+      return;
+    }
+    setActiveId(idStr);
+    setActiveSectionId(null);
   };
 
   const handleDragOver = (event: DragOverEvent) => {
@@ -574,16 +587,18 @@ export default function ProtocolEditor() {
     if (!over) return;
 
     const activeItemId = active.id as string;
+    if (isSectionDragId(activeItemId)) return; // section sorting handled onDragEnd
+
     const overId = over.id as string;
 
     const activeResult = findItemById(activeItemId);
     if (!activeResult) return;
 
     const { groupIndex: activeGroupIndex } = activeResult;
-    
+
     let overGroupIndex: number;
-    
-    if (overId.startsWith('section-')) {
+
+    if (overId.startsWith("section-")) {
       overGroupIndex = findGroupIndexBySectionId(overId);
     } else {
       const overResult = findItemById(overId);
@@ -597,30 +612,30 @@ export default function ProtocolEditor() {
     }
 
     if (activeGroupIndex !== overGroupIndex) {
-      setSectionGroups(prev => {
+      setSectionGroups((prev) => {
         const newGroups = [...prev];
-        const activeItem = newGroups[activeGroupIndex].items.find(i => i.id === activeItemId);
+        const activeItem = newGroups[activeGroupIndex].items.find((i) => i.id === activeItemId);
         if (!activeItem) return prev;
 
         newGroups[activeGroupIndex] = {
           ...newGroups[activeGroupIndex],
-          items: newGroups[activeGroupIndex].items.filter(i => i.id !== activeItemId),
+          items: newGroups[activeGroupIndex].items.filter((i) => i.id !== activeItemId),
         };
 
-        const updatedItem = { ...activeItem };
-        if ('project_id' in updatedItem) {
+        const updatedItem = { ...activeItem } as any;
+        if ("project_id" in updatedItem) {
           updatedItem.project_id = newGroups[overGroupIndex].entityId;
         }
 
-        if (overId.startsWith('section-')) {
+        if (overId.startsWith("section-")) {
           newGroups[overGroupIndex] = {
             ...newGroups[overGroupIndex],
             items: [...newGroups[overGroupIndex].items, updatedItem],
           };
         } else {
-          const overIndex = newGroups[overGroupIndex].items.findIndex(i => i.id === overId);
+          const overIndex = newGroups[overGroupIndex].items.findIndex((i) => i.id === overId);
           const newItems = [...newGroups[overGroupIndex].items];
-          newItems.splice(overIndex, 0, updatedItem);
+          newItems.splice(Math.max(overIndex, 0), 0, updatedItem);
           newGroups[overGroupIndex] = {
             ...newGroups[overGroupIndex],
             items: newItems,
@@ -629,47 +644,63 @@ export default function ProtocolEditor() {
 
         return newGroups;
       });
+      markAsChanged();
     }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+
+    const activeDragId = active.id as string;
+    const overId = over?.id as string | undefined;
+
+    // Section reorder
+    if (isSectionDragId(activeDragId)) {
+      setActiveSectionId(null);
+      if (!overId || !isSectionDragId(overId) || activeDragId === overId) return;
+
+      const fromId = activeDragId.replace("section-group-", "");
+      const toId = overId.replace("section-group-", "");
+      const oldIndex = sectionGroups.findIndex((g) => g.id === fromId);
+      const newIndex = sectionGroups.findIndex((g) => g.id === toId);
+      if (oldIndex === -1 || newIndex === -1) return;
+
+      setSectionGroups((prev) => arrayMove(prev, oldIndex, newIndex));
+      markAsChanged();
+      return;
+    }
+
+    // Item reorder
     setActiveId(null);
 
-    if (!over) return;
+    if (!overId) return;
+    if (activeDragId === overId) return;
 
-    const activeItemId = active.id as string;
-    const overId = over.id as string;
-
-    if (activeItemId === overId) return;
-
-    const activeResult = findItemById(activeItemId);
+    const activeResult = findItemById(activeDragId);
     if (!activeResult) return;
 
     const { groupIndex } = activeResult;
 
-    if (!overId.startsWith('section-')) {
+    if (!overId.startsWith("section-")) {
       const overResult = findItemById(overId);
       if (overResult && overResult.groupIndex === groupIndex) {
-        setSectionGroups(prev => {
+        setSectionGroups((prev) => {
           const newGroups = [...prev];
           const group = newGroups[groupIndex];
-          const oldIndex = group.items.findIndex(i => i.id === activeItemId);
-          const newIndex = group.items.findIndex(i => i.id === overId);
-          
+          const oldIndex = group.items.findIndex((i) => i.id === activeDragId);
+          const newIndex = group.items.findIndex((i) => i.id === overId);
+
           if (oldIndex !== -1 && newIndex !== -1) {
-            const newItems = [...group.items];
-            const [movedItem] = newItems.splice(oldIndex, 1);
-            newItems.splice(newIndex, 0, movedItem);
-            
+            const newItems = arrayMove(group.items, oldIndex, newIndex);
             newGroups[groupIndex] = {
               ...group,
               items: newItems,
             };
           }
-          
+
           return newGroups;
         });
+        markAsChanged();
       }
     }
   };
@@ -677,7 +708,22 @@ export default function ProtocolEditor() {
   const activeItem = activeId ? findItemById(activeId)?.item : null;
   const activeGroupIndex = activeId ? findItemById(activeId)?.groupIndex : null;
 
+
   // Save handlers
+  const [isSavingAll, setIsSavingAll] = useState(false);
+
+  const cloneGroups = (groups: SectionGroup[]): SectionGroup[] =>
+    groups.map((g) => ({
+      ...g,
+      items: [...g.items],
+      companyGroups: g.companyGroups
+        ? g.companyGroups.map((c) => ({
+            ...c,
+            items: [...c.items],
+          }))
+        : undefined,
+    }));
+
   const handleCreate = async () => {
     if (!form.title.trim()) {
       toast.error("Введите тему совещания");
@@ -691,6 +737,7 @@ export default function ProtocolEditor() {
       .map((empId) => employees.find((e) => e.id === empId)?.full_name)
       .filter(Boolean) as string[];
 
+    setIsSavingAll(true);
     try {
       const result = await createProtocol.mutateAsync({
         number: nextNumber,
@@ -701,12 +748,13 @@ export default function ProtocolEditor() {
         attendees: attendeeNames,
       });
 
+      const groupsSnapshot = cloneGroups(sectionGroups);
+
       // Create all sections and items
       let sortOrder = 0;
       let sectionSortOrder = 0;
-      
-      for (const group of sectionGroups) {
-        // Create section in DB
+
+      for (const group of groupsSnapshot) {
         const createdSection = await createSection.mutateAsync({
           protocol_id: result.id,
           section_type: group.sectionType,
@@ -715,9 +763,9 @@ export default function ProtocolEditor() {
           default_responsible: group.defaultResponsible,
           sort_order: sectionSortOrder++,
         });
+        group.id = createdSection.id;
 
-        // Handle tender sections with company groups
-        if (group.sectionType === 'tender' && group.companyGroups) {
+        if (group.sectionType === "tender" && group.companyGroups) {
           for (const company of group.companyGroups) {
             for (const item of company.items) {
               if (!item.item_text.trim()) continue;
@@ -738,9 +786,11 @@ export default function ProtocolEditor() {
                 status_date: null,
               });
 
+              item.id = createdItem.id;
+
               if (item.create_task) {
                 const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-                const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
+                const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
                 const assigneeProfileId = firstEmployee?.profile_id || null;
 
                 const taskResult = await createTask.mutateAsync({
@@ -757,21 +807,22 @@ export default function ProtocolEditor() {
                   protocol_id: result.id,
                   task_id: taskResult.id,
                 });
+
+                item.task_id = taskResult.id;
               }
             }
           }
         } else {
-          // Regular items
           for (const item of group.items) {
             if (!item.item_text.trim()) continue;
 
             const effectiveResponsible = item.responsible ?? group.defaultResponsible;
-            const isGoal = group.sectionType === 'goals';
+            const isGoal = group.sectionType === "goals";
             const goalItem = item as GoalItemData;
 
             const createdItem = await createProtocolItem.mutateAsync({
               protocol_id: result.id,
-              project_id: group.sectionType === 'project' ? group.entityId : null,
+              project_id: group.sectionType === "project" ? group.entityId : null,
               section_id: createdSection.id,
               item_text: item.item_text,
               responsible: effectiveResponsible,
@@ -783,15 +834,17 @@ export default function ProtocolEditor() {
               status_date: isGoal ? goalItem.status_date : null,
             });
 
+            item.id = createdItem.id;
+
             if (item.create_task) {
               const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-              const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
+              const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
               const assigneeProfileId = firstEmployee?.profile_id || null;
 
               const taskResult = await createTask.mutateAsync({
                 title: item.item_text,
                 assignee_id: assigneeProfileId,
-                project_id: group.sectionType === 'project' ? group.entityId : null,
+                project_id: group.sectionType === "project" ? group.entityId : null,
                 due_date: item.due_date || null,
                 status: "new",
                 priority: "normal",
@@ -802,15 +855,20 @@ export default function ProtocolEditor() {
                 protocol_id: result.id,
                 task_id: taskResult.id,
               });
+
+              item.task_id = taskResult.id;
             }
           }
         }
       }
 
+      setHasUnsavedChanges(false);
       toast.success(isCopyMode ? "Протокол скопирован" : "Протокол создан");
       navigate(`/protocols/edit/${result.id}`);
     } catch (error) {
       toast.error("Ошибка при создании протокола");
+    } finally {
+      setIsSavingAll(false);
     }
   };
 
@@ -827,6 +885,7 @@ export default function ProtocolEditor() {
       .map((empId) => employees.find((e) => e.id === empId)?.full_name)
       .filter(Boolean) as string[];
 
+    setIsSavingAll(true);
     try {
       await updateProtocol.mutateAsync({
         id,
@@ -837,13 +896,15 @@ export default function ProtocolEditor() {
         attendees: attendeeNames,
       });
 
+      const groupsSnapshot = cloneGroups(sectionGroups);
+
       let sortOrder = 0;
       let sectionSortOrder = 0;
-      
-      for (const group of sectionGroups) {
+
+      for (const group of groupsSnapshot) {
         // Create section if it's new
         let sectionId = group.id;
-        if (group.id.startsWith('temp-')) {
+        if (group.id.startsWith("temp-")) {
           const createdSection = await createSection.mutateAsync({
             protocol_id: id,
             section_type: group.sectionType,
@@ -853,8 +914,8 @@ export default function ProtocolEditor() {
             sort_order: sectionSortOrder++,
           });
           sectionId = createdSection.id;
+          group.id = createdSection.id;
         } else {
-          // Update existing section
           await updateSection.mutateAsync({
             id: group.id,
             protocol_id: id,
@@ -865,8 +926,7 @@ export default function ProtocolEditor() {
           });
         }
 
-        // Handle tender sections with company groups
-        if (group.sectionType === 'tender' && group.companyGroups) {
+        if (group.sectionType === "tender" && group.companyGroups) {
           for (const company of group.companyGroups) {
             for (const item of company.items) {
               if (!item.item_text.trim()) continue;
@@ -887,10 +947,11 @@ export default function ProtocolEditor() {
                   status: null,
                   status_date: null,
                 });
+                item.id = createdItem.id;
 
                 if (item.create_task) {
                   const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-                  const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
+                  const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
                   const assigneeProfileId = firstEmployee?.profile_id || null;
 
                   const taskResult = await createTask.mutateAsync({
@@ -907,6 +968,8 @@ export default function ProtocolEditor() {
                     protocol_id: id,
                     task_id: taskResult.id,
                   });
+
+                  item.task_id = taskResult.id;
                 }
               } else {
                 await updateProtocolItem.mutateAsync({
@@ -920,11 +983,12 @@ export default function ProtocolEditor() {
                   kpi: null,
                   status: null,
                   status_date: null,
+                  sort_order: sortOrder++,
                 });
 
                 if (item.task_id) {
                   const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-                  const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
+                  const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
                   const assigneeProfileId = firstEmployee?.profile_id || null;
 
                   await updateTask.mutateAsync({
@@ -935,22 +999,20 @@ export default function ProtocolEditor() {
                   });
                 }
               }
-              sortOrder++;
             }
           }
         } else {
-          // Regular items
           for (const item of group.items) {
             if (!item.item_text.trim()) continue;
 
             const effectiveResponsible = item.responsible ?? group.defaultResponsible;
-            const isGoal = group.sectionType === 'goals';
+            const isGoal = group.sectionType === "goals";
             const goalItem = item as GoalItemData;
 
             if (item.id.startsWith("temp-")) {
               const createdItem = await createProtocolItem.mutateAsync({
                 protocol_id: id,
-                project_id: group.sectionType === 'project' ? group.entityId : null,
+                project_id: group.sectionType === "project" ? group.entityId : null,
                 section_id: sectionId,
                 item_text: item.item_text,
                 responsible: effectiveResponsible,
@@ -962,15 +1024,17 @@ export default function ProtocolEditor() {
                 status_date: isGoal ? goalItem.status_date : null,
               });
 
+              item.id = createdItem.id;
+
               if (item.create_task) {
                 const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-                const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
+                const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
                 const assigneeProfileId = firstEmployee?.profile_id || null;
 
                 const taskResult = await createTask.mutateAsync({
                   title: item.item_text,
                   assignee_id: assigneeProfileId,
-                  project_id: group.sectionType === 'project' ? group.entityId : null,
+                  project_id: group.sectionType === "project" ? group.entityId : null,
                   due_date: item.due_date || null,
                   status: "new",
                   priority: "normal",
@@ -981,12 +1045,14 @@ export default function ProtocolEditor() {
                   protocol_id: id,
                   task_id: taskResult.id,
                 });
+
+                item.task_id = taskResult.id;
               }
             } else {
               await updateProtocolItem.mutateAsync({
                 id: item.id,
                 protocol_id: id,
-                project_id: group.sectionType === 'project' ? group.entityId : null,
+                project_id: group.sectionType === "project" ? group.entityId : null,
                 section_id: sectionId,
                 item_text: item.item_text,
                 responsible: effectiveResponsible,
@@ -994,11 +1060,12 @@ export default function ProtocolEditor() {
                 kpi: isGoal ? goalItem.kpi : null,
                 status: isGoal ? goalItem.status : null,
                 status_date: isGoal ? goalItem.status_date : null,
+                sort_order: sortOrder++,
               });
 
               if (item.task_id) {
                 const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-                const firstEmployee = responsibleIds[0] ? employees.find(e => e.id === responsibleIds[0]) : null;
+                const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
                 const assigneeProfileId = firstEmployee?.profile_id || null;
 
                 await updateTask.mutateAsync({
@@ -1009,22 +1076,25 @@ export default function ProtocolEditor() {
                 });
               }
             }
-            sortOrder++;
           }
         }
       }
 
+      setSectionGroups(groupsSnapshot);
       setHasUnsavedChanges(false);
       toast.success("Протокол сохранён");
     } catch (error) {
       toast.error("Ошибка при сохранении");
+    } finally {
+      setIsSavingAll(false);
     }
   };
+
 
   const handleExportPdf = async () => {
     if (!existingProtocol) return;
     try {
-      await generateProtocolPdf(existingProtocol, existingItems, projects);
+      await generateProtocolPdf(existingProtocol, existingItems, projects, existingSections);
       toast.success("PDF экспортирован");
     } catch (error) {
       toast.error("Ошибка экспорта PDF");
@@ -1035,21 +1105,21 @@ export default function ProtocolEditor() {
   const pageTitle = isEditMode
     ? `Протокол №${existingProtocol?.number || ""}`
     : isCopyMode
-    ? "Копирование протокола"
-    : "Новый протокол";
+      ? "Копирование протокола"
+      : "Новый протокол";
 
   const totalItems = sectionGroups.reduce((sum, g) => {
-    if (g.sectionType === 'tender' && g.companyGroups) {
+    if (g.sectionType === "tender" && g.companyGroups) {
       return sum + g.companyGroups.reduce((cs, c) => cs + c.items.length, 0);
     }
     return sum + g.items.length;
   }, 0);
   const isLoading = isCopyDataLoading || isEditDataLoading;
-  const isSaving = createProtocol.isPending || updateProtocol.isPending;
+  const isSaving = isSavingAll;
 
   const usedProjectIds = sectionGroups
-    .filter(g => g.sectionType === 'project' && g.entityId)
-    .map(g => g.entityId!);
+    .filter((g) => g.sectionType === "project" && g.entityId)
+    .map((g) => g.entityId!);
 
   return (
     <div className="min-h-screen bg-background">
@@ -1066,22 +1136,12 @@ export default function ProtocolEditor() {
             <h1 className="text-xl font-semibold text-foreground">{pageTitle}</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              onClick={() => setShowSectionModal(true)}
-              variant="outline"
-              size="sm"
-              className="gap-2"
-            >
+            <Button onClick={() => setShowSectionModal(true)} variant="outline" size="sm" className="gap-2">
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Секция</span>
             </Button>
             {isEditMode && (
-              <Button
-                onClick={handleExportPdf}
-                variant="outline"
-                size="sm"
-                className="gap-2"
-              >
+              <Button onClick={handleExportPdf} variant="outline" size="sm" className="gap-2">
                 <Download className="w-4 h-4" />
                 <span className="hidden sm:inline">PDF</span>
               </Button>
@@ -1089,7 +1149,7 @@ export default function ProtocolEditor() {
             <Button
               onClick={isEditMode ? handleSaveChanges : handleCreate}
               disabled={isSaving || !form.title.trim()}
-              className={`gap-2 ${hasUnsavedChanges && !isSaving ? 'ring-2 ring-orange-400 ring-offset-2 ring-offset-background' : ''}`}
+              className={`gap-2 ${hasUnsavedChanges && !isSaving ? "ring-2 ring-orange-400 ring-offset-2 ring-offset-background" : ""}`}
             >
               {isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -1106,6 +1166,7 @@ export default function ProtocolEditor() {
           </div>
         </div>
       </header>
+
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {isLoading && (
@@ -1141,49 +1202,58 @@ export default function ProtocolEditor() {
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
               >
-                {sectionGroups.map((group, index) => (
-                  group.sectionType === 'tender' ? (
-                    <TenderSection
-                      key={group.id}
-                      sectionId={group.id}
-                      companyGroups={group.companyGroups || []}
-                      employees={employees}
-                      defaultResponsible={group.defaultResponsible}
-                      onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
-                      onUpdateItem={(companyId, itemId, updates) => handleUpdateTenderItem(index, companyId, itemId, updates)}
-                      onRemoveItem={(companyId, itemId) => handleRemoveTenderItem(index, companyId, itemId)}
-                      onAddItem={(companyId) => handleAddTenderItem(index, companyId)}
-                      onAddCompany={(companyName) => handleAddCompany(index, companyName)}
-                      onRemoveCompany={(companyId) => handleRemoveCompany(index, companyId)}
-                      onRenameCompany={(companyId, newName) => handleRenameCompany(index, companyId, newName)}
-                      onRemoveSection={sectionGroups.length > 1 ? () => handleRemoveSection(index) : undefined}
-                    />
-                  ) : (
-                    <UniversalSection
-                      key={group.id}
-                      sectionId={group.id}
-                      sectionType={group.sectionType}
-                      entityId={group.entityId}
-                      entityName={group.entityName}
-                      items={group.items}
-                      employees={employees}
-                      projects={projects}
-                      defaultResponsible={group.defaultResponsible}
-                      onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
-                      onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
-                      onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
-                      onAddItem={() => handleAddItemToSection(index)}
-                      onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
-                      onRemoveSection={sectionGroups.length > 1 ? () => handleRemoveSection(index) : undefined}
-                      canEdit={!isEditMode || group.id.startsWith("temp-")}
-                    />
-                  )
-                ))}
+                <SortableContext
+                  items={sectionGroups.map((g) => `section-group-${g.id}`)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {sectionGroups.map((group, index) => (
+                    <SortableProtocolSection key={group.id} id={`section-group-${group.id}`}>
+                      {({ attributes, listeners }) =>
+                        group.sectionType === "tender" ? (
+                          <TenderSection
+                            sectionId={group.id}
+                            companyGroups={group.companyGroups || []}
+                            employees={employees}
+                            defaultResponsible={group.defaultResponsible}
+                            onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
+                            onUpdateItem={(companyId, itemId, updates) => handleUpdateTenderItem(index, companyId, itemId, updates)}
+                            onRemoveItem={(companyId, itemId) => handleRemoveTenderItem(index, companyId, itemId)}
+                            onAddItem={(companyId) => handleAddTenderItem(index, companyId)}
+                            onAddCompany={(companyName) => handleAddCompany(index, companyName)}
+                            onRemoveCompany={(companyId) => handleRemoveCompany(index, companyId)}
+                            onRenameCompany={(companyId, newName) => handleRenameCompany(index, companyId, newName)}
+                            onRemoveSection={sectionGroups.length > 1 ? () => handleRemoveSection(index) : undefined}
+                            dragHandle={{ attributes, listeners }}
+                          />
+                        ) : (
+                          <UniversalSection
+                            sectionId={group.id}
+                            sectionType={group.sectionType}
+                            entityId={group.entityId}
+                            entityName={group.entityName}
+                            items={group.items}
+                            employees={employees}
+                            projects={projects}
+                            defaultResponsible={group.defaultResponsible}
+                            onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
+                            onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
+                            onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
+                            onAddItem={() => handleAddItemToSection(index)}
+                            onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
+                            onRemoveSection={sectionGroups.length > 1 ? () => handleRemoveSection(index) : undefined}
+                            canEdit={!isEditMode || group.id.startsWith("temp-")}
+                            dragHandle={{ attributes, listeners }}
+                          />
+                        )
+                      }
+                    </SortableProtocolSection>
+                  ))}
+                </SortableContext>
 
                 <DragOverlay>
                   {activeItem && activeGroupIndex !== null ? (
                     <div className="opacity-90 shadow-lg">
-                      {sectionGroups[activeGroupIndex]?.sectionType === 'goals' ? (
+                      {sectionGroups[activeGroupIndex]?.sectionType === "goals" ? (
                         <GoalItemEditor
                           item={activeItem as GoalItemData}
                           employees={employees}
@@ -1206,6 +1276,7 @@ export default function ProtocolEditor() {
                   ) : null}
                 </DragOverlay>
               </DndContext>
+
             </section>
 
             <div className="pt-4 flex justify-center border-t border-border">

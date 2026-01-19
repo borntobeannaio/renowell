@@ -1,10 +1,25 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, FolderOpen, Building, Users, Briefcase, Target, Plus, Trash2, Edit2, Check, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  FolderOpen,
+  Building,
+  Users,
+  Briefcase,
+  Target,
+  Plus,
+  Trash2,
+  Edit2,
+  Check,
+  X,
+  GripVertical,
+} from "lucide-react";
 import { ProtocolItemData } from "./ProtocolItemEditor";
 import { GoalItemData } from "./GoalItemEditor";
 import { DroppableSection } from "./DroppableSection";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { SectionType } from "@/hooks/useProtocolSections";
+import type { SortableHandleProps } from "./SortableProtocolSection";
 
 interface UniversalSectionProps {
   sectionId: string;
@@ -12,7 +27,17 @@ interface UniversalSectionProps {
   entityId: string | null;
   entityName: string | null;
   items: (ProtocolItemData | GoalItemData)[];
-  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null }[];
+  employees: {
+    id: string;
+    full_name: string;
+    position: string;
+    avatar_url: string | null;
+    phone: string | null;
+    email: string | null;
+    department: string | null;
+    birthday: string | null;
+    profile_id: string | null;
+  }[];
   projects: { id: string; name: string }[];
   defaultResponsible: string | null;
   onChangeDefaultResponsible: (responsible: string | null) => void;
@@ -23,6 +48,7 @@ interface UniversalSectionProps {
   onRemoveSection?: () => void;
   canEdit?: boolean;
   defaultExpanded?: boolean;
+  dragHandle?: SortableHandleProps;
 }
 
 const SECTION_ICONS: Record<SectionType, React.ReactNode> = {
@@ -34,11 +60,11 @@ const SECTION_ICONS: Record<SectionType, React.ReactNode> = {
 };
 
 const SECTION_BG_CLASSES: Record<SectionType, string> = {
-  project: 'bg-muted/30',
-  tender: 'bg-blue-500/5',
-  hr: 'bg-green-500/5',
-  business: 'bg-purple-500/5',
-  goals: 'bg-amber-500/5',
+  project: "bg-muted/30",
+  tender: "bg-blue-500/5",
+  hr: "bg-green-500/5",
+  business: "bg-purple-500/5",
+  goals: "bg-amber-500/5",
 };
 
 export function UniversalSection({
@@ -58,6 +84,7 @@ export function UniversalSection({
   onRemoveSection,
   canEdit = true,
   defaultExpanded = true,
+  dragHandle,
 }: UniversalSectionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [isEditing, setIsEditing] = useState(false);
@@ -65,46 +92,52 @@ export function UniversalSection({
 
   // Get display name based on section type
   const getDisplayName = () => {
-    if (sectionType === 'project') {
+    if (sectionType === "project") {
       if (entityId) {
-        const project = projects.find(p => p.id === entityId);
-        return project?.name || 'Неизвестный проект';
+        const project = projects.find((p) => p.id === entityId);
+        return project?.name || "Неизвестный проект";
       }
-      return 'Без проекта (общие вопросы)';
+      return "Без проекта (общие вопросы)";
     }
     return entityName || getSectionTypeLabel(sectionType);
   };
 
   const getSectionTypeLabel = (type: SectionType) => {
     switch (type) {
-      case 'project': return 'Проект';
-      case 'tender': return 'Тендер';
-      case 'hr': return 'Подбор персонала';
-      case 'business': return 'Бизнес задачи';
-      case 'goals': return 'Цели компании';
-      default: return 'Секция';
+      case "project":
+        return "Проект";
+      case "tender":
+        return "Тендер";
+      case "hr":
+        return "Подбор персонала";
+      case "business":
+        return "Бизнес задачи";
+      case "goals":
+        return "Цели компании";
+      default:
+        return "Секция";
     }
   };
 
   // Convert responsible string to employee IDs
   const getEmployeeIdsFromResponsible = (responsible: string | null): string[] => {
     if (!responsible) return [];
-    const names = responsible.split(", ").map(n => n.trim());
+    const names = responsible.split(", ").map((n) => n.trim());
     return names
-      .map(name => employees.find(e => e.full_name === name)?.id)
+      .map((name) => employees.find((e) => e.full_name === name)?.id)
       .filter(Boolean) as string[];
   };
 
   const handleDefaultResponsibleChange = (ids: string[]) => {
     const responsibleNames = ids
-      .map(id => employees.find(e => e.id === id)?.full_name)
+      .map((id) => employees.find((e) => e.id === id)?.full_name)
       .filter(Boolean)
       .join(", ");
     onChangeDefaultResponsible(responsibleNames || null);
   };
 
   const handleStartEdit = () => {
-    if (sectionType === 'project') {
+    if (sectionType === "project") {
       setEditValue(entityId || "");
     } else {
       setEditValue(entityName || "");
@@ -113,7 +146,7 @@ export function UniversalSection({
   };
 
   const handleConfirmEdit = () => {
-    if (sectionType === 'project') {
+    if (sectionType === "project") {
       onChangeEntity?.(editValue || null, null);
     } else {
       onChangeEntity?.(null, editValue.trim() || getSectionTypeLabel(sectionType));
@@ -131,6 +164,18 @@ export function UniversalSection({
     <div className="card-base overflow-visible">
       {/* Header */}
       <div className={`flex items-center gap-2 p-4 ${SECTION_BG_CLASSES[sectionType]}`}>
+        {dragHandle && (
+          <button
+            type="button"
+            className="p-1 hover:bg-secondary rounded transition-colors cursor-grab active:cursor-grabbing"
+            aria-label="Переместить секцию"
+            {...dragHandle.attributes}
+            {...dragHandle.listeners}
+          >
+            <GripVertical className="w-4 h-4 text-muted-foreground" />
+          </button>
+        )}
+
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           className="p-1 hover:bg-secondary rounded transition-colors"
@@ -141,12 +186,12 @@ export function UniversalSection({
             <ChevronDown className="w-4 h-4 text-muted-foreground" />
           )}
         </button>
-        
+
         {SECTION_ICONS[sectionType]}
-        
+
         {isEditing ? (
           <div className="flex-1 flex items-center gap-2">
-            {sectionType === 'project' ? (
+            {sectionType === "project" ? (
               <select
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
@@ -155,7 +200,9 @@ export function UniversalSection({
               >
                 <option value="">Без проекта (общие вопросы)</option>
                 {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
                 ))}
               </select>
             ) : (
@@ -197,7 +244,7 @@ export function UniversalSection({
         )}
 
         <span className="chip text-xs shrink-0">
-          {items.length} {items.length === 1 ? 'пункт' : items.length >= 2 && items.length <= 4 ? 'пункта' : 'пунктов'}
+          {items.length} {items.length === 1 ? "пункт" : items.length >= 2 && items.length <= 4 ? "пункта" : "пунктов"}
         </span>
 
         {onRemoveSection && items.length === 0 && (
@@ -212,7 +259,7 @@ export function UniversalSection({
       </div>
 
       {/* Default responsible row - always visible when expanded (except for goals) */}
-      {isExpanded && sectionType !== 'goals' && (
+      {isExpanded && sectionType !== "goals" && (
         <div className="px-4 py-3 bg-muted/10 border-b border-border/50 flex items-center gap-3">
           <Users className="w-4 h-4 text-muted-foreground shrink-0" />
           <span className="text-sm text-muted-foreground shrink-0">Ответственные по умолчанию:</span>
@@ -232,9 +279,7 @@ export function UniversalSection({
       {isExpanded && (
         <div className="p-4 space-y-3">
           {items.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Нет пунктов. Добавьте первый пункт.
-            </p>
+            <p className="text-sm text-muted-foreground text-center py-4">Нет пунктов. Добавьте первый пункт.</p>
           ) : (
             <DroppableSection
               sectionId={`section-${sectionId}`}
@@ -253,7 +298,7 @@ export function UniversalSection({
             className="w-full py-2.5 border-2 border-dashed border-border hover:border-primary/50 rounded-lg text-sm text-muted-foreground hover:text-primary transition-colors flex items-center justify-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            {sectionType === 'goals' ? 'Добавить цель' : 'Добавить пункт'}
+            {sectionType === "goals" ? "Добавить цель" : "Добавить пункт"}
           </button>
         </div>
       )}
