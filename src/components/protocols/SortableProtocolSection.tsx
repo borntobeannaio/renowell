@@ -1,4 +1,4 @@
-import { PropsWithChildren } from "react";
+import { ReactNode } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -7,10 +7,17 @@ export type SortableHandleProps = {
   listeners: Record<string, any>;
 };
 
+type ChildrenFn = (props: SortableHandleProps) => ReactNode;
+
+interface SortableProtocolSectionProps {
+  id: string;
+  children: ChildrenFn | ReactNode;
+}
+
 export function SortableProtocolSection({
   id,
   children,
-}: PropsWithChildren<{ id: string }>) {
+}: SortableProtocolSectionProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
 
   const style: React.CSSProperties = {
@@ -20,9 +27,8 @@ export function SortableProtocolSection({
 
   return (
     <div ref={setNodeRef} style={style} className={isDragging ? "opacity-60" : undefined}>
-      {/* children expect to use data-sort-handle on some element */}
       {typeof children === "function"
-        ? (children as any)({ attributes, listeners } satisfies SortableHandleProps)
+        ? (children as ChildrenFn)({ attributes, listeners })
         : children}
     </div>
   );
