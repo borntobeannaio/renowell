@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Plus, Loader2, Save, Download } from "lucide-react";
 import {
@@ -67,6 +67,16 @@ interface SectionGroup {
   companyGroups?: CompanyGroup[];
 }
 
+// Result type for parallel item processing
+interface ItemProcessResult {
+  success: boolean;
+  itemId: string;
+  itemText: string;
+  newId?: string;
+  taskId?: string;
+  error?: Error;
+}
+
 export default function ProtocolEditor() {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
@@ -126,6 +136,12 @@ export default function ProtocolEditor() {
   const [editInitialized, setEditInitialized] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // Save progress state for UX feedback
+  const [saveProgress, setSaveProgress] = useState<string | null>(null);
+  
+  // Ref to prevent double-submit
+  const isSavingRef = useRef(false);
   
   // Track changes to form and sections
   const markAsChanged = useCallback(() => {
@@ -479,7 +495,9 @@ export default function ProtocolEditor() {
         } as ProtocolItemData;
     
     setSectionGroups(prev => prev.map((g, i) =>
-      i === groupIndex ? { ...g, items: [...g.items, newItem] } : g
+      i === groupIndex
+        ? { ...g, items: [...g.items, newItem] }
+        : g
     ));
     markAsChanged();
   };
@@ -487,12 +505,7 @@ export default function ProtocolEditor() {
   const handleUpdateItem = (groupIndex: number, itemId: string, updates: Partial<UniversalItemData>) => {
     setSectionGroups(prev => prev.map((g, i) =>
       i === groupIndex
-        ? {
-            ...g,
-            items: g.items.map(item =>
-              item.id === itemId ? { ...item, ...updates } : item
-            ),
-          }
+        ? { ...g, items: g.items.map(item => item.id === itemId ? { ...item, ...updates } : item) }
         : g
     ));
     markAsChanged();
@@ -786,19 +799,17 @@ export default function ProtocolEditor() {
   // Save handlers
   const [isSavingAll, setIsSavingAll] = useState(false);
 
+  // Deep clone groups to avoid mutation issues
   const cloneGroups = (groups: SectionGroup[]): SectionGroup[] =>
-    groups.map((g) => ({
-      ...g,
-      items: [...g.items],
-      companyGroups: g.companyGroups
-        ? g.companyGroups.map((c) => ({
-            ...c,
-            items: [...c.items],
-          }))
-        : undefined,
-    }));
+    JSON.parse(JSON.stringify(groups));
 
   const handleCreate = async () => {
+    // Prevent double submission
+    if (isSavingRef.current) {
+      console.log("Create already in progress, ignoring duplicate call");
+      return;
+    }
+    
     if (!form.title.trim()) {
       toast.error("Введите тему совещания");
       return;
@@ -811,7 +822,10 @@ export default function ProtocolEditor() {
       .map((empId) => employees.find((e) => e.id === empId)?.full_name)
       .filter(Boolean) as string[];
 
+    isSavingRef.current = true;
     setIsSavingAll(true);
+    setSaveProgress("Создание протокола...");
+    
     try {
       const result = await createProtocol.mutateAsync({
         number: nextNumber,
@@ -823,11 +837,15 @@ export default function ProtocolEditor() {
       });
 
       const groupsSnapshot = cloneGroups(sectionGroups);
+      const idMapping: Record<string, string> = {}; // tempId -> realId
+      const taskIdMapping: Record<string, string> = {}; // itemId -> taskId
 
       // Create all sections and items
       let sortOrder = 0;
       let sectionSortOrder = 0;
 
+      setSaveProgress("Сохранение секций...");
+      
       for (const group of groupsSnapshot) {
         const createdSection = await createSection.mutateAsync({
           protocol_id: result.id,
@@ -837,7 +855,9 @@ export default function ProtocolEditor() {
           default_responsible: group.defaultResponsible,
           sort_order: sectionSortOrder++,
         });
-        group.id = createdSection.id;
+        idMapping[group.id] = createdSection.id;
+
+        setSaveProgress("Сохранение пунктов...");
 
         if (group.sectionType === "tender" && group.companyGroups) {
           for (const company of group.companyGroups) {
@@ -860,7 +880,7 @@ export default function ProtocolEditor() {
                 status_date: null,
               });
 
-              item.id = createdItem.id;
+              idMapping[item.id] = createdItem.id;
 
               if (item.create_task) {
                 const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
@@ -882,7 +902,7 @@ export default function ProtocolEditor() {
                   task_id: taskResult.id,
                 });
 
-                item.task_id = taskResult.id;
+                taskIdMapping[createdItem.id] = taskResult.id;
               }
             }
           }
@@ -908,7 +928,7 @@ export default function ProtocolEditor() {
               status_date: isGoal ? goalItem.status_date : null,
             });
 
-            item.id = createdItem.id;
+            idMapping[item.id] = createdItem.id;
 
             if (item.create_task) {
               const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
@@ -930,7 +950,7 @@ export default function ProtocolEditor() {
                 task_id: taskResult.id,
               });
 
-              item.task_id = taskResult.id;
+              taskIdMapping[createdItem.id] = taskResult.id;
             }
           }
         }
@@ -944,11 +964,19 @@ export default function ProtocolEditor() {
       const message = error instanceof Error ? error.message : "Неизвестная ошибка";
       toast.error(`Ошибка при создании протокола: ${message}`);
     } finally {
+      isSavingRef.current = false;
       setIsSavingAll(false);
+      setSaveProgress(null);
     }
   };
 
   const handleSaveChanges = async () => {
+    // Prevent double submission
+    if (isSavingRef.current) {
+      console.log("Save already in progress, ignoring duplicate call");
+      return;
+    }
+    
     if (!id || !form.title.trim()) {
       toast.error("Введите тему совещания");
       return;
@@ -961,7 +989,10 @@ export default function ProtocolEditor() {
       .map((empId) => employees.find((e) => e.id === empId)?.full_name)
       .filter(Boolean) as string[];
 
+    isSavingRef.current = true;
     setIsSavingAll(true);
+    setSaveProgress("Сохранение протокола...");
+    
     try {
       await updateProtocol.mutateAsync({
         id,
@@ -973,11 +1004,144 @@ export default function ProtocolEditor() {
       });
 
       const groupsSnapshot = cloneGroups(sectionGroups);
+      const idMapping: Record<string, string> = {}; // tempId -> realId
+      const taskIdMapping: Record<string, string> = {}; // itemId -> taskId
+      const failedItems: { text: string; error: string }[] = [];
 
       let sortOrder = 0;
       let sectionSortOrder = 0;
 
-      // Helper to process items in parallel
+      // Helper to process a single item with error handling
+      const processSingleItem = async (
+        item: UniversalItemData,
+        sectionId: string,
+        projectId: string | null,
+        defaultResponsible: string | null,
+        isGoal: boolean,
+        isTender: boolean,
+        companyName?: string
+      ): Promise<ItemProcessResult> => {
+        const effectiveResponsible = item.responsible ?? defaultResponsible;
+        const goalItem = item as GoalItemData;
+        const itemText = isTender && companyName 
+          ? `[${companyName}] ${item.item_text}` 
+          : item.item_text;
+        const currentSortOrder = sortOrder++;
+
+        try {
+          if (item.id.startsWith("temp-")) {
+            // Create new item
+            const createdItem = await createProtocolItem.mutateAsync({
+              protocol_id: id,
+              project_id: projectId,
+              section_id: sectionId,
+              item_text: itemText,
+              responsible: effectiveResponsible,
+              due_date: item.due_date,
+              create_task: item.create_task,
+              sort_order: currentSortOrder,
+              kpi: isGoal ? goalItem.kpi : null,
+              status: isGoal ? goalItem.status : null,
+              status_date: isGoal ? goalItem.status_date : null,
+            });
+
+            let taskId: string | undefined;
+
+            // Create task if needed
+            if (item.create_task) {
+              const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
+              const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
+              const assigneeProfileId = firstEmployee?.profile_id || null;
+
+              const taskResult = await createTask.mutateAsync({
+                title: item.item_text,
+                assignee_id: assigneeProfileId,
+                project_id: projectId,
+                due_date: item.due_date || null,
+                status: "new",
+                priority: "normal",
+              });
+
+              await updateProtocolItem.mutateAsync({
+                id: createdItem.id,
+                protocol_id: id,
+                task_id: taskResult.id,
+              });
+
+              taskId = taskResult.id;
+            }
+            
+            return { success: true, itemId: item.id, itemText: item.item_text, newId: createdItem.id, taskId };
+          } else {
+            // Update existing item
+            await updateProtocolItem.mutateAsync({
+              id: item.id,
+              protocol_id: id,
+              project_id: projectId,
+              section_id: sectionId,
+              item_text: itemText,
+              responsible: effectiveResponsible,
+              due_date: item.due_date,
+              create_task: item.create_task,
+              kpi: isGoal ? goalItem.kpi : null,
+              status: isGoal ? goalItem.status : null,
+              status_date: isGoal ? goalItem.status_date : null,
+              sort_order: currentSortOrder,
+            });
+
+            let taskId: string | undefined = item.task_id || undefined;
+
+            // Create task if checkbox was set and no task exists yet
+            if (item.create_task && !item.task_id) {
+              const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
+              const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
+              const assigneeProfileId = firstEmployee?.profile_id || null;
+
+              const taskResult = await createTask.mutateAsync({
+                title: item.item_text,
+                assignee_id: assigneeProfileId,
+                project_id: projectId,
+                due_date: item.due_date || null,
+                status: "new",
+                priority: "normal",
+              });
+
+              await updateProtocolItem.mutateAsync({
+                id: item.id,
+                protocol_id: id,
+                task_id: taskResult.id,
+              });
+
+              taskId = taskResult.id;
+              toast.success(`Задача "${item.item_text.slice(0, 30)}..." создана`);
+            } else if (item.task_id) {
+              // Update existing task
+              const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
+              const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
+              const assigneeProfileId = firstEmployee?.profile_id || null;
+
+              await updateTask.mutateAsync({
+                id: item.task_id,
+                title: item.item_text,
+                assignee_id: assigneeProfileId,
+                due_date: item.due_date || null,
+              });
+            }
+            
+            return { success: true, itemId: item.id, itemText: item.item_text, taskId };
+          }
+        } catch (error) {
+          console.error(`Failed to save item: ${item.item_text}`, error);
+          return { 
+            success: false, 
+            itemId: item.id, 
+            itemText: item.item_text, 
+            error: error instanceof Error ? error : new Error('Unknown error') 
+          };
+        }
+      };
+
+      // Helper to process items in parallel with error collection
       const processItemsInParallel = async (
         items: UniversalItemData[],
         sectionId: string,
@@ -986,116 +1150,37 @@ export default function ProtocolEditor() {
         isGoal: boolean,
         isTender: boolean,
         companyName?: string
-      ) => {
+      ): Promise<ItemProcessResult[]> => {
         const itemPromises = items
           .filter((item) => item.item_text.trim())
-          .map(async (item, idx) => {
-            const effectiveResponsible = item.responsible ?? defaultResponsible;
-            const goalItem = item as GoalItemData;
-            const itemText = isTender && companyName 
-              ? `[${companyName}] ${item.item_text}` 
-              : item.item_text;
-            const currentSortOrder = sortOrder++;
+          .map((item) => processSingleItem(
+            item,
+            sectionId,
+            projectId,
+            defaultResponsible,
+            isGoal,
+            isTender,
+            companyName
+          ));
 
-            if (item.id.startsWith("temp-")) {
-              // Create new item
-              const createdItem = await createProtocolItem.mutateAsync({
-                protocol_id: id,
-                project_id: projectId,
-                section_id: sectionId,
-                item_text: itemText,
-                responsible: effectiveResponsible,
-                due_date: item.due_date,
-                create_task: item.create_task,
-                sort_order: currentSortOrder,
-                kpi: isGoal ? goalItem.kpi : null,
-                status: isGoal ? goalItem.status : null,
-                status_date: isGoal ? goalItem.status_date : null,
-              });
-
-              item.id = createdItem.id;
-
-              // Create task if needed
-              if (item.create_task) {
-                const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-                const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
-                const assigneeProfileId = firstEmployee?.profile_id || null;
-
-                const taskResult = await createTask.mutateAsync({
-                  title: item.item_text,
-                  assignee_id: assigneeProfileId,
-                  project_id: projectId,
-                  due_date: item.due_date || null,
-                  status: "new",
-                  priority: "normal",
-                });
-
-                await updateProtocolItem.mutateAsync({
-                  id: createdItem.id,
-                  protocol_id: id,
-                  task_id: taskResult.id,
-                });
-
-                item.task_id = taskResult.id;
-              }
-            } else {
-              // Update existing item
-              await updateProtocolItem.mutateAsync({
-                id: item.id,
-                protocol_id: id,
-                project_id: projectId,
-                section_id: sectionId,
-                item_text: itemText,
-                responsible: effectiveResponsible,
-                due_date: item.due_date,
-                create_task: item.create_task,
-                kpi: isGoal ? goalItem.kpi : null,
-                status: isGoal ? goalItem.status : null,
-                status_date: isGoal ? goalItem.status_date : null,
-                sort_order: currentSortOrder,
-              });
-
-              // Create task if checkbox was set and no task exists yet
-              if (item.create_task && !item.task_id) {
-                const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-                const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
-                const assigneeProfileId = firstEmployee?.profile_id || null;
-
-                const taskResult = await createTask.mutateAsync({
-                  title: item.item_text,
-                  assignee_id: assigneeProfileId,
-                  project_id: projectId,
-                  due_date: item.due_date || null,
-                  status: "new",
-                  priority: "normal",
-                });
-
-                await updateProtocolItem.mutateAsync({
-                  id: item.id,
-                  protocol_id: id,
-                  task_id: taskResult.id,
-                });
-
-                item.task_id = taskResult.id;
-                toast.success(`Задача "${item.item_text}" создана на канбан`);
-              } else if (item.task_id) {
-                // Update existing task
-                const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-                const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
-                const assigneeProfileId = firstEmployee?.profile_id || null;
-
-                await updateTask.mutateAsync({
-                  id: item.task_id,
-                  title: item.item_text,
-                  assignee_id: assigneeProfileId,
-                  due_date: item.due_date || null,
-                });
-              }
-            }
-          });
-
-        await Promise.all(itemPromises);
+        const results = await Promise.allSettled(itemPromises);
+        
+        return results.map((result, idx) => {
+          if (result.status === 'fulfilled') {
+            return result.value;
+          } else {
+            const item = items.filter(i => i.item_text.trim())[idx];
+            return {
+              success: false,
+              itemId: item?.id || 'unknown',
+              itemText: item?.item_text || 'Unknown item',
+              error: result.reason instanceof Error ? result.reason : new Error(String(result.reason))
+            };
+          }
+        });
       };
+
+      setSaveProgress("Сохранение секций...");
 
       // Process sections - sections need to be sequential (need IDs), but items within can be parallel
       for (const group of groupsSnapshot) {
@@ -1111,7 +1196,7 @@ export default function ProtocolEditor() {
             sort_order: sectionSortOrder++,
           });
           sectionId = createdSection.id;
-          group.id = createdSection.id;
+          idMapping[group.id] = createdSection.id;
         } else {
           await updateSection.mutateAsync({
             id: group.id,
@@ -1126,6 +1211,8 @@ export default function ProtocolEditor() {
         const projectId = group.sectionType === "project" ? group.entityId : null;
         const isGoal = group.sectionType === "goals";
 
+        setSaveProgress("Сохранение пунктов...");
+
         if (group.sectionType === "tender" && group.companyGroups) {
           // Process all company groups in parallel
           const companyPromises = group.companyGroups.map((company) =>
@@ -1139,10 +1226,20 @@ export default function ProtocolEditor() {
               company.companyName
             )
           );
-          await Promise.all(companyPromises);
+          const companyResults = await Promise.all(companyPromises);
+          
+          // Collect results
+          companyResults.flat().forEach(result => {
+            if (result.success) {
+              if (result.newId) idMapping[result.itemId] = result.newId;
+              if (result.taskId) taskIdMapping[result.newId || result.itemId] = result.taskId;
+            } else {
+              failedItems.push({ text: result.itemText, error: result.error?.message || 'Unknown error' });
+            }
+          });
         } else {
           // Process items in parallel
-          await processItemsInParallel(
+          const results = await processItemsInParallel(
             group.items,
             sectionId,
             projectId,
@@ -1150,18 +1247,55 @@ export default function ProtocolEditor() {
             isGoal,
             false
           );
+          
+          // Collect results
+          results.forEach(result => {
+            if (result.success) {
+              if (result.newId) idMapping[result.itemId] = result.newId;
+              if (result.taskId) taskIdMapping[result.newId || result.itemId] = result.taskId;
+            } else {
+              failedItems.push({ text: result.itemText, error: result.error?.message || 'Unknown error' });
+            }
+          });
         }
       }
 
-      setSectionGroups(groupsSnapshot);
+      // Update local state with new IDs (immutably)
+      setSectionGroups(prev => prev.map(group => ({
+        ...group,
+        id: idMapping[group.id] || group.id,
+        items: group.items.map(item => ({
+          ...item,
+          id: idMapping[item.id] || item.id,
+          task_id: taskIdMapping[idMapping[item.id] || item.id] || item.task_id,
+        })),
+        companyGroups: group.companyGroups?.map(company => ({
+          ...company,
+          items: company.items.map(item => ({
+            ...item,
+            id: idMapping[item.id] || item.id,
+            task_id: taskIdMapping[idMapping[item.id] || item.id] || item.task_id,
+          })),
+        })),
+      })));
+
       setHasUnsavedChanges(false);
-      toast.success("Протокол сохранён");
+      
+      // Show appropriate message based on results
+      if (failedItems.length > 0) {
+        console.error("Failed items:", failedItems);
+        toast.warning(`Протокол сохранён с ошибками (${failedItems.length} пункт(ов) не сохранено)`);
+      } else {
+        toast.success("Протокол сохранён");
+      }
     } catch (error) {
       console.error("Protocol save failed:", error);
       const message = error instanceof Error ? error.message : "Неизвестная ошибка";
       toast.error(`Ошибка при сохранении: ${message}`);
     } finally {
+      isSavingRef.current = false;
       setIsSavingAll(false);
+      setSaveProgress(null);
     }
   };
 
@@ -1208,7 +1342,12 @@ export default function ProtocolEditor() {
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-xl font-semibold text-foreground">{pageTitle}</h1>
+            <div>
+              <h1 className="text-xl font-semibold text-foreground">{pageTitle}</h1>
+              {saveProgress && (
+                <p className="text-sm text-muted-foreground animate-pulse">{saveProgress}</p>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button onClick={() => setShowSectionModal(true)} variant="outline" size="sm" className="gap-2">
