@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Plus, Loader2, Save, Download } from "lucide-react";
+import { ArrowLeft, Plus, Loader2, Save, Download, Cloud } from "lucide-react";
 import {
   DndContext,
   DragEndEvent,
@@ -42,6 +42,8 @@ import {
 import { useProjects } from "@/hooks/useProjects";
 import { useEmployees } from "@/hooks/useEmployees";
 import { useCreateTask, useUpdateTask } from "@/hooks/useTasks";
+import { useFormDraft } from "@/hooks/useFormDraft";
+import { useAuth } from "@/hooks/useAuth";
 import { generateProtocolPdf } from "@/utils/protocolPdf";
 import { toast } from "sonner";
 
@@ -87,6 +89,9 @@ export default function ProtocolEditor() {
   const isEditMode = !!id && id !== "new";
   const isCopyMode = isNew && !!copyFromId;
 
+  // Auth for drafts
+  const { user } = useAuth();
+  
   // Data hooks
   const { data: protocols = [], isLoading: protocolsLoading } = useProtocols();
   const { data: projects = [] } = useProjects();
@@ -136,12 +141,28 @@ export default function ProtocolEditor() {
   const [editInitialized, setEditInitialized] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [draftRestorePrompted, setDraftRestorePrompted] = useState(false);
   
   // Save progress state for UX feedback
   const [saveProgress, setSaveProgress] = useState<string | null>(null);
   
   // Ref to prevent double-submit
   const isSavingRef = useRef(false);
+  
+  // Draft auto-save hook
+  const draftEntityId = isNew ? (isCopyMode ? `copy-${copyFromId}` : 'new') : id!;
+  const draftData = { form, sectionGroups };
+  
+  const {
+    isLoading: draftLoading,
+    isSaving: draftSaving,
+    existingDraft,
+    acceptDraft,
+    discardDraft,
+    clearDraft
+  } = useFormDraft('protocol', draftEntityId, draftData, {
+    enabled: !!user && !isCopyDataLoading && !isEditDataLoading && (editInitialized || isNew)
+  });
   
   // Track changes to form and sections
   const markAsChanged = useCallback(() => {
@@ -335,6 +356,44 @@ export default function ProtocolEditor() {
       setCopyApplied(true);
     }
   }, [isCopyMode, sourceProtocol, sourceItems, employees, copyApplied, sourceItemsLoading, sourceSections, sourceSectionsLoading]);
+
+  // Prompt to restore draft when available
+  useEffect(() => {
+    if (existingDraft && !draftLoading && !draftRestorePrompted) {
+      const draftTime = new Date(existingDraft.savedAt).getTime();
+      const now = Date.now();
+      const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+      
+      if (now - draftTime < maxAge) {
+        const formattedDate = new Date(existingDraft.savedAt).toLocaleString('ru-RU', {
+          day: 'numeric',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        
+        const restore = window.confirm(
+          `Найден черновик от ${formattedDate}.\n\nВосстановить несохранённые изменения?`
+        );
+        
+        if (restore) {
+          const data = acceptDraft();
+          if (data) {
+            setForm(data.form);
+            setSectionGroups(data.sectionGroups);
+            toast.success('Черновик восстановлен');
+          }
+        } else {
+          discardDraft();
+        }
+      } else {
+        // Draft too old, discard silently
+        discardDraft();
+      }
+      
+      setDraftRestorePrompted(true);
+    }
+  }, [existingDraft, draftLoading, draftRestorePrompted, acceptDraft, discardDraft]);
 
   // Helper to create item from DB record
   function createItemFromDb(item: any, sectionType: SectionType): UniversalItemData {
@@ -957,6 +1016,10 @@ export default function ProtocolEditor() {
       }
 
       setHasUnsavedChanges(false);
+      
+      // Clear draft after successful save
+      await clearDraft();
+      
       toast.success(isCopyMode ? "Протокол скопирован" : "Протокол создан");
       navigate(`/protocols/edit/${result.id}`);
     } catch (error) {
@@ -1281,6 +1344,9 @@ export default function ProtocolEditor() {
 
       setHasUnsavedChanges(false);
       
+      // Clear draft after successful save
+      await clearDraft();
+      
       // Show appropriate message based on results
       if (failedItems.length > 0) {
         console.error("Failed items:", failedItems);
@@ -1344,9 +1410,14 @@ export default function ProtocolEditor() {
             </button>
             <div>
               <h1 className="text-xl font-semibold text-foreground">{pageTitle}</h1>
-              {saveProgress && (
+              {saveProgress ? (
                 <p className="text-sm text-muted-foreground animate-pulse">{saveProgress}</p>
-              )}
+              ) : draftSaving ? (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Cloud className="w-3 h-3" />
+                  Автосохранение...
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="flex items-center gap-2">
