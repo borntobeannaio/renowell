@@ -161,7 +161,11 @@ export default function ProtocolEditor() {
     discardDraft,
     clearDraft
   } = useFormDraft('protocol', draftEntityId, draftData, {
-    enabled: !!user && !isCopyDataLoading && !isEditDataLoading && (editInitialized || isNew)
+    // Важно: загрузка черновика должна работать всегда, как только есть user.
+    // Автосохранение включаем только после реальных правок (hasUnsavedChanges),
+    // чтобы не перезаписывать черновик/данные пустыми значениями во время инициализации.
+    enabled: !!user && !isCopyDataLoading,
+    saveEnabled: !!user && !isCopyDataLoading && !isEditDataLoading && (editInitialized || isNew) && hasUnsavedChanges
   });
   
   // Track changes to form and sections
@@ -359,7 +363,8 @@ export default function ProtocolEditor() {
 
   // Prompt to restore draft when available
   useEffect(() => {
-    if (existingDraft && !draftLoading && !draftRestorePrompted) {
+    // Не показываем восстановление, пока форма не инициализирована в edit-режиме.
+    if (existingDraft && !draftLoading && !draftRestorePrompted && (isNew || editInitialized) && !isEditDataLoading) {
       const draftTime = new Date(existingDraft.savedAt).getTime();
       const now = Date.now();
       const maxAge = 24 * 60 * 60 * 1000; // 24 hours
@@ -393,7 +398,7 @@ export default function ProtocolEditor() {
       
       setDraftRestorePrompted(true);
     }
-  }, [existingDraft, draftLoading, draftRestorePrompted, acceptDraft, discardDraft]);
+  }, [existingDraft, draftLoading, draftRestorePrompted, acceptDraft, discardDraft, isNew, editInitialized, isEditDataLoading]);
 
   // Helper to create item from DB record
   function createItemFromDb(item: any, sectionType: SectionType): UniversalItemData {
