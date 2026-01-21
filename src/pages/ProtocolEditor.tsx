@@ -161,9 +161,7 @@ export default function ProtocolEditor() {
     discardDraft,
     clearDraft
   } = useFormDraft('protocol', draftEntityId, draftData, {
-    // Важно: загрузка черновика должна работать всегда, как только есть user.
-    // Автосохранение включаем только после реальных правок (hasUnsavedChanges),
-    // чтобы не перезаписывать черновик/данные пустыми значениями во время инициализации.
+    autoSaveInterval: 3000,
     enabled: !!user && !isCopyDataLoading,
     saveEnabled: !!user && !isCopyDataLoading && !isEditDataLoading && (editInitialized || isNew) && hasUnsavedChanges
   });
