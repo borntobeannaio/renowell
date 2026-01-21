@@ -26,15 +26,30 @@ export function useFormDraft<T>(
   const [isSaving, setIsSaving] = useState(false);
   const lastSavedRef = useRef<string | null>(null);
   const hasCheckedDraft = useRef(false);
+  const prevEnabledRef = useRef(enabled);
+
+  // Reset check flag when enabled changes from false to true
+  useEffect(() => {
+    if (enabled && !prevEnabledRef.current) {
+      hasCheckedDraft.current = false;
+    }
+    prevEnabledRef.current = enabled;
+  }, [enabled]);
 
   // Загрузить существующий черновик при монтировании
   useEffect(() => {
-    if (!user || !enabled || hasCheckedDraft.current) {
-      if (!user || !enabled) setIsLoading(false);
+    if (!user || !enabled) {
+      setIsLoading(false);
+      return;
+    }
+    
+    if (hasCheckedDraft.current) {
       return;
     }
 
     const loadDraft = async () => {
+      hasCheckedDraft.current = true;
+      console.log('[Draft] Loading draft for:', formType, entityId, 'user:', user.id);
       try {
         const { data, error } = await supabase
           .from('form_drafts')
@@ -44,13 +59,14 @@ export function useFormDraft<T>(
           .eq('entity_id', entityId)
           .maybeSingle();
 
+        console.log('[Draft] Load result:', { data: !!data, error });
+        
         if (data && !error) {
           setExistingDraft({
             data: data.draft_data as T,
             savedAt: data.updated_at
           });
         }
-        hasCheckedDraft.current = true;
       } catch (err) {
         console.error('Error loading draft:', err);
       } finally {
@@ -71,6 +87,7 @@ export function useFormDraft<T>(
       // Не сохранять, если данные не изменились
       if (currentJson === lastSavedRef.current) return;
       
+      console.log('[Draft] Auto-saving draft for:', formType, entityId);
       setIsSaving(true);
       try {
         const { error } = await supabase
@@ -86,9 +103,10 @@ export function useFormDraft<T>(
           });
         if (error) throw error;
         
+        console.log('[Draft] Draft saved successfully');
         lastSavedRef.current = currentJson;
       } catch (err) {
-        console.error('Error saving draft:', err);
+        console.error('[Draft] Error saving draft:', err);
       } finally {
         setIsSaving(false);
       }
