@@ -10,6 +10,7 @@ interface DraftData<T> {
 interface UseFormDraftOptions {
   autoSaveInterval?: number;
   enabled?: boolean;
+  saveEnabled?: boolean;
 }
 
 export function useFormDraft<T>(
@@ -19,7 +20,7 @@ export function useFormDraft<T>(
   options: UseFormDraftOptions = {}
 ) {
   const { user } = useAuth();
-  const { autoSaveInterval = 10000, enabled = true } = options;
+  const { autoSaveInterval = 10000, enabled = true, saveEnabled = true } = options;
   
   const [isLoading, setIsLoading] = useState(true);
   const [existingDraft, setExistingDraft] = useState<DraftData<T> | null>(null);
@@ -49,7 +50,6 @@ export function useFormDraft<T>(
 
     const loadDraft = async () => {
       hasCheckedDraft.current = true;
-      console.log('[Draft] Loading draft for:', formType, entityId, 'user:', user.id);
       try {
         const { data, error } = await supabase
           .from('form_drafts')
@@ -58,8 +58,6 @@ export function useFormDraft<T>(
           .eq('form_type', formType)
           .eq('entity_id', entityId)
           .maybeSingle();
-
-        console.log('[Draft] Load result:', { data: !!data, error });
         
         if (data && !error) {
           setExistingDraft({
@@ -79,7 +77,7 @@ export function useFormDraft<T>(
 
   // Автосохранение каждые N секунд
   useEffect(() => {
-    if (!user || !enabled || !hasCheckedDraft.current) return;
+    if (!user || !enabled || !saveEnabled || !hasCheckedDraft.current) return;
 
     const timer = setInterval(async () => {
       const currentJson = JSON.stringify(currentData);
@@ -87,7 +85,6 @@ export function useFormDraft<T>(
       // Не сохранять, если данные не изменились
       if (currentJson === lastSavedRef.current) return;
       
-      console.log('[Draft] Auto-saving draft for:', formType, entityId);
       setIsSaving(true);
       try {
         const { error } = await supabase
@@ -102,18 +99,17 @@ export function useFormDraft<T>(
             onConflict: 'user_id,form_type,entity_id'
           });
         if (error) throw error;
-        
-        console.log('[Draft] Draft saved successfully');
+
         lastSavedRef.current = currentJson;
       } catch (err) {
-        console.error('[Draft] Error saving draft:', err);
+        console.error('Error saving draft:', err);
       } finally {
         setIsSaving(false);
       }
     }, autoSaveInterval);
 
     return () => clearInterval(timer);
-  }, [user, formType, entityId, currentData, autoSaveInterval, enabled]);
+  }, [user, formType, entityId, currentData, autoSaveInterval, enabled, saveEnabled]);
 
   // Принять черновик
   const acceptDraft = useCallback(() => {
