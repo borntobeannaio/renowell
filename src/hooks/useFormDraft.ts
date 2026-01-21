@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { proxySelect, proxyUpsert, proxyDelete } from '@/lib/dbProxy';
 import { useAuth } from './useAuth';
 
 interface DraftData<T> {
@@ -51,18 +51,21 @@ export function useFormDraft<T>(
     const loadDraft = async () => {
       hasCheckedDraft.current = true;
       try {
-        const { data, error } = await supabase
-          .from('form_drafts')
-          .select('draft_data, updated_at')
-          .eq('user_id', user.id)
-          .eq('form_type', formType)
-          .eq('entity_id', entityId)
-          .maybeSingle();
+        const { data, error } = await proxySelect<{ draft_data: unknown; updated_at: string }>('form_drafts', {
+          select: 'draft_data, updated_at',
+          filters: [
+            { column: 'user_id', operator: 'eq', value: user.id },
+            { column: 'form_type', operator: 'eq', value: formType },
+            { column: 'entity_id', operator: 'eq', value: entityId },
+          ],
+          limit: 1,
+        });
         
-        if (data && !error) {
+        const draft = data?.[0] ?? null;
+        if (draft && !error) {
           setExistingDraft({
-            data: data.draft_data as T,
-            savedAt: data.updated_at
+            data: draft.draft_data as T,
+            savedAt: draft.updated_at
           });
         }
       } catch (err) {
@@ -87,18 +90,14 @@ export function useFormDraft<T>(
       
       setIsSaving(true);
       try {
-        const { error } = await supabase
-          .from('form_drafts')
-          .upsert({
-            user_id: user.id,
-            form_type: formType,
-            entity_id: entityId,
-            draft_data: JSON.parse(currentJson),
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'user_id,form_type,entity_id'
-          });
-        if (error) throw error;
+        const { error } = await proxyUpsert('form_drafts', {
+          user_id: user.id,
+          form_type: formType,
+          entity_id: entityId,
+          draft_data: JSON.parse(currentJson),
+          updated_at: new Date().toISOString()
+        });
+        if (error) throw new Error(error.message);
 
         lastSavedRef.current = currentJson;
       } catch (err) {
@@ -123,12 +122,11 @@ export function useFormDraft<T>(
     if (!user) return;
     
     setExistingDraft(null);
-    await supabase
-      .from('form_drafts')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('form_type', formType)
-      .eq('entity_id', entityId);
+    await proxyDelete('form_drafts', [
+      { column: 'user_id', operator: 'eq', value: user.id },
+      { column: 'form_type', operator: 'eq', value: formType },
+      { column: 'entity_id', operator: 'eq', value: entityId },
+    ]);
   }, [user, formType, entityId]);
 
   // Очистить черновик после успешного сохранения
@@ -136,12 +134,11 @@ export function useFormDraft<T>(
     if (!user) return;
     
     lastSavedRef.current = null;
-    await supabase
-      .from('form_drafts')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('form_type', formType)
-      .eq('entity_id', entityId);
+    await proxyDelete('form_drafts', [
+      { column: 'user_id', operator: 'eq', value: user.id },
+      { column: 'form_type', operator: 'eq', value: formType },
+      { column: 'entity_id', operator: 'eq', value: entityId },
+    ]);
   }, [user, formType, entityId]);
 
   // Принудительно сохранить
@@ -151,18 +148,14 @@ export function useFormDraft<T>(
     setIsSaving(true);
     try {
       const currentJson = JSON.stringify(currentData);
-      const { error } = await supabase
-        .from('form_drafts')
-        .upsert({
-          user_id: user.id,
-          form_type: formType,
-          entity_id: entityId,
-          draft_data: JSON.parse(currentJson),
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id,form_type,entity_id'
-        });
-      if (error) throw error;
+      const { error } = await proxyUpsert('form_drafts', {
+        user_id: user.id,
+        form_type: formType,
+        entity_id: entityId,
+        draft_data: JSON.parse(currentJson),
+        updated_at: new Date().toISOString()
+      });
+      if (error) throw new Error(error.message);
       
       lastSavedRef.current = currentJson;
     } catch (err) {
