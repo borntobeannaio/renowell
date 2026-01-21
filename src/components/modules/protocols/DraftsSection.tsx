@@ -156,7 +156,7 @@ export function DraftsSection() {
           <AlertDialogHeader>
             <AlertDialogTitle>Удалить черновик?</AlertDialogTitle>
             <AlertDialogDescription>
-              Черновик "{getDraftTitle(draftToDelete!)}" будет удалён. Это действие нельзя отменить.
+              {draftToDelete && `Черновик "${getDraftTitle(draftToDelete)}" будет удалён.`} Это действие нельзя отменить.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
