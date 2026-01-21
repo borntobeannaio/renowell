@@ -356,13 +356,28 @@ export default function ProtocolEditor() {
       }
 
       setCopyApplied(true);
+      markAsChanged(); // Включаем автосохранение черновика для копии
     }
-  }, [isCopyMode, sourceProtocol, sourceItems, employees, copyApplied, sourceItemsLoading, sourceSections, sourceSectionsLoading]);
+  }, [isCopyMode, sourceProtocol, sourceItems, employees, copyApplied, sourceItemsLoading, sourceSections, sourceSectionsLoading, markAsChanged]);
 
   // Prompt to restore draft when available
   useEffect(() => {
-    // Не показываем восстановление, пока форма не инициализирована в edit-режиме.
-    if (existingDraft && !draftLoading && !draftRestorePrompted && (isNew || editInitialized) && !isEditDataLoading) {
+    // Условие показа промпта восстановления:
+    // - Новый протокол (не копия): сразу
+    // - Копия: после применения данных источника (copyApplied)
+    // - Редактирование: после инициализации (editInitialized)
+    const canShowDraftRestore = 
+      existingDraft && 
+      !draftLoading && 
+      !draftRestorePrompted && 
+      !isEditDataLoading &&
+      (
+        (isNew && !isCopyMode) || 
+        (isCopyMode && copyApplied) || 
+        editInitialized
+      );
+    
+    if (canShowDraftRestore) {
       const draftTime = new Date(existingDraft.savedAt).getTime();
       const now = Date.now();
       const maxAge = 24 * 60 * 60 * 1000; // 24 hours
@@ -396,7 +411,7 @@ export default function ProtocolEditor() {
       
       setDraftRestorePrompted(true);
     }
-  }, [existingDraft, draftLoading, draftRestorePrompted, acceptDraft, discardDraft, isNew, editInitialized, isEditDataLoading]);
+  }, [existingDraft, draftLoading, draftRestorePrompted, acceptDraft, discardDraft, isNew, isCopyMode, copyApplied, editInitialized, isEditDataLoading]);
 
   // Helper to create item from DB record
   function createItemFromDb(item: any, sectionType: SectionType): UniversalItemData {
