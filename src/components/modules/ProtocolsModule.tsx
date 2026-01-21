@@ -17,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { DraftsSection } from "./protocols/DraftsSection";
 
 export function ProtocolsModule() {
   const navigate = useNavigate();
@@ -71,6 +72,9 @@ export function ProtocolsModule() {
           <span className="sm:hidden">Добавить</span>
         </button>
       </div>
+
+      {/* Drafts section */}
+      <DraftsSection />
 
       <div className="space-y-4">
         {isLoading ? (
