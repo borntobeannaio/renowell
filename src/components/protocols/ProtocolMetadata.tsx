@@ -87,6 +87,7 @@ export function ProtocolMetadata({
               onChange={(ids) => onChange({ organizer_id: ids[0] || "" })}
               placeholder="Выберите организатора"
               single
+              usePortal
             />
           </div>
 
@@ -97,6 +98,7 @@ export function ProtocolMetadata({
               selectedIds={form.attendee_ids}
               onChange={(ids) => onChange({ attendee_ids: ids })}
               placeholder="Выберите участников"
+              usePortal
             />
           </div>
         </div>
