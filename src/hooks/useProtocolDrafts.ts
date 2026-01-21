@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { proxySelect, proxyDelete } from '@/lib/dbProxy';
 import { useAuth } from './useAuth';
 
 export interface ProtocolDraft {
@@ -27,16 +27,18 @@ export function useProtocolDrafts() {
     queryFn: async () => {
       if (!user) return [];
 
-      const { data, error } = await supabase
-        .from('form_drafts')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('form_type', 'protocol')
-        .order('updated_at', { ascending: false });
+      const { data, error } = await proxySelect<ProtocolDraft>('form_drafts', {
+        select: '*',
+        filters: [
+          { column: 'user_id', operator: 'eq', value: user.id },
+          { column: 'form_type', operator: 'eq', value: 'protocol' },
+        ],
+        order: [{ column: 'updated_at', ascending: false }],
+      });
 
-      if (error) throw error;
+      if (error) throw new Error(error.message);
 
-      return (data || []) as ProtocolDraft[];
+      return data || [];
     },
     enabled: !!user,
     staleTime: 30_000,
@@ -51,13 +53,12 @@ export function useDeleteProtocolDraft() {
     mutationFn: async (draftId: string) => {
       if (!user) throw new Error('Not authenticated');
 
-      const { error } = await supabase
-        .from('form_drafts')
-        .delete()
-        .eq('id', draftId)
-        .eq('user_id', user.id);
+      const { error } = await proxyDelete('form_drafts', [
+        { column: 'id', operator: 'eq', value: draftId },
+        { column: 'user_id', operator: 'eq', value: user.id },
+      ]);
 
-      if (error) throw error;
+      if (error) throw new Error(error.message);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['protocol-drafts'] });
