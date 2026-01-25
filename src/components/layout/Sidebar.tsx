@@ -86,9 +86,12 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* User Profile with glass effect */}
+      {/* User Profile with glass effect - clickable */}
       <div className="p-4 border-t border-sidebar-border/30 bg-gradient-to-t from-sidebar-accent/20 to-transparent">
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-card/50 backdrop-blur-sm border border-border/30 hover:border-primary/30 transition-all duration-300">
+        <Link
+          to="/profile"
+          className="flex items-center gap-3 p-3 rounded-xl bg-card/50 backdrop-blur-sm border border-border/30 hover:border-primary/30 hover:bg-card/70 transition-all duration-300 cursor-pointer"
+        >
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-md shadow-primary/20">
             <span className="text-sm font-semibold text-primary-foreground">{initials}</span>
           </div>
@@ -96,7 +99,7 @@ export function Sidebar() {
             <p className="text-sm font-semibold text-sidebar-foreground truncate">{fullName}</p>
             <p className="text-xs text-muted-foreground truncate">{position}</p>
           </div>
-        </div>
+        </Link>
       </div>
     </aside>
   );
