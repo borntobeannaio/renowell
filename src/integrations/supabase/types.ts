@@ -656,6 +656,42 @@ export type Database = {
           },
         ]
       }
+      telegram_posts: {
+        Row: {
+          created_at: string | null
+          date: string
+          id: string
+          image_url: string | null
+          link: string
+          message_id: number
+          text: string | null
+          updated_at: string | null
+          video_url: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          id?: string
+          image_url?: string | null
+          link: string
+          message_id: number
+          text?: string | null
+          updated_at?: string | null
+          video_url?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          id?: string
+          image_url?: string | null
+          link?: string
+          message_id?: number
+          text?: string | null
+          updated_at?: string | null
+          video_url?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
