@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ArrowLeft, CalendarIcon, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Save, Loader2, Camera, User } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -31,12 +31,15 @@ export default function Profile() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [position, setPosition] = useState("");
   const [birthday, setBirthday] = useState<Date | undefined>();
   const [description, setDescription] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["profile", user?.id],
@@ -59,6 +62,7 @@ export default function Profile() {
       setLastName(profile.last_name || "");
       setPosition(profile.position || "");
       setDescription(profile.description || "");
+      setAvatarUrl(profile.avatar_url);
       if (profile.birthday) {
         setBirthday(parseISO(profile.birthday));
       }
@@ -76,6 +80,7 @@ export default function Profile() {
           position: position.trim() || null,
           birthday: birthday ? format(birthday, "yyyy-MM-dd") : null,
           description: description.trim() || null,
+          avatar_url: avatarUrl,
         })
         .eq("id", profile.id);
       if (error) throw error;
@@ -88,6 +93,66 @@ export default function Profile() {
       toast.error("Ошибка сохранения профиля");
     },
   });
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Пожалуйста, выберите изображение");
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Размер файла не должен превышать 5 МБ");
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${user.id}/avatar.${fileExt}`;
+
+      // Delete old avatar if exists
+      if (avatarUrl) {
+        const oldPath = avatarUrl.split("/").slice(-2).join("/");
+        await supabase.storage.from("avatars").remove([oldPath]);
+      }
+
+      // Upload new avatar
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(fileName);
+
+      const newAvatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      setAvatarUrl(newAvatarUrl);
+
+      // Update profile with new avatar URL
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: newAvatarUrl })
+        .eq("id", profile?.id);
+
+      if (updateError) throw updateError;
+
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      toast.success("Аватар обновлён");
+    } catch (error) {
+      console.error("Avatar upload error:", error);
+      toast.error("Ошибка загрузки аватара");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleSave = () => {
     updateMutation.mutate();
@@ -130,10 +195,38 @@ export default function Profile() {
         <div className="space-y-8">
           {/* Avatar & Name */}
           <div className="flex items-center gap-4">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg">
-              <span className="text-2xl font-bold text-primary-foreground">
-                {initials}
-              </span>
+            <div className="relative">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={fullName}
+                  className="w-24 h-24 rounded-full object-cover shadow-lg"
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg">
+                  <span className="text-3xl font-bold text-primary-foreground">
+                    {initials}
+                  </span>
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-md hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {isUploading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Camera className="w-4 h-4" />
+                )}
+              </button>
             </div>
             <div>
               <h1 className="text-2xl font-bold">{fullName}</h1>
