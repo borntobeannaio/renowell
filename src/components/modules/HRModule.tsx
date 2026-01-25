@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Modal } from "@/components/ui/Modal";
 import { Lightbox } from "@/components/ui/Lightbox";
@@ -67,9 +67,7 @@ export function HRModule() {
 }
 
 function EmployeesTab() {
-  const queryClient = useQueryClient();
   const [selectedEmployee, setSelectedEmployee] = useState<DbEmployee | null>(null);
-  const [birthdayInput, setBirthdayInput] = useState("");
 
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ['employees'],
@@ -83,29 +81,8 @@ function EmployeesTab() {
     },
   });
 
-  const updateBirthdayMutation = useMutation({
-    mutationFn: async ({ id, birthday }: { id: string; birthday: string }) => {
-      const { error } = await supabase
-        .from('employees')
-        .update({ birthday })
-        .eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-    },
-  });
-
   const openEmployeeCard = (emp: DbEmployee) => {
     setSelectedEmployee(emp);
-    setBirthdayInput(emp.birthday || "");
-  };
-
-  const handleSaveBirthday = () => {
-    if (selectedEmployee && birthdayInput) {
-      updateBirthdayMutation.mutate({ id: selectedEmployee.id, birthday: birthdayInput });
-      setSelectedEmployee({ ...selectedEmployee, birthday: birthdayInput });
-    }
   };
 
   if (isLoading) {
@@ -144,6 +121,12 @@ function EmployeesTab() {
                 <p className="text-sm text-muted-foreground truncate">
                   {emp.position}
                 </p>
+                {emp.birthday && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                    <Cake className="w-3 h-3" />
+                    {formatDisplayDate(emp.birthday)}
+                  </p>
+                )}
               </div>
             </div>
           </button>
@@ -209,32 +192,11 @@ function EmployeesTab() {
                   </a>
                 </div>
               )}
-            </div>
-
-            <div className="pt-4 border-t border-border">
-              <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
-                <Cake className="w-4 h-4" />
-                День рождения
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="date"
-                  value={birthdayInput}
-                  onChange={(e) => setBirthdayInput(e.target.value)}
-                  className="input-base flex-1"
-                />
-                <button
-                  onClick={handleSaveBirthday}
-                  className="btn-primary"
-                  disabled={!birthdayInput || updateBirthdayMutation.isPending}
-                >
-                  {updateBirthdayMutation.isPending ? 'Сохранение...' : 'Сохранить'}
-                </button>
-              </div>
               {selectedEmployee.birthday && (
-                <p className="text-sm text-muted-foreground mt-2">
-                  Текущее значение: {formatDisplayDate(selectedEmployee.birthday)}
-                </p>
+                <div className="flex items-center gap-3 text-foreground">
+                  <Cake className="w-4 h-4 text-muted-foreground" />
+                  <span>{formatDisplayDate(selectedEmployee.birthday)}</span>
+                </div>
               )}
             </div>
           </div>
