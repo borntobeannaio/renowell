@@ -1,109 +1,91 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
-const CHANNEL_USERNAME = '@oparinandrey_renowell';
+const CHANNEL_URL = 'https://t.me/s/oparinandrey_renowell';
+const CHANNEL_USERNAME = 'oparinandrey_renowell';
 
-interface TelegramMessage {
+interface ParsedPost {
   message_id: number;
-  date: number;
-  text?: string;
-  caption?: string;
-  photo?: Array<{
-    file_id: string;
-    file_unique_id: string;
-    width: number;
-    height: number;
-  }>;
-  video?: {
-    file_id: string;
-    thumbnail?: {
-      file_id: string;
-    };
-  };
+  text: string | null;
+  date: string;
+  image_url: string | null;
+  video_url: string | null;
+  link: string;
 }
 
-interface TelegramUpdate {
-  update_id: number;
-  channel_post?: TelegramMessage;
+function stripHtmlTags(html: string): string {
+  // Replace <br> tags with newlines
+  let text = html.replace(/<br\s*\/?>/gi, '\n');
+  // Remove all other HTML tags
+  text = text.replace(/<[^>]+>/g, '');
+  // Decode HTML entities
+  text = text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+  // Clean up extra whitespace
+  text = text.replace(/\n{3,}/g, '\n\n').trim();
+  return text;
 }
 
-async function getFileUrl(fileId: string): Promise<string | null> {
-  try {
-    const response = await fetch(
-      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${fileId}`
-    );
-    const data = await response.json();
+function parsePostsFromHtml(html: string): ParsedPost[] {
+  const posts: ParsedPost[] = [];
+  
+  // Match individual message containers
+  const messagePattern = /<div class="tgme_widget_message_wrap[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>\s*<\/div>/g;
+  
+  let match;
+  while ((match = messagePattern.exec(html)) !== null) {
+    const messageHtml = match[0];
     
-    if (data.ok && data.result?.file_path) {
-      return `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${data.result.file_path}`;
+    // Extract message ID from data-post attribute
+    const postIdMatch = messageHtml.match(/data-post="[^\/]+\/(\d+)"/);
+    if (!postIdMatch) continue;
+    
+    const messageId = parseInt(postIdMatch[1], 10);
+    
+    // Extract text content
+    const textMatch = messageHtml.match(/<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>\s*(?:<div class="tgme_widget_message_|<\/div>)/);
+    const text = textMatch ? stripHtmlTags(textMatch[1]) : null;
+    
+    // Extract image URL from background-image style
+    const imageMatch = messageHtml.match(/style="[^"]*background-image:\s*url\('([^']+)'\)/);
+    const imageUrl = imageMatch ? imageMatch[1] : null;
+    
+    // Extract video thumbnail if no image
+    const videoThumbMatch = messageHtml.match(/<i class="tgme_widget_message_video_thumb"[^>]*style="[^"]*background-image:\s*url\('([^']+)'\)/);
+    const videoUrl = videoThumbMatch ? videoThumbMatch[1] : null;
+    
+    // Extract datetime
+    const dateMatch = messageHtml.match(/<time[^>]*datetime="([^"]+)"/);
+    const date = dateMatch ? dateMatch[1] : new Date().toISOString();
+    
+    // Construct link
+    const link = `https://t.me/${CHANNEL_USERNAME}/${messageId}`;
+    
+    // Only add posts that have content (text or media)
+    if (text || imageUrl || videoUrl) {
+      posts.push({
+        message_id: messageId,
+        text,
+        date,
+        image_url: imageUrl,
+        video_url: videoUrl,
+        link,
+      });
     }
-    return null;
-  } catch (error) {
-    console.error('Error getting file URL:', error);
-    return null;
   }
-}
-
-async function getChannelMessages(): Promise<any[]> {
-  try {
-    // Get updates from the bot
-    const response = await fetch(
-      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?allowed_updates=["channel_post"]&limit=50`
-    );
-    const data = await response.json();
-    
-    console.log('Telegram API response:', JSON.stringify(data, null, 2));
-    
-    if (!data.ok) {
-      console.error('Telegram API error:', data.description);
-      return [];
-    }
-    
-    const updates: TelegramUpdate[] = data.result || [];
-    
-    // Filter channel posts and transform them
-    const posts = await Promise.all(
-      updates
-        .filter((update) => update.channel_post)
-        .map(async (update) => {
-          const post = update.channel_post!;
-          let imageUrl: string | null = null;
-          
-          // Get the largest photo if available
-          if (post.photo && post.photo.length > 0) {
-            const largestPhoto = post.photo[post.photo.length - 1];
-            imageUrl = await getFileUrl(largestPhoto.file_id);
-          }
-          
-          // Get video thumbnail if available
-          if (post.video?.thumbnail) {
-            imageUrl = await getFileUrl(post.video.thumbnail.file_id);
-          }
-          
-          return {
-            id: post.message_id,
-            text: post.text || post.caption || '',
-            date: new Date(post.date * 1000).toISOString(),
-            imageUrl,
-            link: `https://t.me/oparinandrey_renowell/${post.message_id}`,
-          };
-        })
-    );
-    
-    // Sort by date descending and take latest 20
-    return posts
-      .filter((post) => post.text || post.imageUrl)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 20);
-  } catch (error) {
-    console.error('Error fetching channel messages:', error);
-    return [];
-  }
+  
+  console.log(`[telegram-channel] Parsed ${posts.length} posts from HTML`);
+  return posts;
 }
 
 serve(async (req) => {
@@ -113,15 +95,81 @@ serve(async (req) => {
   }
 
   try {
-    if (!TELEGRAM_BOT_TOKEN) {
-      throw new Error('TELEGRAM_BOT_TOKEN not configured');
+    console.log('[telegram-channel] Fetching channel page...');
+    
+    // Fetch the public channel page
+    const response = await fetch(CHANNEL_URL, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch channel page: ${response.status}`);
     }
-
-    console.log('[telegram-channel] Fetching channel posts...');
-    const posts = await getChannelMessages();
-    console.log(`[telegram-channel] Found ${posts.length} posts`);
-
-    return new Response(JSON.stringify({ posts }), {
+    
+    const html = await response.text();
+    console.log(`[telegram-channel] Received ${html.length} bytes of HTML`);
+    
+    // Parse posts from HTML
+    const parsedPosts = parsePostsFromHtml(html);
+    
+    if (parsedPosts.length === 0) {
+      console.log('[telegram-channel] No posts parsed, returning empty array');
+      return new Response(JSON.stringify({ posts: [], parsed: 0 }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    // Save to database using service role
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Missing Supabase configuration');
+    }
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Upsert posts to database
+    const postsToUpsert = parsedPosts.map(p => ({
+      message_id: p.message_id,
+      text: p.text,
+      date: p.date,
+      image_url: p.image_url,
+      video_url: p.video_url,
+      link: p.link,
+      updated_at: new Date().toISOString(),
+    }));
+    
+    const { error: upsertError } = await supabase
+      .from('telegram_posts')
+      .upsert(postsToUpsert, { onConflict: 'message_id' });
+    
+    if (upsertError) {
+      console.error('[telegram-channel] Upsert error:', upsertError);
+      throw upsertError;
+    }
+    
+    console.log(`[telegram-channel] Upserted ${postsToUpsert.length} posts to database`);
+    
+    // Fetch latest posts from database
+    const { data: posts, error: fetchError } = await supabase
+      .from('telegram_posts')
+      .select('*')
+      .order('date', { ascending: false })
+      .limit(20);
+    
+    if (fetchError) {
+      console.error('[telegram-channel] Fetch error:', fetchError);
+      throw fetchError;
+    }
+    
+    console.log(`[telegram-channel] Returning ${posts?.length || 0} posts`);
+    
+    return new Response(JSON.stringify({ posts: posts || [], parsed: parsedPosts.length }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
