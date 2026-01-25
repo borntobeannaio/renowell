@@ -14,6 +14,7 @@ import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { proxyUpload, proxyDelete, proxyGetPublicUrl } from "@/lib/storageProxy";
 import renowellLogo from "@/assets/renowell-logo-text.png";
 
 interface ProfileData {
@@ -115,25 +116,23 @@ export default function Profile() {
       const fileExt = file.name.split(".").pop();
       const fileName = `${user.id}/avatar.${fileExt}`;
 
-      // Delete old avatar if exists
+      // Delete old avatar if exists (via proxy)
       if (avatarUrl) {
-        const oldPath = avatarUrl.split("/").slice(-2).join("/");
-        await supabase.storage.from("avatars").remove([oldPath]);
+        const oldPath = avatarUrl.split("/").slice(-2).join("/").split("?")[0];
+        await proxyDelete("avatars", [oldPath]);
       }
 
-      // Upload new avatar
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(fileName, file, { upsert: true });
+      // Upload new avatar via proxy
+      const { error: uploadError } = await proxyUpload("avatars", fileName, file, { upsert: true });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) throw new Error(uploadError.message);
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(fileName);
+      // Get public URL via proxy
+      const { data: urlData, error: urlError } = await proxyGetPublicUrl("avatars", fileName);
 
-      const newAvatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      if (urlError) throw new Error(urlError.message);
+
+      const newAvatarUrl = `${urlData?.publicUrl}?t=${Date.now()}`;
       setAvatarUrl(newAvatarUrl);
 
       // Update profile with new avatar URL
