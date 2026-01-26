@@ -292,6 +292,9 @@ export default function Profile() {
                     disabled={(date) =>
                       date > new Date() || date < new Date("1900-01-01")
                     }
+                    captionLayout="dropdown-buttons"
+                    fromYear={1950}
+                    toYear={new Date().getFullYear()}
                     initialFocus
                     className={cn("p-3 pointer-events-auto")}
                     locale={ru}
