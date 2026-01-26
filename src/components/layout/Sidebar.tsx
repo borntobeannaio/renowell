@@ -1,6 +1,6 @@
 import { useAuth } from "@/hooks/useAuth";
 import { NavigationSection } from "@/types";
-import { supabase } from "@/integrations/supabase/client";
+import { proxySelect } from "@/lib/dbProxy";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -24,6 +24,13 @@ const navItems: { id: NavigationSection; path: string; label: string; icon: Reac
   { id: "knowledge", path: "/knowledge", label: "База знаний", icon: BookOpen },
 ];
 
+interface ProfileData {
+  first_name: string | null;
+  last_name: string | null;
+  position: string | null;
+  avatar_url: string | null;
+}
+
 export function Sidebar() {
   const location = useLocation();
   const { user } = useAuth();
@@ -32,13 +39,13 @@ export function Sidebar() {
     queryKey: ['profile', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('first_name, last_name, position, avatar_url')
-        .eq('user_id', user.id)
-        .single();
-      if (error) throw error;
-      return data;
+      const { data, error } = await proxySelect<ProfileData>('profiles', {
+        select: 'first_name, last_name, position, avatar_url',
+        filters: [{ column: 'user_id', operator: 'eq', value: user.id }],
+        limit: 1,
+      });
+      if (error) throw new Error(error.message);
+      return data?.[0] ?? null;
     },
     enabled: !!user?.id,
   });

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { proxySelect } from "@/lib/dbProxy";
 import { Modal } from "@/components/ui/Modal";
 import { Lightbox } from "@/components/ui/Lightbox";
 import { formatDisplayDate } from "@/utils/dateFormat";
@@ -72,12 +72,12 @@ function EmployeesTab() {
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ['employees'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('employees')
-        .select('*')
-        .order('full_name');
-      if (error) throw error;
-      return data as DbEmployee[];
+      const { data, error } = await proxySelect<DbEmployee>('employees', {
+        select: '*',
+        order: [{ column: 'full_name', ascending: true }],
+      });
+      if (error) throw new Error(error.message);
+      return data ?? [];
     },
   });
 
