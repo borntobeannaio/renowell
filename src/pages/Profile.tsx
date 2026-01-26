@@ -85,9 +85,22 @@ export default function Profile() {
         })
         .eq("id", profile.id);
       if (error) throw error;
+
+      // Sync to linked employee
+      const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
+      await supabase
+        .from("employees")
+        .update({
+          full_name: fullName || "Пользователь",
+          position: position.trim() || "Сотрудник",
+          birthday: birthday ? format(birthday, "yyyy-MM-dd") : null,
+          avatar_url: avatarUrl,
+        })
+        .eq("profile_id", profile.id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
       toast.success("Профиль сохранён");
     },
     onError: () => {
@@ -143,7 +156,16 @@ export default function Profile() {
 
       if (updateError) throw updateError;
 
+      // Sync avatar to linked employee
+      if (profile?.id) {
+        await supabase
+          .from("employees")
+          .update({ avatar_url: newAvatarUrl })
+          .eq("profile_id", profile.id);
+      }
+
       queryClient.invalidateQueries({ queryKey: ["profile"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
       toast.success("Аватар обновлён");
     } catch (error) {
       console.error("Avatar upload error:", error);
