@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { CallProvider } from "@/components/call/CallProvider";
 import { ThemeProvider } from "next-themes";
+import { MaintenanceOverlay } from "@/components/MaintenanceOverlay";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -23,9 +24,13 @@ const queryClient = new QueryClient({
   },
 });
 
+// Временный флаг для режима обслуживания
+const MAINTENANCE_MODE = true;
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+      {MAINTENANCE_MODE && <MaintenanceOverlay />}
       <AuthProvider>
         <TooltipProvider>
           <CallProvider>
