@@ -34,7 +34,7 @@ export function Sidebar() {
       if (!user?.id) return null;
       const { data, error } = await supabase
         .from('profiles')
-        .select('first_name, last_name, position')
+        .select('first_name, last_name, position, avatar_url')
         .eq('user_id', user.id)
         .single();
       if (error) throw error;
@@ -46,6 +46,7 @@ export function Sidebar() {
   const firstName = profile?.first_name || '';
   const lastName = profile?.last_name || '';
   const position = profile?.position || 'Сотрудник';
+  const avatarUrl = profile?.avatar_url;
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || 'U';
   const fullName = [firstName, lastName].filter(Boolean).join(' ') || 'Пользователь';
 
@@ -92,9 +93,17 @@ export function Sidebar() {
           to="/profile"
           className="flex items-center gap-3 p-3 rounded-xl bg-card/50 backdrop-blur-sm border border-border/30 hover:border-primary/30 hover:bg-card/70 transition-all duration-300 cursor-pointer"
         >
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-md shadow-primary/20">
-            <span className="text-sm font-semibold text-primary-foreground">{initials}</span>
-          </div>
+          {avatarUrl ? (
+            <img 
+              src={avatarUrl} 
+              alt={fullName}
+              className="w-10 h-10 rounded-full object-cover shadow-md shadow-primary/20"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-md shadow-primary/20">
+              <span className="text-sm font-semibold text-primary-foreground">{initials}</span>
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-sidebar-foreground truncate">{fullName}</p>
             <p className="text-xs text-muted-foreground truncate">{position}</p>
