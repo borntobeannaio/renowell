@@ -25,7 +25,7 @@ const queryClient = new QueryClient({
 });
 
 // Временный флаг для режима обслуживания
-const MAINTENANCE_MODE = true;
+const MAINTENANCE_MODE = false;
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
