@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +13,8 @@ import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { proxyUpload, proxyDelete, proxyGetPublicUrl } from "@/lib/storageProxy";
+import { proxyUpload, proxyDelete as storageProxyDelete, proxyGetPublicUrl } from "@/lib/storageProxy";
+import { proxySelect, proxyUpdate } from "@/lib/dbProxy";
 import renowellLogo from "@/assets/renowell-logo-text.png";
 
 interface ProfileData {
@@ -46,13 +46,13 @@ export default function Profile() {
     queryKey: ["profile", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data as ProfileData | null;
+      const { data, error } = await proxySelect<ProfileData>("profiles", {
+        select: "*",
+        filters: [{ column: "user_id", operator: "eq", value: user.id }],
+        limit: 1,
+      });
+      if (error) throw new Error(error.message);
+      return data?.[0] ?? null;
     },
     enabled: !!user?.id,
   });
@@ -73,30 +73,32 @@ export default function Profile() {
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!user?.id || !profile?.id) throw new Error("No user");
-      const { error } = await supabase
-        .from("profiles")
-        .update({
+      const { error } = await proxyUpdate(
+        "profiles",
+        {
           first_name: firstName.trim() || null,
           last_name: lastName.trim() || null,
           position: position.trim() || null,
           birthday: birthday ? format(birthday, "yyyy-MM-dd") : null,
           description: description.trim() || null,
           avatar_url: avatarUrl,
-        })
-        .eq("id", profile.id);
-      if (error) throw error;
+        },
+        [{ column: "id", operator: "eq", value: profile.id }]
+      );
+      if (error) throw new Error(error.message);
 
       // Sync to linked employee
       const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
-      await supabase
-        .from("employees")
-        .update({
+      await proxyUpdate(
+        "employees",
+        {
           full_name: fullName || "Пользователь",
           position: position.trim() || "Сотрудник",
           birthday: birthday ? format(birthday, "yyyy-MM-dd") : null,
           avatar_url: avatarUrl,
-        })
-        .eq("profile_id", profile.id);
+        },
+        [{ column: "profile_id", operator: "eq", value: profile.id }]
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
@@ -129,18 +131,18 @@ export default function Profile() {
       const fileExt = file.name.split(".").pop();
       const fileName = `${user.id}/avatar.${fileExt}`;
 
-      // Delete old avatar if exists (via proxy)
+      // Delete old avatar if exists (via storage proxy)
       if (avatarUrl) {
         const oldPath = avatarUrl.split("/").slice(-2).join("/").split("?")[0];
-        await proxyDelete("avatars", [oldPath]);
+        await storageProxyDelete("avatars", [oldPath]);
       }
 
-      // Upload new avatar via proxy
+      // Upload new avatar via storage proxy
       const { error: uploadError } = await proxyUpload("avatars", fileName, file, { upsert: true });
 
       if (uploadError) throw new Error(uploadError.message);
 
-      // Get public URL via proxy
+      // Get public URL via storage proxy
       const { data: urlData, error: urlError } = await proxyGetPublicUrl("avatars", fileName);
 
       if (urlError) throw new Error(urlError.message);
@@ -148,20 +150,22 @@ export default function Profile() {
       const newAvatarUrl = `${urlData?.publicUrl}?t=${Date.now()}`;
       setAvatarUrl(newAvatarUrl);
 
-      // Update profile with new avatar URL
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ avatar_url: newAvatarUrl })
-        .eq("id", profile?.id);
+      // Update profile with new avatar URL via db proxy
+      const { error: updateError } = await proxyUpdate(
+        "profiles",
+        { avatar_url: newAvatarUrl },
+        [{ column: "id", operator: "eq", value: profile?.id }]
+      );
 
-      if (updateError) throw updateError;
+      if (updateError) throw new Error(updateError.message);
 
-      // Sync avatar to linked employee
+      // Sync avatar to linked employee via db proxy
       if (profile?.id) {
-        await supabase
-          .from("employees")
-          .update({ avatar_url: newAvatarUrl })
-          .eq("profile_id", profile.id);
+        await proxyUpdate(
+          "employees",
+          { avatar_url: newAvatarUrl },
+          [{ column: "profile_id", operator: "eq", value: profile.id }]
+        );
       }
 
       queryClient.invalidateQueries({ queryKey: ["profile"] });
