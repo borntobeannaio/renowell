@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { proxySelect, proxyInsert, proxyDelete } from "@/lib/dbProxy";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
-import { useCreateNotification } from "@/hooks/useNotifications";
 
 export interface TaskComment {
   id: string;
@@ -40,7 +39,6 @@ export function useTaskComments(taskId: string | null) {
 export function useCreateTaskComment() {
   const queryClient = useQueryClient();
   const { data: profile } = useCurrentProfile();
-  const createNotification = useCreateNotification();
 
   return useMutation({
     mutationFn: async ({ 
@@ -73,7 +71,7 @@ export function useCreateTaskComment() {
       
       const comment = data?.[0];
       
-      // Создание записей об упоминаниях
+      // Создание записей об упоминаниях и уведомлений
       if (mentionedProfileIds.length > 0 && comment) {
         // Вставляем записи об упоминаниях
         await proxyInsert("comment_mentions", 
@@ -83,17 +81,21 @@ export function useCreateTaskComment() {
           }))
         );
 
-        // Создаём уведомления для упомянутых пользователей
-        for (const mentionedId of mentionedProfileIds) {
-          // Не уведомляем самого себя
-          if (mentionedId !== profile.id) {
-            await createNotification.mutateAsync({
-              recipient_id: mentionedId,
-              type: "mention",
-              title: "Вас упомянули в комментарии",
-              body: `${authorName} в задаче "${taskTitle}"`,
-              related_task_id: taskId,
-            });
+        // Создаём уведомления для упомянутых пользователей напрямую через proxyInsert
+        const notificationsToCreate = mentionedProfileIds
+          .filter(mentionedId => mentionedId !== profile.id) // Не уведомляем самого себя
+          .map(mentionedId => ({
+            recipient_id: mentionedId,
+            type: "mention" as const,
+            title: "Вас упомянули в комментарии",
+            body: `${authorName} в задаче "${taskTitle}"`,
+            related_task_id: taskId,
+          }));
+
+        if (notificationsToCreate.length > 0) {
+          const { error: notifError } = await proxyInsert("notifications", notificationsToCreate);
+          if (notifError) {
+            console.error("Failed to create mention notifications:", notifError);
           }
         }
       }
