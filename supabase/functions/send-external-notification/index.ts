@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import webpush from "https://esm.sh/web-push@3.6.7";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +16,15 @@ const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY");
 
 // Telegram Bot Token
 const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
+
+// Configure web-push with VAPID details
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    "mailto:support@renowell.ru",
+    VAPID_PUBLIC_KEY,
+    VAPID_PRIVATE_KEY
+  );
+}
 
 interface NotificationPayload {
   notification_id: string;
@@ -161,19 +171,19 @@ async function sendPushNotification(
       url: link || "/",
     });
 
-    // For Web Push, we need proper encryption which is complex
-    // Using a simplified approach - just log that we would send
-    // In production, use the web-push npm package in a Node.js environment
-    // or a third-party push notification service
-    
-    console.log("Push notification would be sent to:", subscription.endpoint);
-    console.log("Payload:", payload);
-    
-    // For now, we'll mark as successful if subscription exists
-    // Real implementation requires VAPID JWT signing and payload encryption
+    // Send push notification using web-push library
+    const result = await webpush.sendNotification(subscription, payload);
+    console.log("Push notification sent successfully:", result.statusCode);
     return true;
-  } catch (error) {
-    console.error("Error sending push notification:", error);
+  } catch (error: unknown) {
+    const err = error as { statusCode?: number; body?: string };
+    console.error("Error sending push notification:", err);
+    
+    // Handle expired/invalid subscriptions
+    if (err.statusCode === 410 || err.statusCode === 404) {
+      console.log("Push subscription expired or invalid, should be removed");
+    }
+    
     return false;
   }
 }
