@@ -8,3 +8,9 @@ verify_jwt = true
 
 [functions.deadline-notifications]
 verify_jwt = false
+
+[functions.send-external-notification]
+verify_jwt = false
+
+[functions.telegram-webhook]
+verify_jwt = false
