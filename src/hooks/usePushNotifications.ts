@@ -3,8 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { proxySelect, proxyUpdate } from "@/lib/dbProxy";
 
 // VAPID public key - safe to expose in client code
-// This needs to be generated and the private key added to secrets
-const VAPID_PUBLIC_KEY = "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U";
+const VAPID_PUBLIC_KEY = "BCbN8Vmp7W-Pdn7CjKXrDZVTpQI_sLo3TKkH-wqK_fgWn2lt0dvKq0EE7phVvZPkD7Ttl6V8gEkSeyRyYJN4eP4";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
