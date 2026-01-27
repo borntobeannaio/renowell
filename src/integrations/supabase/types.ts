@@ -420,7 +420,12 @@ export type Database = {
           first_name: string | null
           id: string
           last_name: string | null
+          notify_email: boolean | null
+          notify_push: boolean | null
+          notify_telegram: boolean | null
           position: string | null
+          push_subscription: Json | null
+          telegram_chat_id: string | null
           updated_at: string
           user_id: string
         }
@@ -432,7 +437,12 @@ export type Database = {
           first_name?: string | null
           id?: string
           last_name?: string | null
+          notify_email?: boolean | null
+          notify_push?: boolean | null
+          notify_telegram?: boolean | null
           position?: string | null
+          push_subscription?: Json | null
+          telegram_chat_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -444,7 +454,12 @@ export type Database = {
           first_name?: string | null
           id?: string
           last_name?: string | null
+          notify_email?: boolean | null
+          notify_push?: boolean | null
+          notify_telegram?: boolean | null
           position?: string | null
+          push_subscription?: Json | null
+          telegram_chat_id?: string | null
           updated_at?: string
           user_id?: string
         }

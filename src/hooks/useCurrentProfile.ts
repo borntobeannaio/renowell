@@ -13,6 +13,12 @@ export interface Profile {
   description: string | null;
   created_at: string;
   updated_at: string;
+  // Notification settings
+  telegram_chat_id: string | null;
+  notify_telegram: boolean;
+  notify_email: boolean;
+  notify_push: boolean;
+  push_subscription: object | null;
 }
 
 export function useCurrentProfile() {
