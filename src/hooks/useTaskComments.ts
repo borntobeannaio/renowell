@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { proxySelect, proxyInsert, proxyDelete } from "@/lib/dbProxy";
+import { useCurrentProfile } from "@/hooks/useCurrentProfile";
+import { useCreateNotification } from "@/hooks/useNotifications";
 
 export interface TaskComment {
   id: string;
@@ -22,17 +24,14 @@ export function useTaskComments(taskId: string | null) {
     queryFn: async () => {
       if (!taskId) return [];
       
-      const { data, error } = await supabase
-        .from("task_comments")
-        .select(`
-          *,
-          author:profiles!task_comments_author_id_fkey(id, first_name, last_name, avatar_url)
-        `)
-        .eq("task_id", taskId)
-        .order("created_at", { ascending: true });
+      const { data, error } = await proxySelect<TaskComment>("task_comments", {
+        select: "*, author:profiles!task_comments_author_id_fkey(id, first_name, last_name, avatar_url)",
+        filters: [{ column: "task_id", operator: "eq", value: taskId }],
+        order: [{ column: "created_at", ascending: true }],
+      });
 
-      if (error) throw error;
-      return data as TaskComment[];
+      if (error) throw new Error(error.message);
+      return (data as TaskComment[]) || [];
     },
     enabled: !!taskId,
   });
@@ -40,31 +39,66 @@ export function useTaskComments(taskId: string | null) {
 
 export function useCreateTaskComment() {
   const queryClient = useQueryClient();
+  const { data: profile } = useCurrentProfile();
+  const createNotification = useCreateNotification();
 
   return useMutation({
-    mutationFn: async ({ taskId, content }: { taskId: string; content: string }) => {
-      // Get current user's profile id
-      const { data: profileData, error: profileError } = await supabase
-        .rpc("get_user_profile_id");
+    mutationFn: async ({ 
+      taskId, 
+      content,
+      mentionedProfileIds = [],
+      taskTitle = "Задача",
+      authorName = "Пользователь"
+    }: { 
+      taskId: string; 
+      content: string;
+      mentionedProfileIds?: string[];
+      taskTitle?: string;
+      authorName?: string;
+    }) => {
+      if (!profile?.id) throw new Error("Профиль пользователя не найден");
 
-      if (profileError) throw profileError;
-      if (!profileData) throw new Error("Профиль пользователя не найден");
-
-      const { data, error } = await supabase
-        .from("task_comments")
-        .insert({
+      // Создание комментария
+      const { data, error } = await proxyInsert<TaskComment>(
+        "task_comments",
+        {
           task_id: taskId,
-          author_id: profileData,
+          author_id: profile.id,
           content: content.trim(),
-        })
-        .select(`
-          *,
-          author:profiles!task_comments_author_id_fkey(id, first_name, last_name, avatar_url)
-        `)
-        .single();
+        },
+        "*, author:profiles!task_comments_author_id_fkey(id, first_name, last_name, avatar_url)"
+      );
 
-      if (error) throw error;
-      return data;
+      if (error) throw new Error(error.message);
+      
+      const comment = data?.[0];
+      
+      // Создание записей об упоминаниях
+      if (mentionedProfileIds.length > 0 && comment) {
+        // Вставляем записи об упоминаниях
+        await proxyInsert("comment_mentions", 
+          mentionedProfileIds.map(userId => ({
+            comment_id: comment.id,
+            mentioned_user_id: userId,
+          }))
+        );
+
+        // Создаём уведомления для упомянутых пользователей
+        for (const mentionedId of mentionedProfileIds) {
+          // Не уведомляем самого себя
+          if (mentionedId !== profile.id) {
+            await createNotification.mutateAsync({
+              recipient_id: mentionedId,
+              type: "mention",
+              title: "Вас упомянули в комментарии",
+              body: `${authorName} в задаче "${taskTitle}"`,
+              related_task_id: taskId,
+            });
+          }
+        }
+      }
+
+      return comment;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["task-comments", variables.taskId] });
@@ -77,12 +111,11 @@ export function useDeleteTaskComment() {
 
   return useMutation({
     mutationFn: async ({ commentId, taskId }: { commentId: string; taskId: string }) => {
-      const { error } = await supabase
-        .from("task_comments")
-        .delete()
-        .eq("id", commentId);
+      const { error } = await proxyDelete("task_comments", [
+        { column: "id", operator: "eq", value: commentId },
+      ]);
 
-      if (error) throw error;
+      if (error) throw new Error(error.message);
       return { taskId };
     },
     onSuccess: (data) => {

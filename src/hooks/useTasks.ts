@@ -85,7 +85,21 @@ export function useCreateTask() {
       }, '*');
 
       if (error) throw new Error(error.message);
-      return data?.[0];
+      
+      const newTask = data?.[0];
+      
+      // Создаём уведомление о назначении задачи
+      if (newTask && task.assignee_id) {
+        await proxyInsert('notifications', {
+          recipient_id: task.assignee_id,
+          type: 'task_assigned',
+          title: 'Новая задача',
+          body: task.title,
+          related_task_id: newTask.id,
+        });
+      }
+      
+      return newTask;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });

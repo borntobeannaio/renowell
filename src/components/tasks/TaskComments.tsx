@@ -1,45 +1,51 @@
 import { useState, useEffect, useRef } from "react";
 import { Send, Trash2, MessageSquare } from "lucide-react";
 import { useTaskComments, useCreateTaskComment, useDeleteTaskComment, TaskComment } from "@/hooks/useTaskComments";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { useCurrentProfile } from "@/hooks/useCurrentProfile";
+import { useEmployees } from "@/hooks/useEmployees";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { toast } from "sonner";
+import { MentionInput, extractMentions } from "./MentionInput";
+import { cn } from "@/lib/utils";
 
 interface TaskCommentsProps {
   taskId: string;
+  taskTitle?: string;
 }
 
-export function TaskComments({ taskId }: TaskCommentsProps) {
+export function TaskComments({ taskId, taskTitle }: TaskCommentsProps) {
   const [newComment, setNewComment] = useState("");
-  const [currentProfileId, setCurrentProfileId] = useState<string | null>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
   
+  const { data: profile } = useCurrentProfile();
+  const { data: employees = [] } = useEmployees();
   const { data: comments = [], isLoading } = useTaskComments(taskId);
   const createComment = useCreateTaskComment();
   const deleteComment = useDeleteTaskComment();
-
-  // Get current user's profile id
-  useEffect(() => {
-    const fetchProfileId = async () => {
-      const { data } = await supabase.rpc("get_user_profile_id");
-      setCurrentProfileId(data);
-    };
-    fetchProfileId();
-  }, []);
 
   // Auto-scroll to bottom when new comments arrive
   useEffect(() => {
     commentsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [comments.length]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     if (!newComment.trim()) return;
 
+    // Извлечь упоминания для создания уведомлений
+    const mentionedNames = extractMentions(newComment);
+    const mentionedProfileIds = mentionedNames
+      .map((name) => employees.find((e) => e.full_name === name)?.profile_id)
+      .filter(Boolean) as string[];
+
     createComment.mutate(
-      { taskId, content: newComment },
+      { 
+        taskId, 
+        content: newComment,
+        mentionedProfileIds,
+        taskTitle: taskTitle || "Задача",
+        authorName: profile ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim() : "Пользователь"
+      },
       {
         onSuccess: () => {
           setNewComment("");
@@ -75,6 +81,24 @@ export function TaskComments({ taskId }: TaskCommentsProps) {
     return `${(first_name || "")[0] || ""}${(last_name || "")[0] || ""}`.toUpperCase() || "?";
   };
 
+  // Подсветка упоминаний в тексте
+  const renderContentWithMentions = (content: string) => {
+    const MENTION_REGEX = /@([А-Яа-яЁёA-Za-z]+\s[А-Яа-яЁёA-Za-z]+)/g;
+    const parts = content.split(MENTION_REGEX);
+    
+    return parts.map((part, index) => {
+      // Нечётные индексы — это захваченные имена
+      if (index % 2 === 1) {
+        return (
+          <span key={index} className="text-primary font-medium">
+            @{part}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -92,7 +116,7 @@ export function TaskComments({ taskId }: TaskCommentsProps) {
           </p>
         ) : (
           comments.map((comment) => {
-            const isOwn = comment.author_id === currentProfileId;
+            const isOwn = comment.author_id === profile?.id;
             
             return (
               <div
@@ -108,9 +132,10 @@ export function TaskComments({ taskId }: TaskCommentsProps) {
 
                 {/* Comment bubble */}
                 <div
-                  className={`flex-1 max-w-[80%] ${
+                  className={cn(
+                    "flex-1 max-w-[80%] rounded-lg p-3",
                     isOwn ? "bg-primary/10" : "bg-muted"
-                  } rounded-lg p-3`}
+                  )}
                 >
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <span className="text-xs font-medium text-foreground">
@@ -135,7 +160,7 @@ export function TaskComments({ taskId }: TaskCommentsProps) {
                     </div>
                   </div>
                   <p className="text-sm text-foreground whitespace-pre-wrap break-words">
-                    {comment.content}
+                    {renderContentWithMentions(comment.content)}
                   </p>
                 </div>
               </div>
@@ -145,24 +170,27 @@ export function TaskComments({ taskId }: TaskCommentsProps) {
         <div ref={commentsEndRef} />
       </div>
 
-      {/* New comment form */}
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <input
-          type="text"
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          placeholder="Написать комментарий..."
-          className="input-base flex-1 text-sm"
-          disabled={createComment.isPending}
-        />
+      {/* New comment form with mentions */}
+      <div className="flex gap-2 items-end">
+        <div className="flex-1">
+          <MentionInput
+            value={newComment}
+            onChange={setNewComment}
+            onSubmit={handleSubmit}
+            placeholder="Написать комментарий... (@ для упоминания)"
+            disabled={createComment.isPending}
+            className="min-h-[40px] text-sm"
+          />
+        </div>
         <button
-          type="submit"
+          type="button"
+          onClick={handleSubmit}
           disabled={!newComment.trim() || createComment.isPending}
-          className="btn-primary h-10 px-3 disabled:opacity-50"
+          className="btn-primary h-10 px-3 disabled:opacity-50 flex-shrink-0"
         >
           <Send className="w-4 h-4" />
         </button>
-      </form>
+      </div>
     </div>
   );
 }
