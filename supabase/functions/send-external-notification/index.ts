@@ -1,6 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
-import webpush from "https://esm.sh/web-push@3.6.7";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,15 +15,6 @@ const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY");
 
 // Telegram Bot Token
 const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
-
-// Configure web-push with VAPID details
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(
-    "mailto:support@renowell.ru",
-    VAPID_PUBLIC_KEY,
-    VAPID_PRIVATE_KEY
-  );
-}
 
 interface NotificationPayload {
   notification_id: string;
@@ -151,41 +141,32 @@ async function sendEmail(
   }
 }
 
-// Web Push implementation using native fetch (simplified approach)
-// For production, consider using a proper Web Push library
+// Web Push implementation - temporarily disabled due to Deno compatibility issues
+// Web Push requires RFC 8291 encryption which needs complex crypto operations
+// TODO: Implement using a Deno-compatible Web Push library when available
 async function sendPushNotification(
   subscription: PushSubscription,
   title: string,
   body: string,
   link: string | null
 ): Promise<boolean> {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    console.error("VAPID keys not configured");
-    return false;
-  }
-
-  try {
-    const payload = JSON.stringify({
-      title,
-      body,
-      url: link || "/",
-    });
-
-    // Send push notification using web-push library
-    const result = await webpush.sendNotification(subscription, payload);
-    console.log("Push notification sent successfully:", result.statusCode);
-    return true;
-  } catch (error: unknown) {
-    const err = error as { statusCode?: number; body?: string };
-    console.error("Error sending push notification:", err);
-    
-    // Handle expired/invalid subscriptions
-    if (err.statusCode === 410 || err.statusCode === 404) {
-      console.log("Push subscription expired or invalid, should be removed");
-    }
-    
-    return false;
-  }
+  // Log the attempt for debugging
+  console.log("Push notification requested (currently disabled):", {
+    endpoint: subscription.endpoint,
+    title,
+    body,
+    link,
+  });
+  
+  // Web Push requires proper encryption (RFC 8291) which is complex to implement
+  // The standard web-push library is not compatible with Deno runtime
+  // For now, users should use Telegram or email notifications
+  console.warn(
+    "Web Push notifications are temporarily disabled. " +
+    "Please use Telegram or email notifications instead."
+  );
+  
+  return false;
 }
 
 Deno.serve(async (req) => {
