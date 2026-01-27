@@ -8,7 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, CalendarIcon, Save, Loader2, Camera, User } from "lucide-react";
+import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -353,6 +355,11 @@ export default function Profile() {
               Сохранить
             </Button>
           </div>
+
+          <Separator className="my-8" />
+
+          {/* Notification Settings */}
+          <NotificationSettings />
         </div>
       </main>
     </div>
