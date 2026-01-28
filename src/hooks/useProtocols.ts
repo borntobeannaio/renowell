@@ -152,6 +152,10 @@ export function useCreateProtocolItem() {
       kpi?: string | null;
       status?: string | null;
       status_date?: string | null;
+      // Archiving and completion
+      archived?: boolean;
+      completed?: boolean;
+      completed_at?: string | null;
     }) => {
       const { data, error } = await proxyInsert<DbProtocolItem>(
         "protocol_items",
@@ -167,6 +171,9 @@ export function useCreateProtocolItem() {
           kpi: item.kpi || null,
           status: item.status || null,
           status_date: item.status_date || null,
+          archived: item.archived || false,
+          completed: item.completed || false,
+          completed_at: item.completed_at || null,
         },
         "*"
       );
@@ -199,6 +206,10 @@ export function useUpdateProtocolItem() {
       kpi?: string | null;
       status?: string | null;
       status_date?: string | null;
+      // Archiving and completion
+      archived?: boolean;
+      completed?: boolean;
+      completed_at?: string | null;
     }) => {
       const { data, error } = await proxyUpdate<DbProtocolItem>(
         "protocol_items",
