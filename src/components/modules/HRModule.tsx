@@ -3,8 +3,8 @@ import { useApp } from "@/context/AppContext";
 import { useQuery } from "@tanstack/react-query";
 import { proxySelect } from "@/lib/dbProxy";
 import { Modal } from "@/components/ui/Modal";
-import { Lightbox } from "@/components/ui/Lightbox";
 import { formatDisplayDate } from "@/utils/dateFormat";
+import { PhotoGallery } from "./hr/PhotoGallery";
 import {
   Users,
   Calendar,
@@ -285,44 +285,5 @@ function DocsTab() {
 }
 
 function PhotosTab() {
-  const { photos } = useApp();
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-
-  return (
-    <>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {photos.map((photo, index) => (
-          <button
-            key={photo.id}
-            onClick={() => setLightboxIndex(index)}
-            className="aspect-square rounded-lg overflow-hidden bg-secondary hover:opacity-90 transition-opacity"
-          >
-            <img
-              src={photo.url}
-              alt={photo.title || "Фото"}
-              className="w-full h-full object-cover"
-            />
-          </button>
-        ))}
-      </div>
-
-      {photos.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          Нет фотографий
-        </div>
-      )}
-
-      {lightboxIndex !== null && (
-        <Lightbox
-          photos={photos}
-          currentIndex={lightboxIndex}
-          onClose={() => setLightboxIndex(null)}
-          onPrev={() => setLightboxIndex((i) => Math.max(0, (i || 0) - 1))}
-          onNext={() =>
-            setLightboxIndex((i) => Math.min(photos.length - 1, (i || 0) + 1))
-          }
-        />
-      )}
-    </>
-  );
+  return <PhotoGallery />;
 }
