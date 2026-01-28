@@ -1732,7 +1732,15 @@ export default function ProtocolEditor() {
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-xl font-semibold text-foreground">{pageTitle}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-semibold text-foreground">{pageTitle}</h1>
+                {hasUnsavedChanges && !isSaving && !saveProgress && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20">
+                    <span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse" />
+                    Не сохранено
+                  </span>
+                )}
+              </div>
               {saveProgress ? (
                 <p className="text-sm text-muted-foreground animate-pulse">{saveProgress}</p>
               ) : draftSaving ? (
