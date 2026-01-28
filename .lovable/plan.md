@@ -1,60 +1,92 @@
 
-Цель: исправить автосохранение черновиков (таблица `form_drafts`), которое сейчас падает с ошибкой `duplicate key value violates unique constraint ...` из-за того, что `upsert` в backend-функции `db-proxy` не учитывает уникальный ключ `(user_id, form_type, entity_id)`.
 
-## Что происходит сейчас (диагноз)
-- Таблица `form_drafts` создана с `UNIQUE(user_id, form_type, entity_id)` (см. миграцию `20260121073423_...sql`).
-- Клиент вызывает `proxyUpsert('form_drafts', {...})` из `src/hooks/useFormDraft.ts`.
-- Backend-функция `supabase/functions/db-proxy/index.ts` выполняет `supabase.from(table).upsert(data)` без `onConflict`.
-- В таком виде upsert ориентируется на PK (или не тот конфликт), поэтому при повторном сохранении пытается вставить новую строку и ловит конфликт уникального индекса.
+# Создание таблицы audit_log для логирования изменений
 
-## Решение (высокоуровневое)
-1) На стороне backend-функции `db-proxy` добавить поддержку `onConflict`:
-   - принимать опциональное поле `onConflict` в запросе,
-   - передавать его в `supabase.from(table).upsert(data, { onConflict })`.
-2) Для совместимости и чтобы исправить именно `form_drafts` даже без изменения клиента:
-   - если `table === 'form_drafts'` и `onConflict` не передан, автоматически ставить `onConflict = 'user_id,form_type,entity_id'`.
-3) (Опционально, но желательно) На клиенте в `proxyUpsert` тоже добавить параметр `onConflict` и явно передавать его из `useFormDraft` — так поведение будет прозрачным и переносимым.
+Чтобы в будущем можно было восстановить потерянные данные, необходимо создать систему аудита изменений.
 
-## Пошаговый план изменений в коде
-### A) Backend: `supabase/functions/db-proxy/index.ts`
-- Расширить интерфейс `ProxyRequest`:
-  - добавить `onConflict?: string`.
-- В ветке `case 'upsert'`:
-  - вычислить `const onConflict = body.onConflict ?? (table === 'form_drafts' ? 'user_id,form_type,entity_id' : undefined)`;
-  - вызывать:
-    - `let query = supabase.from(table).upsert(data, onConflict ? { onConflict } : undefined);`
-    - (или эквивалентным способом, чтобы не передавать пустые опции)
-  - сохранить текущую логику `select`, если он задан.
-- Убедиться, что ответы с ошибками/успехом не меняются по формату (чтобы клиент не ломался).
+## Что будет реализовано
 
-### B) Клиентская прокси-обертка: `src/lib/dbProxy.ts`
-- Обновить тип `ProxyRequest`:
-  - добавить `onConflict?: string`.
-- Обновить хелпер `proxyUpsert`:
-  - сигнатура: `(table, data, select?, onConflict?)`
-  - либо: `(table, data, options?: { select?: string; onConflict?: string })` (предпочтительнее для расширяемости).
-- Пробросить `onConflict` внутрь `dbProxy()`.
+### 1. Таблица `audit_log`
+Будет хранить историю всех изменений в ключевых таблицах протоколов:
 
-### C) Автосохранение черновиков: `src/hooks/useFormDraft.ts`
-- При вызове `proxyUpsert('form_drafts', ...)` передавать `onConflict: 'user_id,form_type,entity_id'` (или новый параметр/опции).
-- Ничего не менять в логике сравнения `lastSavedRef` и интервала — только обеспечить, что сохранение не падает.
+| Поле | Описание |
+|------|----------|
+| id | UUID записи лога |
+| table_name | Имя таблицы (protocol_items, protocol_sections, protocols) |
+| record_id | ID изменённой записи |
+| action | Тип операции: INSERT, UPDATE, DELETE |
+| old_data | Старые значения (для UPDATE и DELETE) |
+| new_data | Новые значения (для INSERT и UPDATE) |
+| changed_by | ID пользователя, если доступен |
+| changed_at | Время изменения |
 
-## Тест-план (обязательно)
-1) Открыть редактор протокола → внести изменения → дождаться автосохранения:
-   - убедиться, что нет повторяющихся ошибок `23505` в логах.
-2) Сделать сценарий “копия протокола” (тот, что ломался):
-   - создать копию,
-   - изменить несколько полей с паузой > интервала автосохранения,
-   - обновить страницу и проверить, что черновик подтягивается уже с последними изменениями (а не только с первой версией).
-3) Проверить, что `upsert` для других таблиц не затронут негативно:
-   - быстрый sanity-check: открыть любые экраны, где есть сохранения, и убедиться, что нет новых ошибок.
+### 2. Триггеры на таблицы
+Автоматическая запись в audit_log при любых изменениях в:
+- `protocol_items` (пункты протоколов)
+- `protocol_sections` (секции)
+- `protocols` (заголовки протоколов)
 
-## Возможные нюансы/риски и как их закроем
-- Разные версии `upsert` API: в `supabase-js@2` поддержка `onConflict` есть, но важно корректно передать опции.
-- Обратная совместимость: даже если клиент не будет обновлен, `form_drafts` починится за счет дефолта в `db-proxy`.
-- Безопасность: `onConflict` не дает доступ к данным, но это пользовательский параметр — ограничим “автоподстановку” только для `form_drafts`, а для остальных таблиц будем принимать `onConflict` как есть (при желании можно дополнительно валидировать строку по whitelist-формату `^[a-zA-Z0-9_,]+$`).
+### 3. RLS политики
+- Только чтение для авторизованных пользователей
+- Запись только через триггеры (SECURITY DEFINER)
 
-## Что сделаем после фикса (рекомендация)
-- Удалить “зависшие/битые” черновики `copy-*`, которые создавались во время бага (по желанию), чтобы пользователи не путались.
-- Добавить в UI более явное сообщение, если автосохранение не удалось (у вас сейчас ошибки просто логируются в консоль).
+## Техническая реализация
+
+```sql
+-- Создание таблицы аудита
+CREATE TABLE public.audit_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  table_name TEXT NOT NULL,
+  record_id UUID NOT NULL,
+  action TEXT NOT NULL CHECK (action IN ('INSERT', 'UPDATE', 'DELETE')),
+  old_data JSONB,
+  new_data JSONB,
+  changed_by UUID,
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Индексы для быстрого поиска
+CREATE INDEX idx_audit_log_table_record ON audit_log(table_name, record_id);
+CREATE INDEX idx_audit_log_changed_at ON audit_log(changed_at DESC);
+
+-- Универсальная функция аудита
+CREATE OR REPLACE FUNCTION audit_trigger_func()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    INSERT INTO audit_log (table_name, record_id, action, old_data, changed_by)
+    VALUES (TG_TABLE_NAME, OLD.id, 'DELETE', to_jsonb(OLD), auth.uid());
+    RETURN OLD;
+  ELSIF TG_OP = 'UPDATE' THEN
+    INSERT INTO audit_log (table_name, record_id, action, old_data, new_data, changed_by)
+    VALUES (TG_TABLE_NAME, NEW.id, 'UPDATE', to_jsonb(OLD), to_jsonb(NEW), auth.uid());
+    RETURN NEW;
+  ELSIF TG_OP = 'INSERT' THEN
+    INSERT INTO audit_log (table_name, record_id, action, new_data, changed_by)
+    VALUES (TG_TABLE_NAME, NEW.id, 'INSERT', to_jsonb(NEW), auth.uid());
+    RETURN NEW;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Триггеры на таблицы
+CREATE TRIGGER audit_protocol_items
+  AFTER INSERT OR UPDATE OR DELETE ON protocol_items
+  FOR EACH ROW EXECUTE FUNCTION audit_trigger_func();
+
+CREATE TRIGGER audit_protocol_sections
+  AFTER INSERT OR UPDATE OR DELETE ON protocol_sections
+  FOR EACH ROW EXECUTE FUNCTION audit_trigger_func();
+
+CREATE TRIGGER audit_protocols
+  AFTER INSERT OR UPDATE OR DELETE ON protocols
+  FOR EACH ROW EXECUTE FUNCTION audit_trigger_func();
+```
+
+## Что это даст
+
+- История всех изменений с возможностью восстановления
+- Поиск "кто и когда изменил" конкретный пункт
+- Возможность откатить случайные удаления
+- Логирование происходит автоматически, без изменений в коде приложения
 
