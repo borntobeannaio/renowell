@@ -25,6 +25,7 @@ interface ProxyRequest {
   select?: string;
   order?: OrderBy[];
   limit?: number;
+  onConflict?: string;
 }
 
 // Create client once at module level for connection reuse
@@ -150,8 +151,11 @@ serve(async (req) => {
       }
       
       case 'upsert': {
+        // Default onConflict for form_drafts table to handle unique constraint
+        const resolvedOnConflict = body.onConflict ?? (table === 'form_drafts' ? 'user_id,form_type,entity_id' : undefined);
+        
         // deno-lint-ignore no-explicit-any
-        let query: any = supabase.from(table).upsert(data);
+        let query: any = supabase.from(table).upsert(data, resolvedOnConflict ? { onConflict: resolvedOnConflict } : undefined);
         if (select) {
           query = query.select(select);
         }
