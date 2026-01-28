@@ -22,6 +22,7 @@ interface ProtocolItemEditorProps {
   onUpdate: (updates: Partial<ProtocolItemData>) => void;
   onRemove: () => void;
   onArchive?: () => void;
+  onPersistTempItem?: () => Promise<string | null>;
   showDragHandle?: boolean;
   disabled?: boolean;
   itemNumber?: string;
@@ -36,6 +37,7 @@ export function ProtocolItemEditor({
   onUpdate,
   onRemove,
   onArchive,
+  onPersistTempItem,
   showDragHandle = false,
   disabled = false,
   itemNumber,
@@ -218,7 +220,12 @@ export function ProtocolItemEditor({
 
         {/* Comments section */}
         {profiles.length > 0 && (
-          <ProtocolItemComments itemId={item.id} profiles={profiles} protocolTitle={protocolTitle} />
+          <ProtocolItemComments 
+            itemId={item.id} 
+            profiles={profiles} 
+            protocolTitle={protocolTitle}
+            onPersistTempItem={onPersistTempItem}
+          />
         )}
       </div>
     </div>

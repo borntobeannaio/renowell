@@ -20,6 +20,7 @@ interface DroppableSectionProps {
   onUpdateItem: (itemId: string, updates: Partial<UniversalItemData>) => void;
   onRemoveItem: (itemId: string) => void;
   onArchiveItem?: (itemId: string) => void;
+  onPersistTempItem?: (itemId: string) => Promise<string | null>;
   sectionType?: SectionType;
   profiles?: { id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[];
   protocolTitle?: string;
@@ -34,6 +35,7 @@ export function DroppableSection({
   onUpdateItem,
   onRemoveItem,
   onArchiveItem,
+  onPersistTempItem,
   sectionType = 'project',
   profiles = [],
   protocolTitle,
@@ -59,6 +61,7 @@ export function DroppableSection({
             onUpdate={(updates) => onUpdateItem(item.id, updates)}
             onRemove={() => onRemoveItem(item.id)}
             onArchive={onArchiveItem ? () => onArchiveItem(item.id) : undefined}
+            onPersistTempItem={onPersistTempItem ? () => onPersistTempItem(item.id) : undefined}
             sectionType={sectionType}
             itemNumber={sectionIndex !== undefined ? `${sectionIndex + 1}.${itemIndex + 1}` : undefined}
             profiles={profiles}

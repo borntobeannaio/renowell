@@ -47,6 +47,7 @@ interface UniversalSectionProps {
   onUpdateItem: (itemId: string, updates: Partial<ProtocolItemData | GoalItemData>) => void;
   onRemoveItem: (itemId: string) => void;
   onArchiveItem?: (itemId: string) => void;
+  onPersistTempItem?: (itemId: string) => Promise<string | null>;
   onAddItem: () => void;
   onChangeEntity?: (entityId: string | null, entityName: string | null) => void;
   onRemoveSection?: () => void;
@@ -92,6 +93,7 @@ export function UniversalSection({
   onUpdateItem,
   onRemoveItem,
   onArchiveItem,
+  onPersistTempItem,
   onAddItem,
   onChangeEntity,
   onRemoveSection,
@@ -345,6 +347,7 @@ export function UniversalSection({
               onUpdateItem={onUpdateItem}
               onRemoveItem={onRemoveItem}
               onArchiveItem={onArchiveItem}
+              onPersistTempItem={onPersistTempItem}
               sectionType={sectionType}
               profiles={profiles}
               protocolTitle={protocolTitle}
@@ -377,6 +380,7 @@ export function UniversalSection({
                   onUpdateItem={onUpdateItem}
                   onRemoveItem={onRemoveItem}
                   onArchiveItem={onArchiveItem}
+                  onPersistTempItem={onPersistTempItem}
                   sectionType={sectionType}
                   profiles={profiles}
                   protocolTitle={protocolTitle}
