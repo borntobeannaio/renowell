@@ -1,243 +1,205 @@
 
+# План: Расширение редактора протоколов и Kanban-доски
 
-# План: Настройки каналов уведомлений в профиле
-
-## Обзор
-
-Добавить в страницу профиля секцию с мультивыбором каналов доставки уведомлений:
-- **Telegram** — отправка через бота
-- **Email** — отправка через Resend
-- **Push в браузере** — Web Push API
-
-С пометкой: "В панели уведомлений всегда отображаются все уведомления"
+## Обзор задачи
+Добавить функционал свёртки секций, архивации, нумерации, комментирования пунктов протокола и обновить статусы задач Kanban.
 
 ---
 
-## Изменения в базе данных
+## Часть 1: Редактор протоколов
 
-### Новые поля в таблице `profiles`
+### 1.1 Кнопка «Свернуть/Развернуть все секции»
+**Файлы:** `src/pages/ProtocolEditor.tsx`
 
+- Добавить состояние `allSectionsCollapsed: boolean`
+- Добавить кнопку в шапку редактора рядом с «Добавить секцию»
+- Передавать состояние свёрнутости в каждый компонент `UniversalSection` через проп `forceExpanded`
+
+### 1.2 Удаление секции без удаления пунктов
+**Файлы:** `src/components/protocols/UniversalSection.tsx`
+
+- Текущая логика: кнопка удаления секции появляется только когда `items.length === 0`
+- Новая логика: всегда показывать кнопку удаления
+- При удалении секции с пунктами → показывать диалог выбора:
+  - «Удалить секцию и переместить пункты в другую секцию»
+  - «Удалить секцию и все пункты»
+- Добавить модальное окно выбора целевой секции
+
+### 1.3 Архивация секций и пунктов
+**Изменения в БД:**
 ```sql
-ALTER TABLE public.profiles
-ADD COLUMN telegram_chat_id text,
-ADD COLUMN notify_telegram boolean DEFAULT false,
-ADD COLUMN notify_email boolean DEFAULT false,
-ADD COLUMN notify_push boolean DEFAULT false,
-ADD COLUMN push_subscription jsonb;
+-- Добавить поле archived для секций
+ALTER TABLE protocol_sections ADD COLUMN archived boolean DEFAULT false;
+
+-- Добавить поле archived для пунктов
+ALTER TABLE protocol_items ADD COLUMN archived boolean DEFAULT false;
 ```
 
-| Поле | Тип | Описание |
-|------|-----|----------|
-| `telegram_chat_id` | text | ID чата Telegram для отправки сообщений |
-| `notify_telegram` | boolean | Включены ли Telegram-уведомления |
-| `notify_email` | boolean | Включены ли Email-уведомления |
-| `notify_push` | boolean | Включены ли Push-уведомления в браузере |
-| `push_subscription` | jsonb | Данные подписки Web Push (endpoint, keys) |
+**Файлы для изменений:**
+- `src/hooks/useProtocolSections.ts` — добавить поле `archived` в типы
+- `src/hooks/useProtocols.ts` — добавить поле `archived` в `DbProtocolItem`
+- `src/components/protocols/UniversalSection.tsx` — кнопка архивации секции
+- `src/components/protocols/ProtocolItemEditor.tsx` — кнопка архивации пункта
+- `src/components/protocols/GoalItemEditor.tsx` — кнопка архивации пункта
+- `src/pages/ProtocolEditor.tsx`:
+  - Фильтрация архивных элементов по умолчанию
+  - Переключатель «Показать архив»
+  - Панель архива со списком и кнопками восстановления
 
----
+### 1.4 Нумерация пунктов как в PDF
+**Файлы:** 
+- `src/components/protocols/ProtocolItemEditor.tsx`
+- `src/components/protocols/GoalItemEditor.tsx`
+- `src/components/protocols/DroppableSection.tsx`
 
-## UI: Секция настроек уведомлений
+**Логика:**
+- Передавать в каждый `DraggableItem` индексы: `sectionIndex` и `itemIndex`
+- Отображать номер слева от пункта: «1.1», «1.2», «2.1» и т.д.
 
-Добавить в `Profile.tsx` после формы "О себе":
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│  🔔 Уведомления                                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Дополнительные каналы доставки:                                │
-│                                                                 │
-│  [✓] 📱 Telegram                                                │
-│      Статус: Не привязан                                        │
-│      [Привязать Telegram]                                       │
-│                                                                 │
-│  [ ] 📧 Email                                                   │
-│      Адрес: example@mail.ru                                     │
-│                                                                 │
-│  [ ] 🔔 Push-уведомления в браузере                             │
-│      [Разрешить уведомления]                                    │
-│                                                                 │
-│  ─────────────────────────────────────────────────────────────  │
-│  ℹ️ В панели уведомлений всегда отображаются все уведомления    │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Логика каждого канала
-
-**Telegram:**
-- Если `telegram_chat_id` пустой — кнопка "Привязать Telegram"
-- При клике — диалог с инструкцией и кодом привязки
-- Если привязан — показать "Привязан ✅" и кнопку "Отвязать"
-
-**Email:**
-- Чекбокс активен если есть email в профиле сотрудника
-- Если email нет — показать подсказку "Добавьте email в HR-модуле"
-
-**Push в браузере:**
-- Если `Notification.permission === 'default'` — кнопка "Разрешить уведомления"
-- Если `granted` и есть подписка — "Включены ✅"
-- Если `denied` — "Заблокированы браузером"
-
----
-
-## Push-уведомления: Техническая реализация
-
-### 1. VAPID ключи
-
-Генерация пары ключей для Web Push:
-```bash
-npx web-push generate-vapid-keys
-```
-
-Результат — два ключа:
-- `VAPID_PUBLIC_KEY` — публичный (используется в клиенте)
-- `VAPID_PRIVATE_KEY` — приватный (секрет для Edge Function)
-
-Публичный ключ можно хранить в коде (он безопасен).
-Приватный — в секретах Lovable Cloud.
-
-### 2. Service Worker
-
-Создать `public/sw.js` для обработки push-событий:
-
-```javascript
-self.addEventListener('push', (event) => {
-  const data = event.data?.json() ?? {};
-  const title = data.title || 'Новое уведомление';
-  const options = {
-    body: data.body || '',
-    icon: '/favicon.png',
-    badge: '/favicon.png',
-    data: { url: data.url || '/' }
-  };
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
-});
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  const url = event.notification.data?.url || '/';
-  event.waitUntil(
-    clients.openWindow(url)
-  );
-});
-```
-
-### 3. Подписка на Push
-
-Хук `usePushNotifications.ts`:
-
-```typescript
-export function usePushNotifications() {
-  const subscribeToush = async () => {
-    // 1. Регистрация service worker
-    const registration = await navigator.serviceWorker.register('/sw.js');
-    
-    // 2. Запрос разрешения
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return null;
-    
-    // 3. Подписка на push
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: VAPID_PUBLIC_KEY
-    });
-    
-    // 4. Сохранение подписки в профиле
-    await proxyUpdate('profiles', {
-      notify_push: true,
-      push_subscription: subscription.toJSON()
-    }, [...]);
-    
-    return subscription;
-  };
-  
-  return { subscribeToPush, ... };
-}
-```
-
-### 4. Отправка Push (Edge Function)
-
-В `send-external-notification` добавить отправку Web Push:
-
-```typescript
-import webpush from 'npm:web-push';
-
-webpush.setVapidDetails(
-  'mailto:support@renowell.ru',
-  Deno.env.get('VAPID_PUBLIC_KEY'),
-  Deno.env.get('VAPID_PRIVATE_KEY')
+### 1.5 Комментарии к пунктам протокола
+**Изменения в БД:**
+```sql
+CREATE TABLE protocol_item_comments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id uuid NOT NULL REFERENCES protocol_items(id) ON DELETE CASCADE,
+  author_id uuid NOT NULL REFERENCES profiles(id),
+  content text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
-if (profile.notify_push && profile.push_subscription) {
-  await webpush.sendNotification(
-    profile.push_subscription,
-    JSON.stringify({ title, body, url })
-  );
-}
+-- RLS политики
+ALTER TABLE protocol_item_comments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Auth users can view" ON protocol_item_comments FOR SELECT USING (true);
+CREATE POLICY "Auth users can insert" ON protocol_item_comments FOR INSERT WITH CHECK (author_id = get_user_profile_id());
+CREATE POLICY "Authors can delete" ON protocol_item_comments FOR DELETE USING (author_id = get_user_profile_id());
 ```
 
----
+**Новые файлы:**
+- `src/hooks/useProtocolItemComments.ts` — CRUD хуки для комментариев
+- `src/components/protocols/ProtocolItemComments.tsx` — UI компонент комментариев
 
-## Файлы
+**Изменения:**
+- `src/components/protocols/ProtocolItemEditor.tsx` — добавить секцию комментариев (collapsible)
+- `src/components/protocols/GoalItemEditor.tsx` — добавить секцию комментариев
+- `src/utils/protocolPdf.ts` — выгружать комментарии под каждым пунктом
 
-### Новые файлы
+### 1.6 Пометка пункта как выполненного
+**Изменения в БД:**
+```sql
+ALTER TABLE protocol_items ADD COLUMN completed boolean DEFAULT false;
+ALTER TABLE protocol_items ADD COLUMN completed_at timestamptz;
+```
 
-| Файл | Описание |
-|------|----------|
-| `public/sw.js` | Service Worker для Push-уведомлений |
-| `src/components/settings/NotificationSettings.tsx` | Секция настроек уведомлений |
-| `src/components/settings/TelegramLinkDialog.tsx` | Диалог привязки Telegram |
-| `src/hooks/usePushNotifications.ts` | Хук для работы с Web Push |
-| `supabase/functions/send-external-notification/index.ts` | Отправка Email/Telegram/Push |
-| `supabase/functions/telegram-webhook/index.ts` | Webhook для привязки Telegram |
-
-### Изменяемые файлы
-
-| Файл | Изменения |
-|------|-----------|
-| `src/pages/Profile.tsx` | Добавить компонент NotificationSettings |
-| `supabase/config.toml` | Настройки для новых Edge Functions |
-
----
-
-## Требования от вас
-
-Для полной реализации потребуется:
-
-1. **Для Email**: 
-   - Зарегистрироваться на [Resend.com](https://resend.com)
-   - Подтвердить домен
-   - Добавить `RESEND_API_KEY` в секреты
-
-2. **Для Push**:
-   - Сгенерировать VAPID ключи (я могу сделать это автоматически)
-   - Добавить `VAPID_PRIVATE_KEY` в секреты (публичный ключ будет в коде)
-
-3. **Для Telegram**:
-   - `TELEGRAM_BOT_TOKEN` уже есть ✅
-   - Настроить webhook URL для бота
+**Файлы:**
+- `src/hooks/useProtocols.ts` — добавить поля в тип
+- `src/components/protocols/ProtocolItemEditor.tsx` — чекбокс «Выполнено»
+- `src/components/protocols/GoalItemEditor.tsx` — чекбокс «Выполнено»
+- `src/utils/protocolPdf.ts` — отображать статус выполнения в PDF (зачёркнутый текст или иконка)
 
 ---
 
-## Этапы реализации
+## Часть 2: Kanban-доска задач
 
-1. **Миграция БД** — добавить поля в profiles
-2. **UI компонент** — NotificationSettings с тремя каналами
-3. **Push-уведомления** — Service Worker + хук подписки
-4. **Edge Function** — единая функция отправки во все каналы
-5. **Telegram привязка** — диалог + webhook
+### 2.1 Новые статусы задач
+**Изменения:**
+- `src/hooks/useTasks.ts`:
+  - Изменить `TaskStatus` на: `"new" | "in_progress" | "review" | "done" | "archived"`
+  - Обновить `TASK_STATUS_LABELS`
+  - Добавить `TASK_PRIORITY_COLORS` (уже есть)
+
+- `src/components/modules/TasksModule.tsx`:
+  - Обновить массив `columns` на 4 основных + скрытый Архив
+  - Добавить переключатель «Показать архив»
+  - Задачи в архиве не показываются по умолчанию
+  - Добавить кнопку архивации на карточку задачи
+
+**Новые статусы:**
+| Статус | Название | Описание |
+|--------|----------|----------|
+| new | Новая | Только создана |
+| in_progress | В работе | Активная работа |
+| review | На проверке | Ожидает проверки |
+| done | Готово | Завершена |
+| archived | Архив | Скрыта из основного вида |
 
 ---
 
-## Следующий шаг
+## Технические детали
 
-После одобрения плана:
-1. Я добавлю миграцию для новых полей
-2. Создам UI-компоненты настроек
-3. Реализую Push-уведомления (потребуется добавить VAPID ключи)
-4. Интегрирую Email (после добавления Resend API key)
-5. Настрою Telegram webhook
+### Миграция БД (одна миграция)
+```sql
+-- 1. Архивация секций и пунктов
+ALTER TABLE protocol_sections ADD COLUMN IF NOT EXISTS archived boolean DEFAULT false;
+ALTER TABLE protocol_items ADD COLUMN IF NOT EXISTS archived boolean DEFAULT false;
 
+-- 2. Выполнение пунктов
+ALTER TABLE protocol_items ADD COLUMN IF NOT EXISTS completed boolean DEFAULT false;
+ALTER TABLE protocol_items ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+
+-- 3. Комментарии к пунктам
+CREATE TABLE IF NOT EXISTS protocol_item_comments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id uuid NOT NULL REFERENCES protocol_items(id) ON DELETE CASCADE,
+  author_id uuid NOT NULL,
+  content text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE protocol_item_comments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Auth users can view protocol item comments" 
+  ON protocol_item_comments FOR SELECT USING (true);
+CREATE POLICY "Auth users can insert protocol item comments" 
+  ON protocol_item_comments FOR INSERT WITH CHECK (true);
+CREATE POLICY "Authors can delete own protocol item comments" 
+  ON protocol_item_comments FOR DELETE USING (author_id = get_user_profile_id());
+```
+
+### Порядок реализации
+1. Миграция БД (один запрос)
+2. Обновить типы в хуках (`useProtocols`, `useProtocolSections`, `useTasks`)
+3. Создать `useProtocolItemComments` хук
+4. Обновить компоненты редактора протоколов:
+   - Нумерация пунктов
+   - Кнопка свёртки всех секций
+   - Архивация
+   - Выполнение
+   - Комментарии
+5. Обновить компонент удаления секции
+6. Обновить TasksModule (статусы + архив)
+7. Обновить PDF-экспорт
+
+### Файлы для изменения/создания
+
+**Новые файлы:**
+- `src/hooks/useProtocolItemComments.ts`
+- `src/components/protocols/ProtocolItemComments.tsx`
+
+**Изменяемые файлы:**
+- `src/pages/ProtocolEditor.tsx`
+- `src/components/protocols/UniversalSection.tsx`
+- `src/components/protocols/ProtocolItemEditor.tsx`
+- `src/components/protocols/GoalItemEditor.tsx`
+- `src/components/protocols/DroppableSection.tsx`
+- `src/components/protocols/DraggableItem.tsx`
+- `src/hooks/useProtocols.ts`
+- `src/hooks/useProtocolSections.ts`
+- `src/hooks/useTasks.ts`
+- `src/components/modules/TasksModule.tsx`
+- `src/utils/protocolPdf.ts`
+
+---
+
+## Ожидаемый результат
+
+### Редактор протоколов:
+- Кнопка «Свернуть все / Развернуть все» в шапке
+- Удаление секции с выбором куда переместить пункты
+- Архивация секций и пунктов + панель восстановления
+- Нумерация «1.1, 1.2, 2.1» как в PDF
+- Комментарии к пунктам с выгрузкой в PDF
+- Чекбокс «Выполнено» для пунктов
+
+### Kanban:
+- 4 основных колонки: Новая → В работе → На проверке → Готово
+- Архив как скрытая 5-я колонка с переключателем
