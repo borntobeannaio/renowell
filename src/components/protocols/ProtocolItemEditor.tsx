@@ -109,7 +109,7 @@ export function ProtocolItemEditor({
           title={isCompleted ? "Снять отметку выполнено" : "Отметить как выполнено"}
         >
           {isCompleted ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-          <span className="hidden sm:inline">{isCompleted ? "Готово" : "Сделать"}</span>
+          <span className="hidden sm:inline">{isCompleted ? "Готово" : "Сделано"}</span>
         </button>
 
         {/* Item number */}

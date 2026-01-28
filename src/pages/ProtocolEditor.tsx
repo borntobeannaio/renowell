@@ -1693,9 +1693,54 @@ export default function ProtocolEditor() {
   const handleExportPdf = async () => {
     if (!existingProtocol) return;
     try {
-      await generateProtocolPdf(existingProtocol, existingItems, projects, existingSections);
+      // Get all item IDs to fetch comments
+      const itemIds = existingItems.map(item => item.id);
+      
+      let comments: { id: string; item_id: string; author_id: string; content: string; created_at: string; author_name?: string }[] = [];
+      
+      if (itemIds.length > 0) {
+        // Fetch comments for all items
+        const { data: commentsData } = await proxySelect<{
+          id: string;
+          item_id: string;
+          author_id: string;
+          content: string;
+          created_at: string;
+        }>('protocol_item_comments', {
+          filters: [{ column: 'item_id', operator: 'in', value: `(${itemIds.join(',')})` }],
+          order: [{ column: 'created_at', ascending: true }],
+        });
+        
+        if (commentsData && commentsData.length > 0) {
+          // Fetch author names
+          const authorIds = [...new Set(commentsData.map(c => c.author_id))];
+          if (authorIds.length > 0) {
+            const { data: authorProfiles } = await proxySelect<{
+              id: string;
+              first_name: string | null;
+              last_name: string | null;
+            }>('profiles', {
+              filters: [{ column: 'id', operator: 'in', value: `(${authorIds.join(',')})` }],
+            });
+            
+            const profileMap = new Map(
+              (authorProfiles || []).map(p => [p.id, `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Пользователь'])
+            );
+            
+            comments = commentsData.map(c => ({
+              ...c,
+              author_name: profileMap.get(c.author_id) || 'Пользователь'
+            }));
+          } else {
+            comments = commentsData;
+          }
+        }
+      }
+      
+      await generateProtocolPdf(existingProtocol, existingItems, projects, existingSections, comments);
       toast.success("PDF экспортирован");
     } catch (error) {
+      console.error("PDF export error:", error);
       toast.error("Ошибка экспорта PDF");
     }
   };
