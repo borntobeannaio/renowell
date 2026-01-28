@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { MessageCircle, Send, Trash2, Loader2 } from "lucide-react";
-import { useProtocolItemComments, useCreateProtocolItemComment, useDeleteProtocolItemComment } from "@/hooks/useProtocolItemComments";
+import { MessageCircle, Send, Trash2, Loader2, Pencil, X, Check } from "lucide-react";
+import { useProtocolItemComments, useCreateProtocolItemComment, useUpdateProtocolItemComment, useDeleteProtocolItemComment } from "@/hooks/useProtocolItemComments";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -15,10 +15,13 @@ interface ProtocolItemCommentsProps {
 export function ProtocolItemComments({ itemId, profiles }: ProtocolItemCommentsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [newComment, setNewComment] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
   
   const { data: profile } = useCurrentProfile();
   const { data: comments = [], isLoading } = useProtocolItemComments(itemId);
   const createComment = useCreateProtocolItemComment();
+  const updateComment = useUpdateProtocolItemComment();
   const deleteComment = useDeleteProtocolItemComment();
 
   const getAuthorInfo = (authorId: string) => {
@@ -52,6 +55,32 @@ export function ProtocolItemComments({ itemId, profiles }: ProtocolItemCommentsP
       await deleteComment.mutateAsync({ id: commentId, item_id: itemId });
     } catch (error) {
       console.error("Failed to delete comment:", error);
+    }
+  };
+
+  const handleStartEdit = (commentId: string, content: string) => {
+    setEditingId(commentId);
+    setEditContent(content);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditContent("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId || !editContent.trim()) return;
+
+    try {
+      await updateComment.mutateAsync({
+        id: editingId,
+        item_id: itemId,
+        content: editContent.trim(),
+      });
+      setEditingId(null);
+      setEditContent("");
+    } catch (error) {
+      console.error("Failed to update comment:", error);
     }
   };
 
@@ -92,6 +121,7 @@ export function ProtocolItemComments({ itemId, profiles }: ProtocolItemCommentsP
               {comments.map((comment) => {
                 const author = getAuthorInfo(comment.author_id);
                 const isOwn = profile?.id === comment.author_id;
+                const isEditing = editingId === comment.id;
 
                 return (
                   <div key={comment.id} className="flex gap-2 group">
@@ -105,20 +135,73 @@ export function ProtocolItemComments({ itemId, profiles }: ProtocolItemCommentsP
                         <span className="text-[10px] text-muted-foreground">
                           {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true, locale: ru })}
                         </span>
-                        {isOwn && (
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(comment.id)}
-                            className="opacity-0 group-hover:opacity-100 p-0.5 text-destructive/60 hover:text-destructive transition-all"
-                            title="Удалить"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                        {isOwn && !isEditing && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleStartEdit(comment.id, comment.content)}
+                              className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-foreground transition-all"
+                              title="Редактировать"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(comment.id)}
+                              className="opacity-0 group-hover:opacity-100 p-0.5 text-destructive/60 hover:text-destructive transition-all"
+                              title="Удалить"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </>
                         )}
                       </div>
-                      <p className="text-xs text-foreground/90 whitespace-pre-wrap break-words">
-                        {comment.content}
-                      </p>
+                      {isEditing ? (
+                        <div className="flex gap-1.5 mt-1">
+                          <input
+                            type="text"
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            className="flex-1 text-xs px-2 py-1 rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSaveEdit();
+                              } else if (e.key === "Escape") {
+                                handleCancelEdit();
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={handleSaveEdit}
+                            disabled={!editContent.trim() || updateComment.isPending}
+                            className="h-6 px-1.5"
+                          >
+                            {updateComment.isPending ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Check className="w-3 h-3 text-green-600" />
+                            )}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={handleCancelEdit}
+                            className="h-6 px-1.5"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-foreground/90 whitespace-pre-wrap break-words">
+                          {comment.content}
+                        </p>
+                      )}
                     </div>
                   </div>
                 );
