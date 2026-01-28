@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -112,9 +112,18 @@ export function UniversalSection({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const prevForceExpanded = useRef(forceExpanded);
 
-  // Respect forceExpanded prop
-  const actualExpanded = forceExpanded !== undefined ? forceExpanded : isExpanded;
+  // Sync with forceExpanded when it changes (e.g., from "collapse all" button)
+  useEffect(() => {
+    if (forceExpanded !== undefined && forceExpanded !== prevForceExpanded.current) {
+      setIsExpanded(forceExpanded);
+      prevForceExpanded.current = forceExpanded;
+    }
+  }, [forceExpanded]);
+
+  // Use local isExpanded state for actual display
+  const actualExpanded = isExpanded;
 
   // Get display name based on section type
   const getDisplayName = () => {
