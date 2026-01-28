@@ -1,205 +1,60 @@
 
-# План: Расширение редактора протоколов и Kanban-доски
+Цель: исправить автосохранение черновиков (таблица `form_drafts`), которое сейчас падает с ошибкой `duplicate key value violates unique constraint ...` из-за того, что `upsert` в backend-функции `db-proxy` не учитывает уникальный ключ `(user_id, form_type, entity_id)`.
 
-## Обзор задачи
-Добавить функционал свёртки секций, архивации, нумерации, комментирования пунктов протокола и обновить статусы задач Kanban.
+## Что происходит сейчас (диагноз)
+- Таблица `form_drafts` создана с `UNIQUE(user_id, form_type, entity_id)` (см. миграцию `20260121073423_...sql`).
+- Клиент вызывает `proxyUpsert('form_drafts', {...})` из `src/hooks/useFormDraft.ts`.
+- Backend-функция `supabase/functions/db-proxy/index.ts` выполняет `supabase.from(table).upsert(data)` без `onConflict`.
+- В таком виде upsert ориентируется на PK (или не тот конфликт), поэтому при повторном сохранении пытается вставить новую строку и ловит конфликт уникального индекса.
 
----
+## Решение (высокоуровневое)
+1) На стороне backend-функции `db-proxy` добавить поддержку `onConflict`:
+   - принимать опциональное поле `onConflict` в запросе,
+   - передавать его в `supabase.from(table).upsert(data, { onConflict })`.
+2) Для совместимости и чтобы исправить именно `form_drafts` даже без изменения клиента:
+   - если `table === 'form_drafts'` и `onConflict` не передан, автоматически ставить `onConflict = 'user_id,form_type,entity_id'`.
+3) (Опционально, но желательно) На клиенте в `proxyUpsert` тоже добавить параметр `onConflict` и явно передавать его из `useFormDraft` — так поведение будет прозрачным и переносимым.
 
-## Часть 1: Редактор протоколов
+## Пошаговый план изменений в коде
+### A) Backend: `supabase/functions/db-proxy/index.ts`
+- Расширить интерфейс `ProxyRequest`:
+  - добавить `onConflict?: string`.
+- В ветке `case 'upsert'`:
+  - вычислить `const onConflict = body.onConflict ?? (table === 'form_drafts' ? 'user_id,form_type,entity_id' : undefined)`;
+  - вызывать:
+    - `let query = supabase.from(table).upsert(data, onConflict ? { onConflict } : undefined);`
+    - (или эквивалентным способом, чтобы не передавать пустые опции)
+  - сохранить текущую логику `select`, если он задан.
+- Убедиться, что ответы с ошибками/успехом не меняются по формату (чтобы клиент не ломался).
 
-### 1.1 Кнопка «Свернуть/Развернуть все секции»
-**Файлы:** `src/pages/ProtocolEditor.tsx`
+### B) Клиентская прокси-обертка: `src/lib/dbProxy.ts`
+- Обновить тип `ProxyRequest`:
+  - добавить `onConflict?: string`.
+- Обновить хелпер `proxyUpsert`:
+  - сигнатура: `(table, data, select?, onConflict?)`
+  - либо: `(table, data, options?: { select?: string; onConflict?: string })` (предпочтительнее для расширяемости).
+- Пробросить `onConflict` внутрь `dbProxy()`.
 
-- Добавить состояние `allSectionsCollapsed: boolean`
-- Добавить кнопку в шапку редактора рядом с «Добавить секцию»
-- Передавать состояние свёрнутости в каждый компонент `UniversalSection` через проп `forceExpanded`
+### C) Автосохранение черновиков: `src/hooks/useFormDraft.ts`
+- При вызове `proxyUpsert('form_drafts', ...)` передавать `onConflict: 'user_id,form_type,entity_id'` (или новый параметр/опции).
+- Ничего не менять в логике сравнения `lastSavedRef` и интервала — только обеспечить, что сохранение не падает.
 
-### 1.2 Удаление секции без удаления пунктов
-**Файлы:** `src/components/protocols/UniversalSection.tsx`
+## Тест-план (обязательно)
+1) Открыть редактор протокола → внести изменения → дождаться автосохранения:
+   - убедиться, что нет повторяющихся ошибок `23505` в логах.
+2) Сделать сценарий “копия протокола” (тот, что ломался):
+   - создать копию,
+   - изменить несколько полей с паузой > интервала автосохранения,
+   - обновить страницу и проверить, что черновик подтягивается уже с последними изменениями (а не только с первой версией).
+3) Проверить, что `upsert` для других таблиц не затронут негативно:
+   - быстрый sanity-check: открыть любые экраны, где есть сохранения, и убедиться, что нет новых ошибок.
 
-- Текущая логика: кнопка удаления секции появляется только когда `items.length === 0`
-- Новая логика: всегда показывать кнопку удаления
-- При удалении секции с пунктами → показывать диалог выбора:
-  - «Удалить секцию и переместить пункты в другую секцию»
-  - «Удалить секцию и все пункты»
-- Добавить модальное окно выбора целевой секции
+## Возможные нюансы/риски и как их закроем
+- Разные версии `upsert` API: в `supabase-js@2` поддержка `onConflict` есть, но важно корректно передать опции.
+- Обратная совместимость: даже если клиент не будет обновлен, `form_drafts` починится за счет дефолта в `db-proxy`.
+- Безопасность: `onConflict` не дает доступ к данным, но это пользовательский параметр — ограничим “автоподстановку” только для `form_drafts`, а для остальных таблиц будем принимать `onConflict` как есть (при желании можно дополнительно валидировать строку по whitelist-формату `^[a-zA-Z0-9_,]+$`).
 
-### 1.3 Архивация секций и пунктов
-**Изменения в БД:**
-```sql
--- Добавить поле archived для секций
-ALTER TABLE protocol_sections ADD COLUMN archived boolean DEFAULT false;
+## Что сделаем после фикса (рекомендация)
+- Удалить “зависшие/битые” черновики `copy-*`, которые создавались во время бага (по желанию), чтобы пользователи не путались.
+- Добавить в UI более явное сообщение, если автосохранение не удалось (у вас сейчас ошибки просто логируются в консоль).
 
--- Добавить поле archived для пунктов
-ALTER TABLE protocol_items ADD COLUMN archived boolean DEFAULT false;
-```
-
-**Файлы для изменений:**
-- `src/hooks/useProtocolSections.ts` — добавить поле `archived` в типы
-- `src/hooks/useProtocols.ts` — добавить поле `archived` в `DbProtocolItem`
-- `src/components/protocols/UniversalSection.tsx` — кнопка архивации секции
-- `src/components/protocols/ProtocolItemEditor.tsx` — кнопка архивации пункта
-- `src/components/protocols/GoalItemEditor.tsx` — кнопка архивации пункта
-- `src/pages/ProtocolEditor.tsx`:
-  - Фильтрация архивных элементов по умолчанию
-  - Переключатель «Показать архив»
-  - Панель архива со списком и кнопками восстановления
-
-### 1.4 Нумерация пунктов как в PDF
-**Файлы:** 
-- `src/components/protocols/ProtocolItemEditor.tsx`
-- `src/components/protocols/GoalItemEditor.tsx`
-- `src/components/protocols/DroppableSection.tsx`
-
-**Логика:**
-- Передавать в каждый `DraggableItem` индексы: `sectionIndex` и `itemIndex`
-- Отображать номер слева от пункта: «1.1», «1.2», «2.1» и т.д.
-
-### 1.5 Комментарии к пунктам протокола
-**Изменения в БД:**
-```sql
-CREATE TABLE protocol_item_comments (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  item_id uuid NOT NULL REFERENCES protocol_items(id) ON DELETE CASCADE,
-  author_id uuid NOT NULL REFERENCES profiles(id),
-  content text NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
--- RLS политики
-ALTER TABLE protocol_item_comments ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Auth users can view" ON protocol_item_comments FOR SELECT USING (true);
-CREATE POLICY "Auth users can insert" ON protocol_item_comments FOR INSERT WITH CHECK (author_id = get_user_profile_id());
-CREATE POLICY "Authors can delete" ON protocol_item_comments FOR DELETE USING (author_id = get_user_profile_id());
-```
-
-**Новые файлы:**
-- `src/hooks/useProtocolItemComments.ts` — CRUD хуки для комментариев
-- `src/components/protocols/ProtocolItemComments.tsx` — UI компонент комментариев
-
-**Изменения:**
-- `src/components/protocols/ProtocolItemEditor.tsx` — добавить секцию комментариев (collapsible)
-- `src/components/protocols/GoalItemEditor.tsx` — добавить секцию комментариев
-- `src/utils/protocolPdf.ts` — выгружать комментарии под каждым пунктом
-
-### 1.6 Пометка пункта как выполненного
-**Изменения в БД:**
-```sql
-ALTER TABLE protocol_items ADD COLUMN completed boolean DEFAULT false;
-ALTER TABLE protocol_items ADD COLUMN completed_at timestamptz;
-```
-
-**Файлы:**
-- `src/hooks/useProtocols.ts` — добавить поля в тип
-- `src/components/protocols/ProtocolItemEditor.tsx` — чекбокс «Выполнено»
-- `src/components/protocols/GoalItemEditor.tsx` — чекбокс «Выполнено»
-- `src/utils/protocolPdf.ts` — отображать статус выполнения в PDF (зачёркнутый текст или иконка)
-
----
-
-## Часть 2: Kanban-доска задач
-
-### 2.1 Новые статусы задач
-**Изменения:**
-- `src/hooks/useTasks.ts`:
-  - Изменить `TaskStatus` на: `"new" | "in_progress" | "review" | "done" | "archived"`
-  - Обновить `TASK_STATUS_LABELS`
-  - Добавить `TASK_PRIORITY_COLORS` (уже есть)
-
-- `src/components/modules/TasksModule.tsx`:
-  - Обновить массив `columns` на 4 основных + скрытый Архив
-  - Добавить переключатель «Показать архив»
-  - Задачи в архиве не показываются по умолчанию
-  - Добавить кнопку архивации на карточку задачи
-
-**Новые статусы:**
-| Статус | Название | Описание |
-|--------|----------|----------|
-| new | Новая | Только создана |
-| in_progress | В работе | Активная работа |
-| review | На проверке | Ожидает проверки |
-| done | Готово | Завершена |
-| archived | Архив | Скрыта из основного вида |
-
----
-
-## Технические детали
-
-### Миграция БД (одна миграция)
-```sql
--- 1. Архивация секций и пунктов
-ALTER TABLE protocol_sections ADD COLUMN IF NOT EXISTS archived boolean DEFAULT false;
-ALTER TABLE protocol_items ADD COLUMN IF NOT EXISTS archived boolean DEFAULT false;
-
--- 2. Выполнение пунктов
-ALTER TABLE protocol_items ADD COLUMN IF NOT EXISTS completed boolean DEFAULT false;
-ALTER TABLE protocol_items ADD COLUMN IF NOT EXISTS completed_at timestamptz;
-
--- 3. Комментарии к пунктам
-CREATE TABLE IF NOT EXISTS protocol_item_comments (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  item_id uuid NOT NULL REFERENCES protocol_items(id) ON DELETE CASCADE,
-  author_id uuid NOT NULL,
-  content text NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
-ALTER TABLE protocol_item_comments ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Auth users can view protocol item comments" 
-  ON protocol_item_comments FOR SELECT USING (true);
-CREATE POLICY "Auth users can insert protocol item comments" 
-  ON protocol_item_comments FOR INSERT WITH CHECK (true);
-CREATE POLICY "Authors can delete own protocol item comments" 
-  ON protocol_item_comments FOR DELETE USING (author_id = get_user_profile_id());
-```
-
-### Порядок реализации
-1. Миграция БД (один запрос)
-2. Обновить типы в хуках (`useProtocols`, `useProtocolSections`, `useTasks`)
-3. Создать `useProtocolItemComments` хук
-4. Обновить компоненты редактора протоколов:
-   - Нумерация пунктов
-   - Кнопка свёртки всех секций
-   - Архивация
-   - Выполнение
-   - Комментарии
-5. Обновить компонент удаления секции
-6. Обновить TasksModule (статусы + архив)
-7. Обновить PDF-экспорт
-
-### Файлы для изменения/создания
-
-**Новые файлы:**
-- `src/hooks/useProtocolItemComments.ts`
-- `src/components/protocols/ProtocolItemComments.tsx`
-
-**Изменяемые файлы:**
-- `src/pages/ProtocolEditor.tsx`
-- `src/components/protocols/UniversalSection.tsx`
-- `src/components/protocols/ProtocolItemEditor.tsx`
-- `src/components/protocols/GoalItemEditor.tsx`
-- `src/components/protocols/DroppableSection.tsx`
-- `src/components/protocols/DraggableItem.tsx`
-- `src/hooks/useProtocols.ts`
-- `src/hooks/useProtocolSections.ts`
-- `src/hooks/useTasks.ts`
-- `src/components/modules/TasksModule.tsx`
-- `src/utils/protocolPdf.ts`
-
----
-
-## Ожидаемый результат
-
-### Редактор протоколов:
-- Кнопка «Свернуть все / Развернуть все» в шапке
-- Удаление секции с выбором куда переместить пункты
-- Архивация секций и пунктов + панель восстановления
-- Нумерация «1.1, 1.2, 2.1» как в PDF
-- Комментарии к пунктам с выгрузкой в PDF
-- Чекбокс «Выполнено» для пунктов
-
-### Kanban:
-- 4 основных колонки: Новая → В работе → На проверке → Готово
-- Архив как скрытая 5-я колонка с переключателем
