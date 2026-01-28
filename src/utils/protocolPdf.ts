@@ -49,6 +49,25 @@ interface Project {
   name: string;
 }
 
+function buildCommentBlockCell(
+  text: string,
+  colSpan: number
+): any {
+  // NOTE: Avoid emojis in PDF text (they can break encoding and corrupt Cyrillic output).
+  // We render comments as a full-width block under the item row.
+  return {
+    content: text,
+    colSpan,
+    styles: {
+      fontStyle: "italic",
+      textColor: [80, 80, 80],
+      fillColor: [245, 245, 245],
+      fontSize: 8,
+      cellPadding: 3,
+    },
+  };
+}
+
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = "";
@@ -275,19 +294,22 @@ function renderProjectsTable(
 
     // Items with comments
     sectionItems.forEach((item, idx) => {
-      const completedMark = item.completed ? "✓ " : "";
+      // Use ASCII marker to ensure it renders reliably across fonts
+      const completedMark = item.completed ? "[X] " : "";
       const itemText = `${itemNumber}.${idx + 1}. ${completedMark}${t(item.item_text)}`;
       const responsible = item.responsible ? t(item.responsible) : "";
       const dueDate = formatDate(item.due_date);
       tableData.push([itemText, responsible, dueDate]);
-      
-      // Add comments as sub-rows
+
+      // Add comments as a separate formatted block row (full-width)
       if (item.comments && item.comments.length > 0) {
         item.comments.forEach((comment) => {
           const commentDate = new Date(comment.created_at).toLocaleDateString("ru-RU");
           const authorName = comment.author_name || "Пользователь";
-          const commentText = `    💬 ${t(authorName)} (${commentDate}): ${t(comment.content)}`;
-          tableData.push([commentText, "", ""]);
+          const commentText = `${t(authorName)} (${commentDate}): ${t(comment.content)}`;
+          tableData.push([
+            buildCommentBlockCell(commentText, 3),
+          ] as any);
         });
       }
     });
@@ -330,16 +352,10 @@ function renderProjectsTable(
     didParseCell: (data) => {
       if (data.section === "body" && data.column.index === 0) {
         const text = String(data.cell.raw);
-        // Section headers (bold with blue background)
+        // Section headers (bold with light background)
         if (/^\d+\.\s/.test(text) && !text.includes(".1.") && !text.includes(".2.")) {
           data.cell.styles.fontStyle = "bold";
           data.cell.styles.fillColor = [230, 240, 250];
-        }
-        // Comments (italic, gray text)
-        if (text.trim().startsWith("💬") || text.trim().startsWith("    💬")) {
-          data.cell.styles.fontStyle = "italic";
-          data.cell.styles.textColor = [100, 100, 100];
-          data.cell.styles.fontSize = 8;
         }
       }
     },
@@ -412,20 +428,21 @@ function renderSectionTypeTable(
       rows.push([String(n), t(company), companyResp ? t(companyResp) : "", ""]);
 
       companyItems.forEach((it, idx) => {
-        const completedMark = it.completed ? "✓ " : "";
+        const completedMark = it.completed ? "[X] " : "";
         rows.push([
           `${n}.${idx + 1}`,
           `${completedMark}${t(it.item_text)}`,
           it.responsible ? t(it.responsible) : "",
           formatDate(it.due_date),
         ]);
-        
-        // Add comments
+
+        // Add comments as separate formatted block rows (full-width)
         if (it.comments && it.comments.length > 0) {
           it.comments.forEach((comment) => {
             const commentDate = new Date(comment.created_at).toLocaleDateString("ru-RU");
             const authorName = comment.author_name || "Пользователь";
-            rows.push(["", `💬 ${t(authorName)} (${commentDate}): ${t(comment.content)}`, "", ""]);
+            const commentText = `${t(authorName)} (${commentDate}): ${t(comment.content)}`;
+            rows.push([buildCommentBlockCell(commentText, 4)] as any);
           });
         }
       });
@@ -474,12 +491,6 @@ function renderSectionTypeTable(
             data.cell.styles.fontStyle = "bold";
             data.cell.styles.fillColor = [230, 240, 250];
           }
-          // Comments styling
-          if (text.startsWith("💬")) {
-            data.cell.styles.fontStyle = "italic";
-            data.cell.styles.textColor = [100, 100, 100];
-            data.cell.styles.fontSize = 8;
-          }
         }
       },
     });
@@ -491,7 +502,7 @@ function renderSectionTypeTable(
   if (sectionType === "hr" || sectionType === "business") {
     const rows: string[][] = [];
     sectionItems.forEach((it) => {
-      const completedMark = it.completed ? "✓ " : "";
+      const completedMark = it.completed ? "[X] " : "";
       rows.push([
         `${completedMark}${t(it.item_text)}`,
         it.responsible ? t(it.responsible) : "",
@@ -502,7 +513,8 @@ function renderSectionTypeTable(
         it.comments.forEach((comment) => {
           const commentDate = new Date(comment.created_at).toLocaleDateString("ru-RU");
           const authorName = comment.author_name || "Пользователь";
-          rows.push([`💬 ${t(authorName)} (${commentDate}): ${t(comment.content)}`, "", ""]);
+          const commentText = `${t(authorName)} (${commentDate}): ${t(comment.content)}`;
+          rows.push([buildCommentBlockCell(commentText, 3)] as any);
         });
       }
     });
@@ -531,14 +543,8 @@ function renderSectionTypeTable(
         2: { cellWidth: 25 },
       },
       didParseCell: (data) => {
-        if (data.section === "body" && data.column.index === 0) {
-          const text = String(data.cell.raw);
-          if (text.startsWith("💬")) {
-            data.cell.styles.fontStyle = "italic";
-            data.cell.styles.textColor = [100, 100, 100];
-            data.cell.styles.fontSize = 8;
-          }
-        }
+        // Styles for comment rows are applied via cell.styles in buildCommentBlockCell
+        void data;
       },
     });
 
@@ -549,7 +555,7 @@ function renderSectionTypeTable(
   if (sectionType === "goals") {
     const tableData: string[][] = [];
     sectionItems.forEach((it) => {
-      const completedMark = it.completed ? "✓ " : "";
+      const completedMark = it.completed ? "[X] " : "";
       tableData.push([
         `${completedMark}${t(it.item_text)}`,
         it.responsible ? t(it.responsible) : "",
@@ -562,7 +568,8 @@ function renderSectionTypeTable(
         it.comments.forEach((comment) => {
           const commentDate = new Date(comment.created_at).toLocaleDateString("ru-RU");
           const authorName = comment.author_name || "Пользователь";
-          tableData.push([`💬 ${t(authorName)} (${commentDate}): ${t(comment.content)}`, "", "", "", ""]);
+          const commentText = `${t(authorName)} (${commentDate}): ${t(comment.content)}`;
+          tableData.push([buildCommentBlockCell(commentText, 5)] as any);
         });
       }
     });
@@ -600,14 +607,8 @@ function renderSectionTypeTable(
         fillColor: [245, 245, 245],
       },
       didParseCell: (data) => {
-        if (data.section === "body" && data.column.index === 0) {
-          const text = String(data.cell.raw);
-          if (text.startsWith("💬")) {
-            data.cell.styles.fontStyle = "italic";
-            data.cell.styles.textColor = [100, 100, 100];
-            data.cell.styles.fontSize = 7;
-          }
-        }
+        // Styles for comment rows are applied via cell.styles in buildCommentBlockCell
+        void data;
       },
     });
 
