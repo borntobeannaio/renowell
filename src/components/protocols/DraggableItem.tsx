@@ -20,6 +20,7 @@ interface DraggableItemProps {
   onUpdate: (updates: Partial<UniversalItemData>) => void;
   onRemove: () => void;
   onArchive?: () => void;
+  onPersistTempItem?: () => Promise<string | null>;
   sectionType?: SectionType;
   itemNumber?: string;
   profiles?: { id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[];
@@ -33,6 +34,7 @@ export function DraggableItem({
   onUpdate,
   onRemove,
   onArchive,
+  onPersistTempItem,
   sectionType = 'project',
   itemNumber,
   profiles = [],
@@ -76,6 +78,7 @@ export function DraggableItem({
             onUpdate={onUpdate as (updates: Partial<GoalItemData>) => void}
             onRemove={onRemove}
             onArchive={onArchive}
+            onPersistTempItem={onPersistTempItem}
             itemNumber={itemNumber}
             profiles={profiles}
             protocolTitle={protocolTitle}
@@ -88,6 +91,7 @@ export function DraggableItem({
             onUpdate={onUpdate as (updates: Partial<ProtocolItemData>) => void}
             onRemove={onRemove}
             onArchive={onArchive}
+            onPersistTempItem={onPersistTempItem}
             itemNumber={itemNumber}
             profiles={profiles}
             protocolTitle={protocolTitle}

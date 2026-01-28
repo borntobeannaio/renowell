@@ -600,6 +600,186 @@ export default function ProtocolEditor() {
     markAsChanged();
   };
 
+  // Persist a temp item to the database (used for auto-save on first comment)
+  const handlePersistTempItem = async (groupIndex: number, itemId: string): Promise<string | null> => {
+    // Only works for temp items in edit mode (protocol must exist)
+    if (!itemId.startsWith("temp-")) return itemId; // Already persisted
+    if (!id) {
+      toast.error("Сначала сохраните протокол");
+      return null;
+    }
+
+    const group = sectionGroups[groupIndex];
+    const item = group.items.find(i => i.id === itemId);
+    if (!item) return null;
+
+    try {
+      // For goals section
+      if (group.sectionType === 'goals') {
+        const goalItem = item as GoalItemData;
+        
+        // Ensure section is persisted first
+        let sectionId = group.id;
+        if (group.id.startsWith("temp-")) {
+          const sectionResult = await createSection.mutateAsync({
+            protocol_id: id,
+            section_type: group.sectionType,
+            entity_id: group.entityId,
+            entity_name: group.entityName,
+            default_responsible: group.defaultResponsible,
+            sort_order: groupIndex,
+          });
+          sectionId = sectionResult.id;
+          
+          // Update local state with new section id
+          setSectionGroups(prev => prev.map((g, i) =>
+            i === groupIndex ? { ...g, id: sectionId } : g
+          ));
+        }
+
+        const result = await createProtocolItem.mutateAsync({
+          protocol_id: id,
+          item_text: goalItem.item_text || "Новая цель",
+          responsible: goalItem.responsible,
+          due_date: goalItem.due_date,
+          kpi: goalItem.kpi,
+          status: goalItem.status,
+          status_date: goalItem.status_date,
+          create_task: goalItem.create_task,
+          section_id: sectionId,
+          completed: goalItem.completed,
+          completed_at: goalItem.completed_at,
+        });
+
+        const newId = result.id;
+
+        // Update local state with new item id
+        setSectionGroups(prev => prev.map((g, i) =>
+          i === groupIndex
+            ? { ...g, items: g.items.map(it => it.id === itemId ? { ...it, id: newId } : it) }
+            : g
+        ));
+
+        return newId;
+      }
+
+      // For regular items
+      const regularItem = item as ProtocolItemData;
+      
+      // Ensure section is persisted first
+      let sectionId = group.id;
+      if (group.id.startsWith("temp-")) {
+        const sectionResult = await createSection.mutateAsync({
+          protocol_id: id,
+          section_type: group.sectionType,
+          entity_id: group.entityId,
+          entity_name: group.entityName,
+          default_responsible: group.defaultResponsible,
+          sort_order: groupIndex,
+        });
+        sectionId = sectionResult.id;
+        
+        // Update local state with new section id
+        setSectionGroups(prev => prev.map((g, i) =>
+          i === groupIndex ? { ...g, id: sectionId } : g
+        ));
+      }
+
+      const result = await createProtocolItem.mutateAsync({
+        protocol_id: id,
+        item_text: regularItem.item_text || "Новый пункт",
+        responsible: regularItem.responsible,
+        due_date: regularItem.due_date,
+        create_task: regularItem.create_task,
+        project_id: regularItem.project_id || group.entityId,
+        section_id: sectionId,
+        completed: regularItem.completed,
+        completed_at: regularItem.completed_at,
+      });
+
+      const newId = result.id;
+
+      // Update local state with new item id
+      setSectionGroups(prev => prev.map((g, i) =>
+        i === groupIndex
+          ? { ...g, items: g.items.map(it => it.id === itemId ? { ...it, id: newId } : it) }
+          : g
+      ));
+
+      return newId;
+    } catch (error) {
+      console.error("Failed to persist temp item:", error);
+      toast.error("Ошибка сохранения пункта");
+      return null;
+    }
+  };
+
+  // Persist tender item
+  const handlePersistTenderItem = async (groupIndex: number, companyId: string, itemId: string): Promise<string | null> => {
+    if (!itemId.startsWith("temp-")) return itemId;
+    if (!id) {
+      toast.error("Сначала сохраните протокол");
+      return null;
+    }
+
+    const group = sectionGroups[groupIndex];
+    const company = group.companyGroups?.find(c => c.id === companyId);
+    const item = company?.items.find(i => i.id === itemId);
+    if (!item) return null;
+
+    try {
+      // Ensure section is persisted first
+      let sectionId = group.id;
+      if (group.id.startsWith("temp-")) {
+        const sectionResult = await createSection.mutateAsync({
+          protocol_id: id,
+          section_type: 'tender',
+          entity_id: group.entityId,
+          entity_name: group.entityName || "Тендеры",
+          default_responsible: group.defaultResponsible,
+          sort_order: groupIndex,
+        });
+        sectionId = sectionResult.id;
+        
+        setSectionGroups(prev => prev.map((g, i) =>
+          i === groupIndex ? { ...g, id: sectionId } : g
+        ));
+      }
+
+      const result = await createProtocolItem.mutateAsync({
+        protocol_id: id,
+        item_text: `[${company!.companyName}] ${item.item_text || "Новый пункт"}`,
+        responsible: item.responsible,
+        due_date: item.due_date,
+        create_task: item.create_task,
+        section_id: sectionId,
+        completed: item.completed,
+        completed_at: item.completed_at,
+      });
+
+      const newId = result.id;
+
+      // Update local state
+      setSectionGroups(prev => prev.map((g, i) => {
+        if (i !== groupIndex) return g;
+        return {
+          ...g,
+          companyGroups: g.companyGroups?.map(c =>
+            c.id === companyId
+              ? { ...c, items: c.items.map(it => it.id === itemId ? { ...it, id: newId } : it) }
+              : c
+          )
+        };
+      }));
+
+      return newId;
+    } catch (error) {
+      console.error("Failed to persist tender item:", error);
+      toast.error("Ошибка сохранения пункта тендера");
+      return null;
+    }
+  };
+
   const handleUpdateItem = (groupIndex: number, itemId: string, updates: Partial<UniversalItemData>) => {
     setSectionGroups(prev => prev.map((g, i) =>
       i === groupIndex
@@ -1655,6 +1835,7 @@ export default function ProtocolEditor() {
                             onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
                             onUpdateItem={(companyId, itemId, updates) => handleUpdateTenderItem(index, companyId, itemId, updates)}
                             onRemoveItem={(companyId, itemId) => handleRemoveTenderItem(index, companyId, itemId)}
+                            onPersistTempItem={(companyId, itemId) => handlePersistTenderItem(index, companyId, itemId)}
                             onAddItem={(companyId) => handleAddTenderItem(index, companyId)}
                             onAddCompany={(companyName) => handleAddCompany(index, companyName)}
                             onRemoveCompany={(companyId) => handleRemoveCompany(index, companyId)}
@@ -1678,6 +1859,7 @@ export default function ProtocolEditor() {
                             onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
                             onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
                             onArchiveItem={(itemId) => handleArchiveItem(index, itemId)}
+                            onPersistTempItem={(itemId) => handlePersistTempItem(index, itemId)}
                             onAddItem={() => handleAddItemToSection(index)}
                             onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
                             onRemoveSection={sectionGroups.length > 1 ? () => handleRemoveSection(index) : undefined}

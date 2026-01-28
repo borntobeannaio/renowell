@@ -40,6 +40,7 @@ interface TenderSectionProps {
   onChangeDefaultResponsible: (responsible: string | null) => void;
   onUpdateItem: (companyId: string, itemId: string, updates: Partial<ProtocolItemData>) => void;
   onRemoveItem: (companyId: string, itemId: string) => void;
+  onPersistTempItem?: (companyId: string, itemId: string) => Promise<string | null>;
   onAddItem: (companyId: string) => void;
   onAddCompany: (companyName: string) => void;
   onRemoveCompany: (companyId: string) => void;
@@ -59,6 +60,7 @@ export function TenderSection({
   onChangeDefaultResponsible,
   onUpdateItem,
   onRemoveItem,
+  onPersistTempItem,
   onAddItem,
   onAddCompany,
   onRemoveCompany,
@@ -201,6 +203,7 @@ export function TenderSection({
               onCancelEdit={handleCancelEditCompany}
               onUpdateItem={(itemId, updates) => onUpdateItem(company.id, itemId, updates)}
               onRemoveItem={(itemId) => onRemoveItem(company.id, itemId)}
+              onPersistTempItem={onPersistTempItem ? (itemId) => onPersistTempItem(company.id, itemId) : undefined}
               onAddItem={() => onAddItem(company.id)}
               onRemoveCompany={() => onRemoveCompany(company.id)}
               canEdit={canEdit}
@@ -283,6 +286,7 @@ interface CompanySubSectionProps {
   onCancelEdit: () => void;
   onUpdateItem: (itemId: string, updates: Partial<ProtocolItemData>) => void;
   onRemoveItem: (itemId: string) => void;
+  onPersistTempItem?: (itemId: string) => Promise<string | null>;
   onAddItem: () => void;
   onRemoveCompany: () => void;
   canEdit?: boolean;
@@ -301,6 +305,7 @@ function CompanySubSection({
   onCancelEdit,
   onUpdateItem,
   onRemoveItem,
+  onPersistTempItem,
   onAddItem,
   onRemoveCompany,
   canEdit = true,
@@ -394,6 +399,7 @@ function CompanySubSection({
               projectDefaultResponsible={defaultResponsible}
               onUpdateItem={onUpdateItem}
               onRemoveItem={onRemoveItem}
+              onPersistTempItem={onPersistTempItem}
               sectionType="tender"
               protocolTitle={protocolTitle}
             />

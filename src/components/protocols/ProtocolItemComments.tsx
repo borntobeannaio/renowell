@@ -13,17 +13,25 @@ interface ProtocolItemCommentsProps {
   itemId: string;
   profiles: { id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[];
   protocolTitle?: string;
+  onPersistTempItem?: () => Promise<string | null>; // Returns new item ID after persistence
 }
 
-export function ProtocolItemComments({ itemId, profiles, protocolTitle }: ProtocolItemCommentsProps) {
+export function ProtocolItemComments({ itemId, profiles, protocolTitle, onPersistTempItem }: ProtocolItemCommentsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [persistedItemId, setPersistedItemId] = useState<string | null>(null);
+  const [isPersisting, setIsPersisting] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   
   const { data: profile } = useCurrentProfile();
   const { data: employees = [] } = useEmployees();
-  const { data: comments = [], isLoading } = useProtocolItemComments(itemId);
+  
+  // Use persisted ID if available (after auto-save of temp item)
+  const effectiveItemId = persistedItemId || itemId;
+  const isTempItem = effectiveItemId.startsWith("temp-");
+  
+  const { data: comments = [], isLoading } = useProtocolItemComments(isTempItem ? null : effectiveItemId);
   const createComment = useCreateProtocolItemComment();
   const updateComment = useUpdateProtocolItemComment();
   const deleteComment = useDeleteProtocolItemComment();
@@ -59,6 +67,29 @@ export function ProtocolItemComments({ itemId, profiles, protocolTitle }: Protoc
   const handleSubmit = async () => {
     if (!newComment.trim() || !profile?.id) return;
 
+    let targetItemId = effectiveItemId;
+
+    // If it's a temp item, persist it first
+    if (isTempItem && onPersistTempItem) {
+      setIsPersisting(true);
+      try {
+        const newId = await onPersistTempItem();
+        if (newId) {
+          targetItemId = newId;
+          setPersistedItemId(newId);
+        } else {
+          console.error("Failed to persist temp item");
+          setIsPersisting(false);
+          return;
+        }
+      } catch (error) {
+        console.error("Failed to persist temp item:", error);
+        setIsPersisting(false);
+        return;
+      }
+      setIsPersisting(false);
+    }
+
     // Извлечь упоминания для создания уведомлений
     const mentionedNames = extractMentions(newComment);
     const mentionedProfileIds = mentionedNames
@@ -69,7 +100,7 @@ export function ProtocolItemComments({ itemId, profiles, protocolTitle }: Protoc
 
     try {
       await createComment.mutateAsync({
-        item_id: itemId,
+        item_id: targetItemId,
         author_id: profile.id,
         content: newComment.trim(),
         mentionedProfileIds,
@@ -106,7 +137,7 @@ export function ProtocolItemComments({ itemId, profiles, protocolTitle }: Protoc
     try {
       await updateComment.mutateAsync({
         id: editingId,
-        item_id: itemId,
+        item_id: effectiveItemId,
         content: editContent.trim(),
       });
       setEditingId(null);
@@ -115,9 +146,6 @@ export function ProtocolItemComments({ itemId, profiles, protocolTitle }: Protoc
       console.error("Failed to update comment:", error);
     }
   };
-
-  // For temp items, comments will be saved once the item is persisted
-  const isTempItem = itemId.startsWith("temp-");
 
   return (
     <div className="space-y-2">
