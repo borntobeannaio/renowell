@@ -13,16 +13,19 @@ import {
   Check,
   X,
   GripVertical,
+  Archive,
 } from "lucide-react";
 import { ProtocolItemData } from "./ProtocolItemEditor";
 import { GoalItemData } from "./GoalItemEditor";
 import { DroppableSection } from "./DroppableSection";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { SectionType } from "@/hooks/useProtocolSections";
+import { DeleteSectionModal } from "./DeleteSectionModal";
 import type { SortableHandleProps } from "./SortableProtocolSection";
 
 interface UniversalSectionProps {
   sectionId: string;
+  sectionIndex?: number;
   sectionType: SectionType;
   entityId: string | null;
   entityName: string | null;
@@ -43,12 +46,19 @@ interface UniversalSectionProps {
   onChangeDefaultResponsible: (responsible: string | null) => void;
   onUpdateItem: (itemId: string, updates: Partial<ProtocolItemData | GoalItemData>) => void;
   onRemoveItem: (itemId: string) => void;
+  onArchiveItem?: (itemId: string) => void;
   onAddItem: () => void;
   onChangeEntity?: (entityId: string | null, entityName: string | null) => void;
   onRemoveSection?: () => void;
+  onArchiveSection?: () => void;
+  onMoveItemsToSection?: (targetSectionId: string) => void;
+  otherSections?: { id: string; sectionType: SectionType; entityName: string | null; displayName: string }[];
   canEdit?: boolean;
+  forceExpanded?: boolean;
   defaultExpanded?: boolean;
   dragHandle?: SortableHandleProps;
+  profiles?: { id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[];
+  isArchived?: boolean;
 }
 
 const SECTION_ICONS: Record<SectionType, React.ReactNode> = {
@@ -69,6 +79,7 @@ const SECTION_BG_CLASSES: Record<SectionType, string> = {
 
 export function UniversalSection({
   sectionId,
+  sectionIndex,
   sectionType,
   entityId,
   entityName,
@@ -79,16 +90,27 @@ export function UniversalSection({
   onChangeDefaultResponsible,
   onUpdateItem,
   onRemoveItem,
+  onArchiveItem,
   onAddItem,
   onChangeEntity,
   onRemoveSection,
+  onArchiveSection,
+  onMoveItemsToSection,
+  otherSections = [],
   canEdit = true,
+  forceExpanded,
   defaultExpanded = true,
   dragHandle,
+  profiles = [],
+  isArchived = false,
 }: UniversalSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [isExpanded, setIsExpanded] = useState(forceExpanded ?? defaultExpanded);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // Respect forceExpanded prop
+  const actualExpanded = forceExpanded !== undefined ? forceExpanded : isExpanded;
 
   // Get display name based on section type
   const getDisplayName = () => {
@@ -158,10 +180,31 @@ export function UniversalSection({
     setIsEditing(false);
   };
 
+  const handleDeleteClick = () => {
+    if (items.length === 0) {
+      // No items - delete directly
+      onRemoveSection?.();
+    } else {
+      // Has items - show modal
+      setShowDeleteModal(true);
+    }
+  };
+
+  const handleDeleteWithItems = () => {
+    onRemoveSection?.();
+  };
+
+  const handleMoveItems = (targetSectionId: string) => {
+    onMoveItemsToSection?.(targetSectionId);
+    onRemoveSection?.();
+  };
+
   const displayName = getDisplayName();
+  const activeItems = items.filter(i => !i.archived);
+  const archivedItems = items.filter(i => i.archived);
 
   return (
-    <div className="card-base overflow-visible">
+    <div className={`card-base overflow-visible ${isArchived ? 'opacity-60 border-dashed' : ''}`}>
       {/* Header */}
       <div className={`flex items-center gap-2 p-4 ${SECTION_BG_CLASSES[sectionType]}`}>
         {dragHandle && (
@@ -180,7 +223,7 @@ export function UniversalSection({
           onClick={() => setIsExpanded(!isExpanded)}
           className="p-1 hover:bg-secondary rounded transition-colors"
         >
-          {isExpanded ? (
+          {actualExpanded ? (
             <ChevronUp className="w-4 h-4 text-muted-foreground" />
           ) : (
             <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -244,12 +287,22 @@ export function UniversalSection({
         )}
 
         <span className="chip text-xs shrink-0">
-          {items.length} {items.length === 1 ? "пункт" : items.length >= 2 && items.length <= 4 ? "пункта" : "пунктов"}
+          {activeItems.length} {activeItems.length === 1 ? "пункт" : activeItems.length >= 2 && activeItems.length <= 4 ? "пункта" : "пунктов"}
         </span>
 
-        {onRemoveSection && items.length === 0 && (
+        {onArchiveSection && (
           <button
-            onClick={onRemoveSection}
+            onClick={onArchiveSection}
+            className="p-2 text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10 rounded-lg transition-colors"
+            title={isArchived ? "Восстановить из архива" : "Архивировать секцию"}
+          >
+            <Archive className="w-4 h-4" />
+          </button>
+        )}
+
+        {onRemoveSection && (
+          <button
+            onClick={handleDeleteClick}
             className="p-2 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
             title="Удалить секцию"
           >
@@ -259,7 +312,7 @@ export function UniversalSection({
       </div>
 
       {/* Default responsible row - always visible when expanded (except for goals) */}
-      {isExpanded && sectionType !== "goals" && (
+      {actualExpanded && sectionType !== "goals" && (
         <div className="px-4 py-3 bg-muted/10 border-b border-border/50 flex items-center gap-3">
           <Users className="w-4 h-4 text-muted-foreground shrink-0" />
           <span className="text-sm text-muted-foreground shrink-0">Ответственные по умолчанию:</span>
@@ -276,19 +329,22 @@ export function UniversalSection({
       )}
 
       {/* Items */}
-      {isExpanded && (
+      {actualExpanded && (
         <div className="p-4 space-y-3">
-          {items.length === 0 ? (
+          {activeItems.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">Нет пунктов. Добавьте первый пункт.</p>
           ) : (
             <DroppableSection
               sectionId={`section-${sectionId}`}
-              items={items}
+              sectionIndex={sectionIndex}
+              items={activeItems}
               employees={employees}
               projectDefaultResponsible={defaultResponsible}
               onUpdateItem={onUpdateItem}
               onRemoveItem={onRemoveItem}
+              onArchiveItem={onArchiveItem}
               sectionType={sectionType}
+              profiles={profiles}
             />
           )}
 
@@ -300,8 +356,43 @@ export function UniversalSection({
             <Plus className="w-4 h-4" />
             {sectionType === "goals" ? "Добавить цель" : "Добавить пункт"}
           </button>
+
+          {/* Archived items toggle */}
+          {archivedItems.length > 0 && (
+            <details className="mt-4">
+              <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground flex items-center gap-2">
+                <Archive className="w-4 h-4" />
+                Архивированные пункты ({archivedItems.length})
+              </summary>
+              <div className="mt-3 space-y-3 opacity-60">
+                <DroppableSection
+                  sectionId={`section-archived-${sectionId}`}
+                  sectionIndex={sectionIndex}
+                  items={archivedItems}
+                  employees={employees}
+                  projectDefaultResponsible={defaultResponsible}
+                  onUpdateItem={onUpdateItem}
+                  onRemoveItem={onRemoveItem}
+                  onArchiveItem={onArchiveItem}
+                  sectionType={sectionType}
+                  profiles={profiles}
+                />
+              </div>
+            </details>
+          )}
         </div>
       )}
+
+      {/* Delete confirmation modal */}
+      <DeleteSectionModal
+        open={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        sectionName={displayName}
+        itemsCount={items.length}
+        otherSections={otherSections}
+        onDeleteWithItems={handleDeleteWithItems}
+        onMoveItems={handleMoveItems}
+      />
     </div>
   );
 }

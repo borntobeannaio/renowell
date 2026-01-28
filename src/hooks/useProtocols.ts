@@ -29,6 +29,10 @@ export interface DbProtocolItem {
   kpi: string | null;
   status: string | null;
   status_date: string | null;
+  // Archiving and completion
+  archived: boolean;
+  completed: boolean;
+  completed_at: string | null;
   created_at: string;
   updated_at: string;
 }

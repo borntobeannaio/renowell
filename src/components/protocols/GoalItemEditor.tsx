@@ -1,5 +1,6 @@
-import { Trash2, GripVertical, Target } from "lucide-react";
+import { Trash2, Target, Archive, CheckSquare, Square } from "lucide-react";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
+import { ProtocolItemComments } from "./ProtocolItemComments";
 
 export interface GoalItemData {
   id: string;
@@ -12,6 +13,9 @@ export interface GoalItemData {
   status_date: string | null;
   create_task: boolean;
   task_id?: string | null;
+  archived?: boolean;
+  completed?: boolean;
+  completed_at?: string | null;
 }
 
 interface GoalItemEditorProps {
@@ -20,8 +24,11 @@ interface GoalItemEditorProps {
   projectDefaultResponsible: string | null;
   onUpdate: (updates: Partial<GoalItemData>) => void;
   onRemove: () => void;
+  onArchive?: () => void;
   showDragHandle?: boolean;
   disabled?: boolean;
+  itemNumber?: string;
+  profiles?: { id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[];
 }
 
 export function GoalItemEditor({
@@ -30,8 +37,11 @@ export function GoalItemEditor({
   projectDefaultResponsible,
   onUpdate,
   onRemove,
+  onArchive,
   showDragHandle = false,
   disabled = false,
+  itemNumber,
+  profiles = [],
 }: GoalItemEditorProps) {
   const effectiveResponsible = item.responsible ?? projectDefaultResponsible;
 
@@ -51,16 +61,51 @@ export function GoalItemEditor({
     onUpdate({ responsible: responsibleNames || null });
   };
 
+  const handleToggleCompleted = () => {
+    const newCompleted = !item.completed;
+    onUpdate({ 
+      completed: newCompleted, 
+      completed_at: newCompleted ? new Date().toISOString() : null 
+    });
+  };
+
+  const isCompleted = item.completed;
+  const isArchived = item.archived;
+
   return (
-    <div className="p-4 rounded-lg bg-gradient-to-r from-amber-500/5 to-orange-500/5 border border-amber-500/20 space-y-4">
+    <div className={`p-4 rounded-lg border space-y-4 ${
+      isArchived 
+        ? 'bg-muted/30 border-dashed opacity-60' 
+        : isCompleted 
+          ? 'bg-green-500/5 border-green-500/30' 
+          : 'bg-gradient-to-r from-amber-500/5 to-orange-500/5 border-amber-500/20'
+    }`}>
       {/* Header row */}
       <div className="flex items-start gap-2">
-        {showDragHandle && (
-          <button className="p-1 cursor-grab text-muted-foreground hover:text-foreground shrink-0 mt-1.5">
-            <GripVertical className="w-4 h-4" />
-          </button>
-        )}
+        {/* Completion checkbox */}
+        <button
+          type="button"
+          onClick={handleToggleCompleted}
+          className={`p-1 shrink-0 mt-1 rounded transition-colors ${
+            isCompleted 
+              ? 'text-green-600 hover:text-green-700' 
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+          disabled={disabled}
+          title={isCompleted ? "Снять отметку выполнено" : "Отметить как выполнено"}
+        >
+          {isCompleted ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+        </button>
+
         <Target className="w-5 h-5 text-amber-600 shrink-0 mt-1.5" />
+        
+        {/* Item number */}
+        {itemNumber && (
+          <span className="text-xs font-mono text-muted-foreground shrink-0 mt-2 min-w-[2.5rem]">
+            {itemNumber}
+          </span>
+        )}
+
         <div className="flex-1 space-y-3">
           {/* Goal text */}
           <div>
@@ -68,7 +113,7 @@ export function GoalItemEditor({
             <textarea
               value={item.item_text}
               onChange={(e) => onUpdate({ item_text: e.target.value })}
-              className="input-base w-full resize-none"
+              className={`input-base w-full resize-none ${isCompleted ? 'line-through text-muted-foreground' : ''}`}
               placeholder="Описание цели или задачи"
               rows={2}
               disabled={disabled}
@@ -155,17 +200,35 @@ export function GoalItemEditor({
               </span>
             )}
           </div>
+
+          {/* Comments section */}
+          {profiles.length > 0 && (
+            <ProtocolItemComments itemId={item.id} profiles={profiles} />
+          )}
         </div>
 
-        <button
-          type="button"
-          onClick={onRemove}
-          className="p-2 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded-lg shrink-0 transition-colors"
-          disabled={disabled}
-          title="Удалить"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        <div className="flex flex-col gap-1">
+          {onArchive && (
+            <button
+              type="button"
+              onClick={onArchive}
+              className="p-2 text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10 rounded-lg shrink-0 transition-colors"
+              disabled={disabled}
+              title={isArchived ? "Восстановить из архива" : "Архивировать"}
+            >
+              <Archive className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onRemove}
+            className="p-2 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded-lg shrink-0 transition-colors"
+            disabled={disabled}
+            title="Удалить"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

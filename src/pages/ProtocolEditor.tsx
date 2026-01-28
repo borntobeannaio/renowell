@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Plus, Loader2, Save, Download, Cloud } from "lucide-react";
+import { ArrowLeft, Plus, Loader2, Save, Download, Cloud, ChevronsUpDown } from "lucide-react";
 import {
   DndContext,
   DragEndEvent,
@@ -141,6 +141,7 @@ export default function ProtocolEditor() {
   const [editInitialized, setEditInitialized] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [allSectionsCollapsed, setAllSectionsCollapsed] = useState(false);
   const [draftRestorePrompted, setDraftRestorePrompted] = useState(false);
   
   // Save progress state for UX feedback
@@ -1439,6 +1440,15 @@ export default function ProtocolEditor() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button 
+              onClick={() => setAllSectionsCollapsed(!allSectionsCollapsed)} 
+              variant="outline" 
+              size="sm" 
+              className="gap-2"
+              title={allSectionsCollapsed ? "Развернуть все секции" : "Свернуть все секции"}
+            >
+              <ChevronsUpDown className="w-4 h-4" />
+            </Button>
             <Button onClick={() => setShowSectionModal(true)} variant="outline" size="sm" className="gap-2">
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Секция</span>
@@ -1531,6 +1541,7 @@ export default function ProtocolEditor() {
                         ) : (
                           <UniversalSection
                             sectionId={group.id}
+                            sectionIndex={index}
                             sectionType={group.sectionType}
                             entityId={group.entityId}
                             entityName={group.entityName}
@@ -1545,6 +1556,7 @@ export default function ProtocolEditor() {
                             onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
                             onRemoveSection={sectionGroups.length > 1 ? () => handleRemoveSection(index) : undefined}
                             canEdit={!isEditMode || group.id.startsWith("temp-")}
+                            forceExpanded={!allSectionsCollapsed}
                             dragHandle={{ attributes, listeners }}
                           />
                         )

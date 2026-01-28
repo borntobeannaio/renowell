@@ -14,9 +14,6 @@ const columns: { id: TaskStatus; label: string }[] = [
   { id: "in_progress", label: "В работе" },
   { id: "review", label: "На проверке" },
   { id: "done", label: "Готово" },
-  { id: "on_hold", label: "Отложено" },
-  { id: "blocked", label: "Заблокировано" },
-  { id: "cancelled", label: "Отменено" },
 ];
 
 const priorities: { id: TaskPriority; label: string }[] = [
