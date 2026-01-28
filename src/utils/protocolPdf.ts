@@ -1,6 +1,15 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+interface ProtocolItemComment {
+  id: string;
+  item_id: string;
+  author_id: string;
+  author_name?: string;
+  content: string;
+  created_at: string;
+}
+
 interface ProtocolItem {
   id: string;
   item_text: string;
@@ -12,6 +21,8 @@ interface ProtocolItem {
   status?: string | null;
   status_date?: string | null;
   sort_order?: number | null;
+  completed?: boolean | null;
+  comments?: ProtocolItemComment[];
 }
 
 interface ProtocolSection {
@@ -116,8 +127,14 @@ export async function generateProtocolPdf(
   protocol: Protocol,
   items: ProtocolItem[],
   projects: Project[],
-  sections?: ProtocolSection[]
+  sections?: ProtocolSection[],
+  comments?: ProtocolItemComment[]
 ) {
+  // Attach comments to items
+  const itemsWithComments = items.map(item => ({
+    ...item,
+    comments: comments?.filter(c => c.item_id === item.id) || []
+  }));
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
@@ -168,9 +185,9 @@ export async function generateProtocolPdf(
 
   // Use sections if available, otherwise fall back to old grouping
   if (sections && sections.length > 0) {
-    generateSectionBasedPdf(doc, sections, items, projects, t, hasCyrillicFont, yPos, margin, pageWidth);
+    generateSectionBasedPdf(doc, sections, itemsWithComments, projects, t, hasCyrillicFont, yPos, margin, pageWidth);
   } else {
-    generateLegacyPdf(doc, items, projects, t, hasCyrillicFont, yPos, margin, pageWidth);
+    generateLegacyPdf(doc, itemsWithComments, projects, t, hasCyrillicFont, yPos, margin, pageWidth);
   }
 
   // Footer
@@ -256,12 +273,23 @@ function renderProjectsTable(
     // Section header row
     tableData.push([`${itemNumber}. ${sectionTitle}`, sectionResponsible, ""]);
 
-    // Items
+    // Items with comments
     sectionItems.forEach((item, idx) => {
-      const itemText = `${itemNumber}.${idx + 1}. ${t(item.item_text)}`;
+      const completedMark = item.completed ? "✓ " : "";
+      const itemText = `${itemNumber}.${idx + 1}. ${completedMark}${t(item.item_text)}`;
       const responsible = item.responsible ? t(item.responsible) : "";
       const dueDate = formatDate(item.due_date);
       tableData.push([itemText, responsible, dueDate]);
+      
+      // Add comments as sub-rows
+      if (item.comments && item.comments.length > 0) {
+        item.comments.forEach((comment) => {
+          const commentDate = new Date(comment.created_at).toLocaleDateString("ru-RU");
+          const authorName = comment.author_name || "Пользователь";
+          const commentText = `    💬 ${t(authorName)} (${commentDate}): ${t(comment.content)}`;
+          tableData.push([commentText, "", ""]);
+        });
+      }
     });
 
     itemNumber++;
@@ -302,9 +330,16 @@ function renderProjectsTable(
     didParseCell: (data) => {
       if (data.section === "body" && data.column.index === 0) {
         const text = String(data.cell.raw);
+        // Section headers (bold with blue background)
         if (/^\d+\.\s/.test(text) && !text.includes(".1.") && !text.includes(".2.")) {
           data.cell.styles.fontStyle = "bold";
           data.cell.styles.fillColor = [230, 240, 250];
+        }
+        // Comments (italic, gray text)
+        if (text.trim().startsWith("💬") || text.trim().startsWith("    💬")) {
+          data.cell.styles.fontStyle = "italic";
+          data.cell.styles.textColor = [100, 100, 100];
+          data.cell.styles.fontSize = 8;
         }
       }
     },
@@ -377,12 +412,22 @@ function renderSectionTypeTable(
       rows.push([String(n), t(company), companyResp ? t(companyResp) : "", ""]);
 
       companyItems.forEach((it, idx) => {
+        const completedMark = it.completed ? "✓ " : "";
         rows.push([
           `${n}.${idx + 1}`,
-          t(it.item_text),
+          `${completedMark}${t(it.item_text)}`,
           it.responsible ? t(it.responsible) : "",
           formatDate(it.due_date),
         ]);
+        
+        // Add comments
+        if (it.comments && it.comments.length > 0) {
+          it.comments.forEach((comment) => {
+            const commentDate = new Date(comment.created_at).toLocaleDateString("ru-RU");
+            const authorName = comment.author_name || "Пользователь";
+            rows.push(["", `💬 ${t(authorName)} (${commentDate}): ${t(comment.content)}`, "", ""]);
+          });
+        }
       });
 
       n++;
@@ -421,12 +466,19 @@ function renderSectionTypeTable(
             data.cell.styles.fillColor = [230, 240, 250];
           }
         }
-        // Also bold the company name in column 1
+        // Also bold the company name in column 1 / style comments
         if (data.section === "body" && data.column.index === 1 && data.row.index !== undefined) {
           const numCell = data.row.cells[0];
+          const text = String(data.cell.raw);
           if (numCell && /^\d+$/.test(String(numCell.raw))) {
             data.cell.styles.fontStyle = "bold";
             data.cell.styles.fillColor = [230, 240, 250];
+          }
+          // Comments styling
+          if (text.startsWith("💬")) {
+            data.cell.styles.fontStyle = "italic";
+            data.cell.styles.textColor = [100, 100, 100];
+            data.cell.styles.fontSize = 8;
           }
         }
       },
@@ -437,11 +489,23 @@ function renderSectionTypeTable(
 
   // ===== HR / Business: table format (Задача | Ответственный | Срок) =====
   if (sectionType === "hr" || sectionType === "business") {
-    const rows: string[][] = sectionItems.map((it) => [
-      t(it.item_text),
-      it.responsible ? t(it.responsible) : "",
-      formatDate(it.due_date),
-    ]);
+    const rows: string[][] = [];
+    sectionItems.forEach((it) => {
+      const completedMark = it.completed ? "✓ " : "";
+      rows.push([
+        `${completedMark}${t(it.item_text)}`,
+        it.responsible ? t(it.responsible) : "",
+        formatDate(it.due_date),
+      ]);
+      // Add comments
+      if (it.comments && it.comments.length > 0) {
+        it.comments.forEach((comment) => {
+          const commentDate = new Date(comment.created_at).toLocaleDateString("ru-RU");
+          const authorName = comment.author_name || "Пользователь";
+          rows.push([`💬 ${t(authorName)} (${commentDate}): ${t(comment.content)}`, "", ""]);
+        });
+      }
+    });
 
     autoTable(doc, {
       startY,
@@ -466,6 +530,16 @@ function renderSectionTypeTable(
         1: { cellWidth: 40 },
         2: { cellWidth: 25 },
       },
+      didParseCell: (data) => {
+        if (data.section === "body" && data.column.index === 0) {
+          const text = String(data.cell.raw);
+          if (text.startsWith("💬")) {
+            data.cell.styles.fontStyle = "italic";
+            data.cell.styles.textColor = [100, 100, 100];
+            data.cell.styles.fontSize = 8;
+          }
+        }
+      },
     });
 
     return (doc as any).lastAutoTable.finalY + 15;
@@ -473,13 +547,25 @@ function renderSectionTypeTable(
 
   // ===== Goals: keep existing goals table format =====
   if (sectionType === "goals") {
-    const tableData: string[][] = sectionItems.map((it) => [
-      t(it.item_text),
-      it.responsible ? t(it.responsible) : "",
-      it.kpi ? t(it.kpi) : "",
-      formatDate(it.due_date),
-      it.status ? t(it.status) : "",
-    ]);
+    const tableData: string[][] = [];
+    sectionItems.forEach((it) => {
+      const completedMark = it.completed ? "✓ " : "";
+      tableData.push([
+        `${completedMark}${t(it.item_text)}`,
+        it.responsible ? t(it.responsible) : "",
+        it.kpi ? t(it.kpi) : "",
+        formatDate(it.due_date),
+        it.status ? t(it.status) : "",
+      ]);
+      // Add comments
+      if (it.comments && it.comments.length > 0) {
+        it.comments.forEach((comment) => {
+          const commentDate = new Date(comment.created_at).toLocaleDateString("ru-RU");
+          const authorName = comment.author_name || "Пользователь";
+          tableData.push([`💬 ${t(authorName)} (${commentDate}): ${t(comment.content)}`, "", "", "", ""]);
+        });
+      }
+    });
 
     const tableHeaders = [t("ЗАДАЧИ"), t("ОТВЕТСТВЕННЫЕ"), t("KPI"), t("СРОКИ"), t("СТАТУС")];
 
@@ -512,6 +598,16 @@ function renderSectionTypeTable(
       },
       alternateRowStyles: {
         fillColor: [245, 245, 245],
+      },
+      didParseCell: (data) => {
+        if (data.section === "body" && data.column.index === 0) {
+          const text = String(data.cell.raw);
+          if (text.startsWith("💬")) {
+            data.cell.styles.fontStyle = "italic";
+            data.cell.styles.textColor = [100, 100, 100];
+            data.cell.styles.fontSize = 7;
+          }
+        }
       },
     });
 
