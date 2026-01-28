@@ -1085,7 +1085,7 @@ export default function ProtocolEditor() {
 
                 const taskResult = await createTask.mutateAsync({
                   title: item.item_text,
-                  assignee_id: assigneeProfileId,
+                  assignee_ids: assigneeProfileId ? [assigneeProfileId] : [],
                   project_id: null,
                   due_date: item.due_date || null,
                   status: "new",
@@ -1133,7 +1133,7 @@ export default function ProtocolEditor() {
 
               const taskResult = await createTask.mutateAsync({
                 title: item.item_text,
-                assignee_id: assigneeProfileId,
+                assignee_ids: assigneeProfileId ? [assigneeProfileId] : [],
                 project_id: group.sectionType === "project" ? group.entityId : null,
                 due_date: item.due_date || null,
                 status: "new",
@@ -1258,7 +1258,7 @@ export default function ProtocolEditor() {
 
               const taskResult = await createTask.mutateAsync({
                 title: item.item_text,
-                assignee_id: assigneeProfileId,
+                assignee_ids: assigneeProfileId ? [assigneeProfileId] : [],
                 project_id: projectId,
                 due_date: item.due_date || null,
                 status: "new",
@@ -1305,7 +1305,7 @@ export default function ProtocolEditor() {
 
               const taskResult = await createTask.mutateAsync({
                 title: item.item_text,
-                assignee_id: assigneeProfileId,
+                assignee_ids: assigneeProfileId ? [assigneeProfileId] : [],
                 project_id: projectId,
                 due_date: item.due_date || null,
                 status: "new",

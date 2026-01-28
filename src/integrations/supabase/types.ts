@@ -781,42 +781,51 @@ export type Database = {
       tasks: {
         Row: {
           assignee_id: string | null
+          assignee_ids: string[] | null
           created_at: string
           due_date: string | null
           id: string
           labels: string[] | null
+          observer_ids: string[] | null
           origin_id: string | null
           origin_type: string | null
           priority: string | null
           project_id: string | null
+          responsible_ids: string[] | null
           status: string
           title: string
           updated_at: string
         }
         Insert: {
           assignee_id?: string | null
+          assignee_ids?: string[] | null
           created_at?: string
           due_date?: string | null
           id?: string
           labels?: string[] | null
+          observer_ids?: string[] | null
           origin_id?: string | null
           origin_type?: string | null
           priority?: string | null
           project_id?: string | null
+          responsible_ids?: string[] | null
           status?: string
           title: string
           updated_at?: string
         }
         Update: {
           assignee_id?: string | null
+          assignee_ids?: string[] | null
           created_at?: string
           due_date?: string | null
           id?: string
           labels?: string[] | null
+          observer_ids?: string[] | null
           origin_id?: string | null
           origin_type?: string | null
           priority?: string | null
           project_id?: string | null
+          responsible_ids?: string[] | null
           status?: string
           title?: string
           updated_at?: string
