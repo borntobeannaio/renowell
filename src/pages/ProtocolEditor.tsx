@@ -1517,8 +1517,8 @@ export default function ProtocolEditor() {
 
               taskId = taskResult.id;
               toast.success(`Задача "${item.item_text.slice(0, 30)}..." создана`);
-            } else if (item.task_id) {
-              // Update existing task with all responsible assignees
+            } else if (item.create_task && item.task_id) {
+              // Update existing task with current item data (text, assignees, due date)
               const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
               await updateTask.mutateAsync({
@@ -1527,6 +1527,15 @@ export default function ProtocolEditor() {
                 assignee_ids: assigneeProfileIds,
                 due_date: item.due_date || null,
               });
+            } else if (!item.create_task && item.task_id) {
+              // Checkbox was unchecked but task exists - unlink task from protocol item
+              await updateProtocolItem.mutateAsync({
+                id: item.id,
+                protocol_id: id,
+                task_id: null,
+              });
+              taskId = undefined;
+              toast.info(`Задача отвязана от пункта`);
             }
             
             return { success: true, itemId: item.id, itemText: item.item_text, taskId };

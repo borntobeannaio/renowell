@@ -51,7 +51,8 @@ interface Project {
 
 function buildCommentBlockCell(
   text: string,
-  colSpan: number
+  colSpan: number,
+  hasCyrillicFont: boolean
 ): any {
   // NOTE: Avoid emojis in PDF text (they can break encoding and corrupt Cyrillic output).
   // We render comments as a full-width block under the item row.
@@ -59,6 +60,7 @@ function buildCommentBlockCell(
     content: text,
     colSpan,
     styles: {
+      font: hasCyrillicFont ? "Roboto" : "helvetica",
       fontStyle: "italic",
       textColor: [80, 80, 80],
       fillColor: [245, 245, 245],
@@ -308,7 +310,7 @@ function renderProjectsTable(
           const authorName = comment.author_name || "Пользователь";
           const commentText = `${t(authorName)} (${commentDate}): ${t(comment.content)}`;
           tableData.push([
-            buildCommentBlockCell(commentText, 3),
+            buildCommentBlockCell(commentText, 3, hasCyrillicFont),
           ] as any);
         });
       }
@@ -442,7 +444,7 @@ function renderSectionTypeTable(
             const commentDate = new Date(comment.created_at).toLocaleDateString("ru-RU");
             const authorName = comment.author_name || "Пользователь";
             const commentText = `${t(authorName)} (${commentDate}): ${t(comment.content)}`;
-            rows.push([buildCommentBlockCell(commentText, 4)] as any);
+            rows.push([buildCommentBlockCell(commentText, 4, hasCyrillicFont)] as any);
           });
         }
       });
@@ -514,7 +516,7 @@ function renderSectionTypeTable(
           const commentDate = new Date(comment.created_at).toLocaleDateString("ru-RU");
           const authorName = comment.author_name || "Пользователь";
           const commentText = `${t(authorName)} (${commentDate}): ${t(comment.content)}`;
-          rows.push([buildCommentBlockCell(commentText, 3)] as any);
+          rows.push([buildCommentBlockCell(commentText, 3, hasCyrillicFont)] as any);
         });
       }
     });
@@ -569,7 +571,7 @@ function renderSectionTypeTable(
           const commentDate = new Date(comment.created_at).toLocaleDateString("ru-RU");
           const authorName = comment.author_name || "Пользователь";
           const commentText = `${t(authorName)} (${commentDate}): ${t(comment.content)}`;
-          tableData.push([buildCommentBlockCell(commentText, 5)] as any);
+          tableData.push([buildCommentBlockCell(commentText, 5, hasCyrillicFont)] as any);
         });
       }
     });
