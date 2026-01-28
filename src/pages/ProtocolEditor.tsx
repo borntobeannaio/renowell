@@ -1708,8 +1708,59 @@ export default function ProtocolEditor() {
   const handleExportPdf = async () => {
     if (!existingProtocol) return;
     try {
-      // Get all item IDs to fetch comments
-      const itemIds = existingItems.map(item => item.id);
+      // Convert current state to items format for PDF
+      // Use sectionGroups which contains the actual current state (including completed status)
+      const currentItems: {
+        id: string;
+        item_text: string;
+        responsible: string | null;
+        due_date: string | null;
+        project_id?: string | null;
+        section_id?: string | null;
+        kpi?: string | null;
+        status?: string | null;
+        sort_order?: number | null;
+        completed?: boolean | null;
+      }[] = [];
+      
+      sectionGroups.forEach((group, groupIndex) => {
+        if (group.sectionType === "tender" && group.companyGroups) {
+          // Tender items
+          group.companyGroups.forEach(company => {
+            company.items.forEach((item, itemIndex) => {
+              currentItems.push({
+                id: item.id,
+                item_text: `[${company.companyName}] ${item.item_text}`,
+                responsible: item.responsible ?? group.defaultResponsible,
+                due_date: item.due_date,
+                section_id: group.id.startsWith("temp-") ? undefined : group.id,
+                sort_order: itemIndex,
+                completed: item.completed,
+              });
+            });
+          });
+        } else {
+          // Regular section items
+          group.items.forEach((item, itemIndex) => {
+            // Check if this is a GoalItemData (has kpi/status fields)
+            const goalItem = item as { kpi?: string | null; status?: string | null };
+            currentItems.push({
+              id: item.id,
+              item_text: item.item_text,
+              responsible: item.responsible ?? group.defaultResponsible,
+              due_date: item.due_date,
+              section_id: group.id.startsWith("temp-") ? undefined : group.id,
+              kpi: goalItem.kpi,
+              status: goalItem.status,
+              sort_order: itemIndex,
+              completed: item.completed,
+            });
+          });
+        }
+      });
+      
+      // Get all item IDs to fetch comments (only non-temp items)
+      const itemIds = currentItems.filter(item => !item.id.startsWith("temp-")).map(item => item.id);
       
       let comments: { id: string; item_id: string; author_id: string; content: string; created_at: string; author_name?: string }[] = [];
       
@@ -1752,7 +1803,20 @@ export default function ProtocolEditor() {
         }
       }
       
-      await generateProtocolPdf(existingProtocol, existingItems, projects, existingSections, comments);
+      // Convert sectionGroups to sections format for PDF
+      const currentSections = sectionGroups
+        .filter(g => !g.archived)
+        .map((group, index) => ({
+          id: group.id,
+          protocol_id: existingProtocol.id,
+          section_type: group.sectionType,
+          entity_id: group.entityId,
+          entity_name: group.entityName,
+          default_responsible: group.defaultResponsible,
+          sort_order: index,
+        }));
+      
+      await generateProtocolPdf(existingProtocol, currentItems, projects, currentSections, comments);
       toast.success("PDF экспортирован");
     } catch (error) {
       console.error("PDF export error:", error);
