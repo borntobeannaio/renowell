@@ -45,6 +45,7 @@ import { useCreateTask, useUpdateTask } from "@/hooks/useTasks";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useAuth } from "@/hooks/useAuth";
 import { generateProtocolPdf } from "@/utils/protocolPdf";
+import { proxySelect } from "@/lib/dbProxy";
 import { toast } from "sonner";
 
 
@@ -119,6 +120,15 @@ export default function ProtocolEditor() {
   const sourceProtocol = isCopyMode ? protocols.find(p => p.id === copyFromId) : null;
   const { data: sourceItems = [], isLoading: sourceItemsLoading } = useProtocolItems(isCopyMode ? copyFromId : null);
   const { data: sourceSections = [], isLoading: sourceSectionsLoading } = useProtocolSections(isCopyMode ? copyFromId : null);
+
+  // Load profiles for comments
+  const [profiles, setProfiles] = useState<{ id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[]>([]);
+  useEffect(() => {
+    proxySelect<{ id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }>('profiles', {})
+      .then(({ data }) => {
+        if (data) setProfiles(data);
+      });
+  }, []);
 
   // Loading states
   const isCopyDataLoading = isCopyMode && (protocolsLoading || employeesLoading || sourceItemsLoading || sourceSectionsLoading || !sourceProtocol);
@@ -428,6 +438,9 @@ export default function ProtocolEditor() {
         status_date: item.status_date,
         create_task: item.create_task,
         task_id: item.task_id,
+        archived: item.archived || false,
+        completed: item.completed || false,
+        completed_at: item.completed_at,
       } as GoalItemData;
     }
     return {
@@ -438,6 +451,9 @@ export default function ProtocolEditor() {
       due_date: item.due_date,
       create_task: item.create_task,
       task_id: item.task_id,
+      archived: item.archived || false,
+      completed: item.completed || false,
+      completed_at: item.completed_at,
     } as ProtocolItemData;
   }
 
@@ -562,6 +578,8 @@ export default function ProtocolEditor() {
           status: null,
           status_date: null,
           create_task: false,
+          archived: false,
+          completed: false,
         } as GoalItemData
       : {
           id: generateTempId(),
@@ -570,6 +588,8 @@ export default function ProtocolEditor() {
           responsible: null,
           due_date: null,
           create_task: false,
+          archived: false,
+          completed: false,
         } as ProtocolItemData;
     
     setSectionGroups(prev => prev.map((g, i) =>
@@ -606,6 +626,104 @@ export default function ProtocolEditor() {
         : g
     ));
     markAsChanged();
+  };
+
+  // Archive item handler
+  const handleArchiveItem = (groupIndex: number, itemId: string) => {
+    setSectionGroups(prev => prev.map((g, i) =>
+      i === groupIndex
+        ? { 
+            ...g, 
+            items: g.items.map(item => 
+              item.id === itemId 
+                ? { ...item, archived: !item.archived } 
+                : item
+            ) 
+          }
+        : g
+    ));
+    markAsChanged();
+  };
+
+  // Archive section handler
+  const handleArchiveSection = (groupIndex: number) => {
+    // Toggle archived state for the section and all its items
+    setSectionGroups(prev => prev.map((g, i) => {
+      if (i !== groupIndex) return g;
+      const newArchived = !g.items.some(item => !item.archived);
+      return {
+        ...g,
+        items: g.items.map(item => ({ ...item, archived: !newArchived }))
+      };
+    }));
+    markAsChanged();
+  };
+
+  // Move items to another section handler
+  const handleMoveItemsToSection = (fromGroupIndex: number, targetSectionId: string) => {
+    const targetIndex = sectionGroups.findIndex(g => g.id === targetSectionId);
+    if (targetIndex === -1 || targetIndex === fromGroupIndex) return;
+    
+    const sourceGroup = sectionGroups[fromGroupIndex];
+    const targetGroup = sectionGroups[targetIndex];
+    
+    // Only allow moving if section types are compatible
+    if (sourceGroup.sectionType !== targetGroup.sectionType && 
+        !['project', 'tender'].includes(sourceGroup.sectionType) &&
+        !['project', 'tender'].includes(targetGroup.sectionType)) {
+      toast.error('Нельзя перемещать пункты между секциями разных типов');
+      return;
+    }
+    
+    setSectionGroups(prev => {
+      const newGroups = [...prev];
+      const itemsToMove = [...newGroups[fromGroupIndex].items];
+      
+      // Clear source items
+      newGroups[fromGroupIndex] = {
+        ...newGroups[fromGroupIndex],
+        items: []
+      };
+      
+      // Add to target
+      newGroups[targetIndex] = {
+        ...newGroups[targetIndex],
+        items: [...newGroups[targetIndex].items, ...itemsToMove.map(item => ({
+          ...item,
+          project_id: targetGroup.sectionType === 'project' ? targetGroup.entityId : null
+        }))]
+      };
+      
+      return newGroups;
+    });
+    markAsChanged();
+  };
+
+  // Get other sections for move dropdown
+  const getOtherSections = (currentGroupIndex: number) => {
+    return sectionGroups
+      .filter((g, i) => i !== currentGroupIndex)
+      .map(g => {
+        // Build a temporary section object for getSectionDisplayName
+        const tempSection = {
+          id: g.id,
+          protocol_id: '',
+          section_type: g.sectionType,
+          entity_id: g.entityId,
+          entity_name: g.entityName,
+          default_responsible: g.defaultResponsible,
+          sort_order: 0,
+          archived: false,
+          created_at: '',
+          updated_at: ''
+        };
+        return {
+          id: g.id,
+          sectionType: g.sectionType,
+          entityName: g.entityName,
+          displayName: getSectionDisplayName(tempSection, projects)
+        };
+      });
   };
 
   // ===== Tender company handlers =====
@@ -1125,6 +1243,9 @@ export default function ProtocolEditor() {
               kpi: isGoal ? goalItem.kpi : null,
               status: isGoal ? goalItem.status : null,
               status_date: isGoal ? goalItem.status_date : null,
+              archived: item.archived || false,
+              completed: item.completed || false,
+              completed_at: item.completed_at || null,
             });
 
             let taskId: string | undefined;
@@ -1169,6 +1290,9 @@ export default function ProtocolEditor() {
               status: isGoal ? goalItem.status : null,
               status_date: isGoal ? goalItem.status_date : null,
               sort_order: currentSortOrder,
+              archived: item.archived || false,
+              completed: item.completed || false,
+              completed_at: item.completed_at || null,
             });
 
             let taskId: string | undefined = item.task_id || undefined;
@@ -1552,12 +1676,17 @@ export default function ProtocolEditor() {
                             onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
                             onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
                             onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
+                            onArchiveItem={(itemId) => handleArchiveItem(index, itemId)}
                             onAddItem={() => handleAddItemToSection(index)}
                             onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
                             onRemoveSection={sectionGroups.length > 1 ? () => handleRemoveSection(index) : undefined}
+                            onArchiveSection={() => handleArchiveSection(index)}
+                            onMoveItemsToSection={(targetSectionId) => handleMoveItemsToSection(index, targetSectionId)}
+                            otherSections={getOtherSections(index)}
                             canEdit={!isEditMode || group.id.startsWith("temp-")}
                             forceExpanded={!allSectionsCollapsed}
                             dragHandle={{ attributes, listeners }}
+                            profiles={profiles}
                           />
                         )
                       }
