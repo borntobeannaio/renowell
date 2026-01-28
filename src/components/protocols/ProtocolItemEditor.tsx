@@ -100,15 +100,16 @@ export function ProtocolItemEditor({
         <button
           type="button"
           onClick={handleToggleCompleted}
-          className={`p-1 shrink-0 mt-1 rounded transition-colors ${
+          className={`shrink-0 mt-0.5 flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium transition-all ${
             isCompleted 
-              ? 'text-green-600 hover:text-green-700' 
-              : 'text-muted-foreground hover:text-foreground'
+              ? 'bg-green-500/10 border-green-500/30 text-green-600 hover:bg-green-500/20 dark:text-green-400' 
+              : 'bg-muted/50 border-border hover:bg-muted hover:border-primary/30 text-muted-foreground hover:text-foreground'
           }`}
           disabled={disabled}
           title={isCompleted ? "Снять отметку выполнено" : "Отметить как выполнено"}
         >
           {isCompleted ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+          <span className="hidden sm:inline">{isCompleted ? "Готово" : "Сделать"}</span>
         </button>
 
         {/* Item number */}
