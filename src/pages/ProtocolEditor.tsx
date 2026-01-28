@@ -196,6 +196,15 @@ export default function ProtocolEditor() {
       .filter(Boolean) as string[];
   }, [employees]);
 
+  // Get all profile IDs from responsible string for task assignment
+  const getProfileIdsFromResponsible = useCallback((responsible: string | null): string[] => {
+    if (!responsible) return [];
+    const names = responsible.split(", ").map(n => n.trim());
+    return names
+      .map(name => employees.find(e => e.full_name === name)?.profile_id)
+      .filter(Boolean) as string[];
+  }, [employees]);
+
   // Initialize for edit mode
   useEffect(() => {
     if (isEditMode && existingProtocol && !editInitialized && employees.length > 0 && !existingItemsLoading && !existingSectionsLoading) {
@@ -1261,13 +1270,11 @@ export default function ProtocolEditor() {
               idMapping[item.id] = createdItem.id;
 
               if (item.create_task) {
-                const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-                const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
-                const assigneeProfileId = firstEmployee?.profile_id || null;
+                const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
                 const taskResult = await createTask.mutateAsync({
                   title: item.item_text,
-                  assignee_ids: assigneeProfileId ? [assigneeProfileId] : [],
+                  assignee_ids: assigneeProfileIds,
                   project_id: null,
                   due_date: item.due_date || null,
                   status: "new",
@@ -1309,13 +1316,11 @@ export default function ProtocolEditor() {
             idMapping[item.id] = createdItem.id;
 
             if (item.create_task) {
-              const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-              const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
-              const assigneeProfileId = firstEmployee?.profile_id || null;
+              const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
               const taskResult = await createTask.mutateAsync({
                 title: item.item_text,
-                assignee_ids: assigneeProfileId ? [assigneeProfileId] : [],
+                assignee_ids: assigneeProfileIds,
                 project_id: group.sectionType === "project" ? group.entityId : null,
                 due_date: item.due_date || null,
                 status: "new",
@@ -1434,13 +1439,11 @@ export default function ProtocolEditor() {
 
             // Create task if needed
             if (item.create_task) {
-              const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-              const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
-              const assigneeProfileId = firstEmployee?.profile_id || null;
+              const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
               const taskResult = await createTask.mutateAsync({
                 title: item.item_text,
-                assignee_ids: assigneeProfileId ? [assigneeProfileId] : [],
+                assignee_ids: assigneeProfileIds,
                 project_id: projectId,
                 due_date: item.due_date || null,
                 status: "new",
@@ -1481,13 +1484,11 @@ export default function ProtocolEditor() {
 
             // Create task if checkbox was set and no task exists yet
             if (item.create_task && !item.task_id) {
-              const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-              const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
-              const assigneeProfileId = firstEmployee?.profile_id || null;
+              const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
               const taskResult = await createTask.mutateAsync({
                 title: item.item_text,
-                assignee_ids: assigneeProfileId ? [assigneeProfileId] : [],
+                assignee_ids: assigneeProfileIds,
                 project_id: projectId,
                 due_date: item.due_date || null,
                 status: "new",
@@ -1503,15 +1504,13 @@ export default function ProtocolEditor() {
               taskId = taskResult.id;
               toast.success(`Задача "${item.item_text.slice(0, 30)}..." создана`);
             } else if (item.task_id) {
-              // Update existing task
-              const responsibleIds = getEmployeeIdsFromResponsible(effectiveResponsible);
-              const firstEmployee = responsibleIds[0] ? employees.find((e) => e.id === responsibleIds[0]) : null;
-              const assigneeProfileId = firstEmployee?.profile_id || null;
+              // Update existing task with all responsible assignees
+              const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
               await updateTask.mutateAsync({
                 id: item.task_id,
                 title: item.item_text,
-                assignee_id: assigneeProfileId,
+                assignee_ids: assigneeProfileIds,
                 due_date: item.due_date || null,
               });
             }
