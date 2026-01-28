@@ -22,6 +22,7 @@ interface DroppableSectionProps {
   onArchiveItem?: (itemId: string) => void;
   sectionType?: SectionType;
   profiles?: { id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[];
+  protocolTitle?: string;
 }
 
 export function DroppableSection({
@@ -35,6 +36,7 @@ export function DroppableSection({
   onArchiveItem,
   sectionType = 'project',
   profiles = [],
+  protocolTitle,
 }: DroppableSectionProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: sectionId,
@@ -60,6 +62,7 @@ export function DroppableSection({
             sectionType={sectionType}
             itemNumber={sectionIndex !== undefined ? `${sectionIndex + 1}.${itemIndex + 1}` : undefined}
             profiles={profiles}
+            protocolTitle={protocolTitle}
           />
         ))}
       </SortableContext>

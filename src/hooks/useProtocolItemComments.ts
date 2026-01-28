@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { proxySelect, proxyInsert, proxyUpdate, proxyDelete } from "@/lib/dbProxy";
+import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 
 export interface DbProtocolItemComment {
   id: string;
@@ -29,12 +30,16 @@ export function useProtocolItemComments(itemId: string | null) {
 
 export function useCreateProtocolItemComment() {
   const queryClient = useQueryClient();
+  const { data: profile } = useCurrentProfile();
 
   return useMutation({
     mutationFn: async (comment: {
       item_id: string;
       author_id: string;
       content: string;
+      mentionedProfileIds?: string[];
+      protocolTitle?: string;
+      authorName?: string;
     }) => {
       const { data, error } = await proxyInsert<DbProtocolItemComment>(
         "protocol_item_comments",
@@ -47,7 +52,40 @@ export function useCreateProtocolItemComment() {
       );
 
       if (error) throw new Error(error.message);
-      return data?.[0] as DbProtocolItemComment;
+      const createdComment = data?.[0] as DbProtocolItemComment;
+
+      // Создание записей об упоминаниях и уведомлений
+      const mentionedProfileIds = comment.mentionedProfileIds || [];
+      if (mentionedProfileIds.length > 0 && createdComment) {
+        // Вставляем записи об упоминаниях
+        await proxyInsert("protocol_item_comment_mentions", 
+          mentionedProfileIds.map(userId => ({
+            comment_id: createdComment.id,
+            mentioned_user_id: userId,
+          }))
+        );
+
+        // Создаём уведомления для упомянутых пользователей
+        const notificationsToCreate = mentionedProfileIds
+          .filter(mentionedId => mentionedId !== profile?.id) // Не уведомляем самого себя
+          .map(mentionedId => ({
+            recipient_id: mentionedId,
+            type: "mention" as const,
+            title: "Вас упомянули в комментарии",
+            body: `${comment.authorName || "Пользователь"} в протоколе "${comment.protocolTitle || "Протокол"}"`,
+            link: null,
+            related_task_id: null,
+          }));
+
+        if (notificationsToCreate.length > 0) {
+          const { error: notifError } = await proxyInsert("notifications", notificationsToCreate);
+          if (notifError) {
+            console.error("Failed to create mention notifications:", notifError);
+          }
+        }
+      }
+
+      return createdComment;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["protocol_item_comments", variables.item_id] });

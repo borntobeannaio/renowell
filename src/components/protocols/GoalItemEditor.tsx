@@ -29,6 +29,7 @@ interface GoalItemEditorProps {
   disabled?: boolean;
   itemNumber?: string;
   profiles?: { id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[];
+  protocolTitle?: string;
 }
 
 export function GoalItemEditor({
@@ -42,6 +43,7 @@ export function GoalItemEditor({
   disabled = false,
   itemNumber,
   profiles = [],
+  protocolTitle,
 }: GoalItemEditorProps) {
   const effectiveResponsible = item.responsible ?? projectDefaultResponsible;
 
@@ -203,7 +205,7 @@ export function GoalItemEditor({
 
           {/* Comments section */}
           {profiles.length > 0 && (
-            <ProtocolItemComments itemId={item.id} profiles={profiles} />
+            <ProtocolItemComments itemId={item.id} profiles={profiles} protocolTitle={protocolTitle} />
           )}
         </div>
 

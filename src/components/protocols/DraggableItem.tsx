@@ -23,6 +23,7 @@ interface DraggableItemProps {
   sectionType?: SectionType;
   itemNumber?: string;
   profiles?: { id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[];
+  protocolTitle?: string;
 }
 
 export function DraggableItem({
@@ -35,6 +36,7 @@ export function DraggableItem({
   sectionType = 'project',
   itemNumber,
   profiles = [],
+  protocolTitle,
 }: DraggableItemProps) {
   const {
     attributes,
@@ -76,6 +78,7 @@ export function DraggableItem({
             onArchive={onArchive}
             itemNumber={itemNumber}
             profiles={profiles}
+            protocolTitle={protocolTitle}
           />
         ) : (
           <ProtocolItemEditor
@@ -87,6 +90,7 @@ export function DraggableItem({
             onArchive={onArchive}
             itemNumber={itemNumber}
             profiles={profiles}
+            protocolTitle={protocolTitle}
           />
         )}
       </div>

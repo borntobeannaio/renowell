@@ -26,6 +26,7 @@ interface ProtocolItemEditorProps {
   disabled?: boolean;
   itemNumber?: string;
   profiles?: { id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[];
+  protocolTitle?: string;
 }
 
 export function ProtocolItemEditor({
@@ -39,6 +40,7 @@ export function ProtocolItemEditor({
   disabled = false,
   itemNumber,
   profiles = [],
+  protocolTitle,
 }: ProtocolItemEditorProps) {
   // Check if item is inheriting from project
   const isInheritingResponsible = item.responsible === null && projectDefaultResponsible !== null;
@@ -216,7 +218,7 @@ export function ProtocolItemEditor({
 
         {/* Comments section */}
         {profiles.length > 0 && (
-          <ProtocolItemComments itemId={item.id} profiles={profiles} />
+          <ProtocolItemComments itemId={item.id} profiles={profiles} protocolTitle={protocolTitle} />
         )}
       </div>
     </div>

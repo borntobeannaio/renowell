@@ -1661,6 +1661,7 @@ export default function ProtocolEditor() {
                             onRenameCompany={(companyId, newName) => handleRenameCompany(index, companyId, newName)}
                             onRemoveSection={sectionGroups.length > 1 ? () => handleRemoveSection(index) : undefined}
                             dragHandle={{ attributes, listeners }}
+                            protocolTitle={form.title}
                           />
                         ) : (
                           <UniversalSection
@@ -1687,6 +1688,7 @@ export default function ProtocolEditor() {
                             forceExpanded={!allSectionsCollapsed}
                             dragHandle={{ attributes, listeners }}
                             profiles={profiles}
+                            protocolTitle={form.title}
                           />
                         )
                       }

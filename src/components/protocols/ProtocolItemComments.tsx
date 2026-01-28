@@ -2,23 +2,27 @@ import { useState } from "react";
 import { MessageCircle, Send, Trash2, Loader2, Pencil, X, Check } from "lucide-react";
 import { useProtocolItemComments, useCreateProtocolItemComment, useUpdateProtocolItemComment, useDeleteProtocolItemComment } from "@/hooks/useProtocolItemComments";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
+import { useEmployees } from "@/hooks/useEmployees";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { MentionInput, extractMentions } from "@/components/tasks/MentionInput";
 
 interface ProtocolItemCommentsProps {
   itemId: string;
   profiles: { id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[];
+  protocolTitle?: string;
 }
 
-export function ProtocolItemComments({ itemId, profiles }: ProtocolItemCommentsProps) {
+export function ProtocolItemComments({ itemId, profiles, protocolTitle }: ProtocolItemCommentsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   
   const { data: profile } = useCurrentProfile();
+  const { data: employees = [] } = useEmployees();
   const { data: comments = [], isLoading } = useProtocolItemComments(itemId);
   const createComment = useCreateProtocolItemComment();
   const updateComment = useUpdateProtocolItemComment();
@@ -34,15 +38,43 @@ export function ProtocolItemComments({ itemId, profiles }: ProtocolItemCommentsP
     return { name: "Пользователь", initials: "?", avatar: null };
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Подсветка упоминаний в тексте
+  const renderContentWithMentions = (content: string) => {
+    const MENTION_REGEX = /@([А-Яа-яЁёA-Za-z]+\s[А-Яа-яЁёA-Za-z]+)/g;
+    const parts = content.split(MENTION_REGEX);
+    
+    return parts.map((part, index) => {
+      // Нечётные индексы — это захваченные имена
+      if (index % 2 === 1) {
+        return (
+          <span key={index} className="text-primary font-medium">
+            @{part}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
+
+  const handleSubmit = async () => {
     if (!newComment.trim() || !profile?.id) return;
+
+    // Извлечь упоминания для создания уведомлений
+    const mentionedNames = extractMentions(newComment);
+    const mentionedProfileIds = mentionedNames
+      .map((name) => employees.find((e) => e.full_name === name)?.profile_id)
+      .filter(Boolean) as string[];
+
+    const authorName = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || "Пользователь";
 
     try {
       await createComment.mutateAsync({
         item_id: itemId,
         author_id: profile.id,
         content: newComment.trim(),
+        mentionedProfileIds,
+        protocolTitle,
+        authorName,
       });
       setNewComment("");
     } catch (error) {
@@ -199,7 +231,7 @@ export function ProtocolItemComments({ itemId, profiles }: ProtocolItemCommentsP
                         </div>
                       ) : (
                         <p className="text-xs text-foreground/90 whitespace-pre-wrap break-words">
-                          {comment.content}
+                          {renderContentWithMentions(comment.content)}
                         </p>
                       )}
                     </div>
@@ -208,18 +240,22 @@ export function ProtocolItemComments({ itemId, profiles }: ProtocolItemCommentsP
               })}
 
               {profile && (
-                <form onSubmit={handleSubmit} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Написать комментарий..."
-                    className="flex-1 text-xs px-2 py-1.5 rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-                  />
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <MentionInput
+                      value={newComment}
+                      onChange={setNewComment}
+                      onSubmit={handleSubmit}
+                      placeholder="Комментарий... (@ для упоминания)"
+                      disabled={createComment.isPending}
+                      className="min-h-[32px] text-xs"
+                    />
+                  </div>
                   <Button
-                    type="submit"
+                    type="button"
                     size="sm"
                     variant="ghost"
+                    onClick={handleSubmit}
                     disabled={!newComment.trim() || createComment.isPending}
                     className="h-7 px-2"
                   >
@@ -229,7 +265,7 @@ export function ProtocolItemComments({ itemId, profiles }: ProtocolItemCommentsP
                       <Send className="w-3.5 h-3.5" />
                     )}
                   </Button>
-                </form>
+                </div>
               )}
             </>
           )}
