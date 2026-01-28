@@ -183,29 +183,24 @@ export function ProtocolItemComments({ itemId, profiles, protocolTitle }: Protoc
                         )}
                       </div>
                       {isEditing ? (
-                        <div className="flex gap-1.5 mt-1">
-                          <input
-                            type="text"
-                            value={editContent}
-                            onChange={(e) => setEditContent(e.target.value)}
-                            className="flex-1 text-xs px-2 py-1 rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-                            autoFocus
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSaveEdit();
-                              } else if (e.key === "Escape") {
-                                handleCancelEdit();
-                              }
-                            }}
-                          />
+                        <div className="flex gap-1.5 mt-1 items-end">
+                          <div className="flex-1">
+                            <MentionInput
+                              value={editContent}
+                              onChange={setEditContent}
+                              onSubmit={handleSaveEdit}
+                              placeholder="Редактировать комментарий..."
+                              disabled={updateComment.isPending}
+                              className="min-h-[32px] text-xs"
+                            />
+                          </div>
                           <Button
                             type="button"
                             size="sm"
                             variant="ghost"
                             onClick={handleSaveEdit}
                             disabled={!editContent.trim() || updateComment.isPending}
-                            className="h-6 px-1.5"
+                            className="h-7 px-1.5"
                           >
                             {updateComment.isPending ? (
                               <Loader2 className="w-3 h-3 animate-spin" />
@@ -218,7 +213,7 @@ export function ProtocolItemComments({ itemId, profiles, protocolTitle }: Protoc
                             size="sm"
                             variant="ghost"
                             onClick={handleCancelEdit}
-                            className="h-6 px-1.5"
+                            className="h-7 px-1.5"
                           >
                             <X className="w-3 h-3" />
                           </Button>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { Send, Trash2, MessageSquare } from "lucide-react";
-import { useTaskComments, useCreateTaskComment, useDeleteTaskComment, TaskComment } from "@/hooks/useTaskComments";
+import { Send, Trash2, MessageSquare, Pencil, Check, X, Loader2 } from "lucide-react";
+import { useTaskComments, useCreateTaskComment, useDeleteTaskComment, useUpdateTaskComment, TaskComment } from "@/hooks/useTaskComments";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { useEmployees } from "@/hooks/useEmployees";
 import { formatDistanceToNow } from "date-fns";
@@ -16,6 +16,8 @@ interface TaskCommentsProps {
 
 export function TaskComments({ taskId, taskTitle }: TaskCommentsProps) {
   const [newComment, setNewComment] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
   const commentsEndRef = useRef<HTMLDivElement>(null);
   
   const { data: profile } = useCurrentProfile();
@@ -23,6 +25,7 @@ export function TaskComments({ taskId, taskTitle }: TaskCommentsProps) {
   const { data: comments = [], isLoading } = useTaskComments(taskId);
   const createComment = useCreateTaskComment();
   const deleteComment = useDeleteTaskComment();
+  const updateComment = useUpdateTaskComment();
 
   // Auto-scroll to bottom when new comments arrive
   useEffect(() => {
@@ -64,6 +67,33 @@ export function TaskComments({ taskId, taskTitle }: TaskCommentsProps) {
       {
         onError: () => {
           toast.error("Не удалось удалить комментарий");
+        },
+      }
+    );
+  };
+
+  const handleStartEdit = (commentId: string, content: string) => {
+    setEditingId(commentId);
+    setEditContent(content);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditContent("");
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingId || !editContent.trim()) return;
+
+    updateComment.mutate(
+      { commentId: editingId, taskId, content: editContent.trim() },
+      {
+        onSuccess: () => {
+          setEditingId(null);
+          setEditContent("");
+        },
+        onError: () => {
+          toast.error("Не удалось обновить комментарий");
         },
       }
     );
@@ -117,11 +147,12 @@ export function TaskComments({ taskId, taskTitle }: TaskCommentsProps) {
         ) : (
           comments.map((comment) => {
             const isOwn = comment.author_id === profile?.id;
+            const isEditing = editingId === comment.id;
             
             return (
               <div
                 key={comment.id}
-                className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}
+                className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""} group`}
               >
                 {/* Avatar */}
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
@@ -148,20 +179,63 @@ export function TaskComments({ taskId, taskTitle }: TaskCommentsProps) {
                           locale: ru,
                         })}
                       </span>
-                      {isOwn && (
-                        <button
-                          onClick={() => handleDelete(comment.id)}
-                          className="p-1 hover:bg-destructive/10 rounded transition-colors"
-                          title="Удалить комментарий"
-                        >
-                          <Trash2 className="w-3 h-3 text-destructive" />
-                        </button>
+                      {isOwn && !isEditing && (
+                        <>
+                          <button
+                            onClick={() => handleStartEdit(comment.id, comment.content)}
+                            className="p-1 hover:bg-muted rounded transition-colors opacity-0 group-hover:opacity-100"
+                            title="Редактировать комментарий"
+                          >
+                            <Pencil className="w-3 h-3 text-muted-foreground" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(comment.id)}
+                            className="p-1 hover:bg-destructive/10 rounded transition-colors opacity-0 group-hover:opacity-100"
+                            title="Удалить комментарий"
+                          >
+                            <Trash2 className="w-3 h-3 text-destructive" />
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
-                  <p className="text-sm text-foreground whitespace-pre-wrap break-words">
-                    {renderContentWithMentions(comment.content)}
-                  </p>
+                  {isEditing ? (
+                    <div className="flex gap-2 items-end mt-1">
+                      <div className="flex-1">
+                        <MentionInput
+                          value={editContent}
+                          onChange={setEditContent}
+                          onSubmit={handleSaveEdit}
+                          placeholder="Редактировать комментарий..."
+                          disabled={updateComment.isPending}
+                          className="min-h-[36px] text-sm"
+                        />
+                      </div>
+                      <button
+                        onClick={handleSaveEdit}
+                        disabled={!editContent.trim() || updateComment.isPending}
+                        className="p-1.5 hover:bg-muted rounded transition-colors disabled:opacity-50"
+                        title="Сохранить"
+                      >
+                        {updateComment.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Check className="w-4 h-4 text-green-600" />
+                        )}
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        className="p-1.5 hover:bg-muted rounded transition-colors"
+                        title="Отмена"
+                      >
+                        <X className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-foreground whitespace-pre-wrap break-words">
+                      {renderContentWithMentions(comment.content)}
+                    </p>
+                  )}
                 </div>
               </div>
             );
