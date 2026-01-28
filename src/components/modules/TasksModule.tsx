@@ -76,7 +76,9 @@ export function TasksModule() {
   const [showArchived, setShowArchived] = useState(false);
   const [form, setForm] = useState({
     title: "",
-    assignee_id: "",
+    assignee_ids: [] as string[],
+    responsible_ids: [] as string[],
+    observer_ids: [] as string[],
     project: "",
     due: new Date().toISOString().slice(0, 10),
     priority: "normal" as TaskPriority,
@@ -105,18 +107,24 @@ export function TasksModule() {
     e.preventDefault();
     if (!form.title.trim()) return;
 
-    const profileId = form.assignee_id
-      ? employeeProfileMaps.employeeToProfile.get(form.assignee_id) || null
-      : null;
+    // Convert employee IDs to profile IDs
+    const assigneeProfileIds = form.assignee_ids
+      .map(id => employeeProfileMaps.employeeToProfile.get(id))
+      .filter(Boolean) as string[];
 
-    if (form.assignee_id && !profileId) {
-      toast.error("Не удалось назначить исполнителя: нет связанного профиля пользователя");
-      return;
-    }
+    const responsibleProfileIds = form.responsible_ids
+      .map(id => employeeProfileMaps.employeeToProfile.get(id))
+      .filter(Boolean) as string[];
+
+    const observerProfileIds = form.observer_ids
+      .map(id => employeeProfileMaps.employeeToProfile.get(id))
+      .filter(Boolean) as string[];
 
     createTask.mutate({
       title: form.title,
-      assignee_id: profileId,
+      assignee_ids: assigneeProfileIds,
+      responsible_ids: responsibleProfileIds,
+      observer_ids: observerProfileIds,
       project_id: form.project || null,
       due_date: form.due || null,
       status: "new",
@@ -126,7 +134,9 @@ export function TasksModule() {
 
     setForm({
       title: "",
-      assignee_id: "",
+      assignee_ids: [],
+      responsible_ids: [],
+      observer_ids: [],
       project: "",
       due: new Date().toISOString().slice(0, 10),
       priority: "normal",
@@ -139,19 +149,25 @@ export function TasksModule() {
     e.preventDefault();
     if (!editingTask || !form.title.trim()) return;
 
-    const profileId = form.assignee_id
-      ? employeeProfileMaps.employeeToProfile.get(form.assignee_id) || null
-      : null;
+    // Convert employee IDs to profile IDs
+    const assigneeProfileIds = form.assignee_ids
+      .map(id => employeeProfileMaps.employeeToProfile.get(id))
+      .filter(Boolean) as string[];
 
-    if (form.assignee_id && !profileId) {
-      toast.error("Не удалось назначить исполнителя: нет связанного профиля пользователя");
-      return;
-    }
+    const responsibleProfileIds = form.responsible_ids
+      .map(id => employeeProfileMaps.employeeToProfile.get(id))
+      .filter(Boolean) as string[];
+
+    const observerProfileIds = form.observer_ids
+      .map(id => employeeProfileMaps.employeeToProfile.get(id))
+      .filter(Boolean) as string[];
 
     updateTask.mutate({
       id: editingTask.id,
       title: form.title,
-      assignee_id: profileId,
+      assignee_ids: assigneeProfileIds,
+      responsible_ids: responsibleProfileIds,
+      observer_ids: observerProfileIds,
       project_id: form.project || null,
       due_date: form.due || null,
       priority: form.priority,
@@ -162,14 +178,25 @@ export function TasksModule() {
   };
 
   const openEditModal = (task: DbTask) => {
-    const employeeId = task.assignee_id
-      ? employeeProfileMaps.profileToEmployee.get(task.assignee_id) || ""
-      : "";
+    // Convert profile IDs to employee IDs
+    const assigneeEmployeeIds = (task.assignee_ids || [])
+      .map(pid => employeeProfileMaps.profileToEmployee.get(pid))
+      .filter(Boolean) as string[];
+
+    const responsibleEmployeeIds = (task.responsible_ids || [])
+      .map(pid => employeeProfileMaps.profileToEmployee.get(pid))
+      .filter(Boolean) as string[];
+
+    const observerEmployeeIds = (task.observer_ids || [])
+      .map(pid => employeeProfileMaps.profileToEmployee.get(pid))
+      .filter(Boolean) as string[];
 
     setEditingTask(task);
     setForm({
       title: task.title,
-      assignee_id: employeeId,
+      assignee_ids: assigneeEmployeeIds,
+      responsible_ids: responsibleEmployeeIds,
+      observer_ids: observerEmployeeIds,
       project: task.project_id || "",
       due: task.due_date || new Date().toISOString().slice(0, 10),
       priority: task.priority,
@@ -460,26 +487,17 @@ export function TasksModule() {
                             </div>
 
                             <div className="space-y-2">
-                              {columnTasks.map((task) => {
-                                const assigneeEmployeeId = getAssigneeEmployeeId(task.assignee_id);
-                                const assigneeEmployee = assigneeEmployeeId ? getEmployeeById(assigneeEmployeeId) : null;
-
-                                return (
-                                  <TaskCard
-                                    key={task.id}
-                                    task={task}
-                                    employees={employees}
-                                    assigneeEmployeeId={assigneeEmployeeId}
-                                    assigneeLabel={assigneeEmployee?.full_name || "Не назначен"}
-                                    onDragStart={handleDragStart}
-                                    onEdit={openEditModal}
-                                    onStatusChange={(id, status) => updateTask.mutate({ id, status })}
-                                    onPriorityChange={(id, priority) => updateTask.mutate({ id, priority })}
-                                    onAssigneeChange={handleAssigneeChange}
-                                    onArchive={(id) => updateTask.mutate({ id, status: task.status === "archived" ? "new" : "archived" })}
-                                  />
-                                );
-                              })}
+                              {columnTasks.map((task) => (
+                                <TaskCard
+                                  key={task.id}
+                                  task={task}
+                                  employees={employees}
+                                  profileToEmployee={employeeProfileMaps.profileToEmployee}
+                                  onDragStart={handleDragStart}
+                                  onEdit={openEditModal}
+                                  onArchive={(id) => updateTask.mutate({ id, status: task.status === "archived" ? "new" : "archived" })}
+                                />
+                              ))}
                             </div>
                           </div>
                         );
@@ -530,26 +548,17 @@ export function TasksModule() {
                             </div>
 
                             <div className="space-y-2">
-                              {columnTasks.map((task) => {
-                                const assigneeEmployeeId = getAssigneeEmployeeId(task.assignee_id);
-                                const assigneeEmployee = assigneeEmployeeId ? getEmployeeById(assigneeEmployeeId) : null;
-
-                                return (
-                                  <TaskCard
-                                    key={task.id}
-                                    task={task}
-                                    employees={employees}
-                                    assigneeEmployeeId={assigneeEmployeeId}
-                                    assigneeLabel={assigneeEmployee?.full_name || "Не назначен"}
-                                    onDragStart={handleDragStart}
-                                    onEdit={openEditModal}
-                                    onStatusChange={(id, status) => updateTask.mutate({ id, status })}
-                                    onPriorityChange={(id, priority) => updateTask.mutate({ id, priority })}
-                                    onAssigneeChange={handleAssigneeChange}
-                                    onArchive={(id) => updateTask.mutate({ id, status: task.status === "archived" ? "new" : "archived" })}
-                                  />
-                                );
-                              })}
+                              {columnTasks.map((task) => (
+                                <TaskCard
+                                  key={task.id}
+                                  task={task}
+                                  employees={employees}
+                                  profileToEmployee={employeeProfileMaps.profileToEmployee}
+                                  onDragStart={handleDragStart}
+                                  onEdit={openEditModal}
+                                  onArchive={(id) => updateTask.mutate({ id, status: task.status === "archived" ? "new" : "archived" })}
+                                />
+                              ))}
                             </div>
                           </div>
                         );
@@ -620,14 +629,39 @@ export function TasksModule() {
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">
-              Исполнитель
+              Исполнители
             </label>
             <EmployeeMultiSelect
               employees={employees}
-              selectedIds={form.assignee_id ? [form.assignee_id] : []}
-              onChange={(ids) => setForm({ ...form, assignee_id: ids[0] || "" })}
-              placeholder="Выберите исполнителя"
-              single
+              selectedIds={form.assignee_ids}
+              onChange={(ids) => setForm({ ...form, assignee_ids: ids })}
+              placeholder="Выберите исполнителей"
+              usePortal
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Ответственные
+            </label>
+            <EmployeeMultiSelect
+              employees={employees}
+              selectedIds={form.responsible_ids}
+              onChange={(ids) => setForm({ ...form, responsible_ids: ids })}
+              placeholder="Выберите ответственных"
+              usePortal
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Наблюдатели
+            </label>
+            <EmployeeMultiSelect
+              employees={employees}
+              selectedIds={form.observer_ids}
+              onChange={(ids) => setForm({ ...form, observer_ids: ids })}
+              placeholder="Выберите наблюдателей"
               usePortal
             />
           </div>
@@ -730,14 +764,39 @@ export function TasksModule() {
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">
-              Исполнитель
+              Исполнители
             </label>
             <EmployeeMultiSelect
               employees={employees}
-              selectedIds={form.assignee_id ? [form.assignee_id] : []}
-              onChange={(ids) => setForm({ ...form, assignee_id: ids[0] || "" })}
-              placeholder="Выберите исполнителя"
-              single
+              selectedIds={form.assignee_ids}
+              onChange={(ids) => setForm({ ...form, assignee_ids: ids })}
+              placeholder="Выберите исполнителей"
+              usePortal
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Ответственные
+            </label>
+            <EmployeeMultiSelect
+              employees={employees}
+              selectedIds={form.responsible_ids}
+              onChange={(ids) => setForm({ ...form, responsible_ids: ids })}
+              placeholder="Выберите ответственных"
+              usePortal
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Наблюдатели
+            </label>
+            <EmployeeMultiSelect
+              employees={employees}
+              selectedIds={form.observer_ids}
+              onChange={(ids) => setForm({ ...form, observer_ids: ids })}
+              placeholder="Выберите наблюдателей"
               usePortal
             />
           </div>
@@ -795,26 +854,18 @@ export function TasksModule() {
 interface TaskCardProps {
   task: DbTask;
   employees: DbEmployee[];
-  assigneeEmployeeId: string;
-  assigneeLabel: string;
+  profileToEmployee: Map<string, string>;
   onDragStart: (e: DragEvent, id: string) => void;
   onEdit: (task: DbTask) => void;
-  onStatusChange: (id: string, status: TaskStatus) => void;
-  onPriorityChange: (id: string, priority: TaskPriority) => void;
-  onAssigneeChange: (id: string, employeeId: string) => void;
   onArchive: (id: string) => void;
 }
 
 function TaskCard({
   task,
   employees,
-  assigneeEmployeeId,
-  assigneeLabel,
+  profileToEmployee,
   onDragStart,
   onEdit,
-  onStatusChange,
-  onPriorityChange,
-  onAssigneeChange,
   onArchive,
 }: TaskCardProps) {
   const priorityStyles = {
@@ -825,6 +876,23 @@ function TaskCard({
   };
 
   const style = priorityStyles[task.priority] || priorityStyles.normal;
+
+  // Get assignee names
+  const getEmployeeNames = (profileIds: string[]) => {
+    if (!profileIds || profileIds.length === 0) return null;
+    return profileIds
+      .map(pid => {
+        const empId = profileToEmployee.get(pid);
+        const emp = empId ? employees.find(e => e.id === empId) : null;
+        return emp?.full_name;
+      })
+      .filter(Boolean)
+      .join(", ");
+  };
+
+  const assigneeNames = getEmployeeNames(task.assignee_ids || []);
+  const responsibleNames = getEmployeeNames(task.responsible_ids || []);
+  const observerNames = getEmployeeNames(task.observer_ids || []);
 
   return (
     <div
@@ -883,28 +951,28 @@ function TaskCard({
         {task.title}
       </h4>
 
-      {/* Assignee and deadline stacked */}
+      {/* People and deadline */}
       <div className="space-y-1.5 text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <User className="w-3 h-3 shrink-0" />
-          <select
-            value={assigneeEmployeeId}
-            title={assigneeLabel}
-            onChange={(e) => {
-              e.stopPropagation();
-              onAssigneeChange(task.id, e.target.value);
-            }}
-            onClick={(e) => e.stopPropagation()}
-            className="flex-1 bg-transparent border-none p-0 text-xs text-foreground cursor-pointer focus:ring-0 focus:outline-none truncate"
-          >
-            <option value="">Не назначен</option>
-            {employees.map((emp) => (
-              <option key={emp.id} value={emp.id}>
-                {emp.full_name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {assigneeNames && (
+          <div className="flex items-start gap-2">
+            <User className="w-3 h-3 shrink-0 mt-0.5" />
+            <span className="line-clamp-2" title={assigneeNames}>{assigneeNames}</span>
+          </div>
+        )}
+        
+        {responsibleNames && (
+          <div className="flex items-start gap-2">
+            <Users className="w-3 h-3 shrink-0 mt-0.5 text-blue-500" />
+            <span className="line-clamp-1 text-blue-600" title={`Ответственные: ${responsibleNames}`}>{responsibleNames}</span>
+          </div>
+        )}
+
+        {!assigneeNames && !responsibleNames && (
+          <div className="flex items-center gap-2">
+            <User className="w-3 h-3 shrink-0" />
+            <span className="text-muted-foreground/60">Не назначен</span>
+          </div>
+        )}
         
         <div className="flex items-center gap-2">
           <Calendar className="w-3 h-3 shrink-0" />

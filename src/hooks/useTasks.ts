@@ -30,6 +30,9 @@ export interface DbTask {
   id: string;
   title: string;
   assignee_id: string | null;
+  assignee_ids: string[];
+  responsible_ids: string[];
+  observer_ids: string[];
   project_id: string | null;
   due_date: string | null;
   status: TaskStatus;
@@ -65,7 +68,9 @@ export function useCreateTask() {
   return useMutation({
     mutationFn: async (task: {
       title: string;
-      assignee_id?: string | null;
+      assignee_ids?: string[];
+      responsible_ids?: string[];
+      observer_ids?: string[];
       project_id?: string | null;
       due_date?: string | null;
       status?: TaskStatus;
@@ -74,7 +79,9 @@ export function useCreateTask() {
     }) => {
       const { data, error } = await proxyInsert<DbTask>('tasks', {
         title: task.title,
-        assignee_id: task.assignee_id || null,
+        assignee_ids: task.assignee_ids || [],
+        responsible_ids: task.responsible_ids || [],
+        observer_ids: task.observer_ids || [],
         project_id: task.project_id || null,
         due_date: task.due_date || null,
         status: task.status || "new",
@@ -86,15 +93,16 @@ export function useCreateTask() {
       
       const newTask = data?.[0];
       
-      // Создаём уведомление о назначении задачи
-      if (newTask && task.assignee_id) {
-        await proxyInsert('notifications', {
-          recipient_id: task.assignee_id,
+      // Создаём уведомления о назначении задачи для всех исполнителей
+      if (newTask && task.assignee_ids && task.assignee_ids.length > 0) {
+        const notifications = task.assignee_ids.map(assigneeId => ({
+          recipient_id: assigneeId,
           type: 'task_assigned',
           title: 'Новая задача',
           body: task.title,
           related_task_id: newTask.id,
-        });
+        }));
+        await proxyInsert('notifications', notifications);
       }
       
       return newTask;
