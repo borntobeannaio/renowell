@@ -84,6 +84,7 @@ export function useUpdateProtocolSection() {
       entity_name?: string | null;
       default_responsible?: string | null;
       sort_order?: number;
+      archived?: boolean;
     }) => {
       const { data, error } = await proxyUpdate<DbProtocolSection>(
         "protocol_sections",

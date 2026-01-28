@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Plus, Loader2, Save, Download, Cloud, ChevronsUpDown } from "lucide-react";
+import { ArrowLeft, Plus, Loader2, Save, Download, Cloud, ChevronsUpDown, Archive, RotateCcw } from "lucide-react";
 import {
   DndContext,
   DragEndEvent,
@@ -68,6 +68,8 @@ interface SectionGroup {
   items: UniversalItemData[];
   // For tender section - company groups
   companyGroups?: CompanyGroup[];
+  // Section-level archive flag
+  archived?: boolean;
 }
 
 // Result type for parallel item processing
@@ -241,6 +243,7 @@ export default function ProtocolEditor() {
               defaultResponsible: section.default_responsible,
               items: [],
               companyGroups,
+              archived: section.archived || false,
             };
           }
           
@@ -251,6 +254,7 @@ export default function ProtocolEditor() {
             entityName: section.entity_name,
             defaultResponsible: section.default_responsible,
             items: sectionItems,
+            archived: section.archived || false,
           };
         });
         
@@ -836,15 +840,25 @@ export default function ProtocolEditor() {
     markAsChanged();
   };
 
-  // Archive section handler
+  // Archive section handler - toggles archived state on the section itself
   const handleArchiveSection = (groupIndex: number) => {
-    // Toggle archived state for the section and all its items
     setSectionGroups(prev => prev.map((g, i) => {
       if (i !== groupIndex) return g;
-      const newArchived = !g.items.some(item => !item.archived);
       return {
         ...g,
-        items: g.items.map(item => ({ ...item, archived: !newArchived }))
+        archived: !g.archived,
+      };
+    }));
+    markAsChanged();
+  };
+
+  // Restore section from archive handler
+  const handleRestoreSection = (groupIndex: number) => {
+    setSectionGroups(prev => prev.map((g, i) => {
+      if (i !== groupIndex) return g;
+      return {
+        ...g,
+        archived: false,
       };
     }));
     markAsChanged();
@@ -1592,6 +1606,7 @@ export default function ProtocolEditor() {
             entity_name: group.entityName,
             default_responsible: group.defaultResponsible,
             sort_order: sectionSortOrder++,
+            archived: group.archived || false,
           });
         }
 
@@ -1893,62 +1908,68 @@ export default function ProtocolEditor() {
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext
-                  items={sectionGroups.map((g) => `section-group-${g.id}`)}
+                  items={sectionGroups.filter(g => !g.archived).map((g) => `section-group-${g.id}`)}
                   strategy={verticalListSortingStrategy}
                 >
-                  {sectionGroups.map((group, index) => (
-                    <SortableProtocolSection key={group.id} id={`section-group-${group.id}`}>
-                      {({ attributes, listeners }) =>
-                        group.sectionType === "tender" ? (
-                          <TenderSection
-                            sectionId={group.id}
-                            companyGroups={group.companyGroups || []}
-                            employees={employees}
-                            defaultResponsible={group.defaultResponsible}
-                            onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
-                            onUpdateItem={(companyId, itemId, updates) => handleUpdateTenderItem(index, companyId, itemId, updates)}
-                            onRemoveItem={(companyId, itemId) => handleRemoveTenderItem(index, companyId, itemId)}
-                            onPersistTempItem={(companyId, itemId) => handlePersistTenderItem(index, companyId, itemId)}
-                            onAddItem={(companyId) => handleAddTenderItem(index, companyId)}
-                            onAddCompany={(companyName) => handleAddCompany(index, companyName)}
-                            onRemoveCompany={(companyId) => handleRemoveCompany(index, companyId)}
-                            onRenameCompany={(companyId, newName) => handleRenameCompany(index, companyId, newName)}
-                            onRemoveSection={sectionGroups.length > 1 ? () => handleRemoveSection(index) : undefined}
-                            dragHandle={{ attributes, listeners }}
-                            protocolTitle={form.title}
-                          />
-                        ) : (
-                          <UniversalSection
-                            sectionId={group.id}
-                            sectionIndex={index}
-                            sectionType={group.sectionType}
-                            entityId={group.entityId}
-                            entityName={group.entityName}
-                            items={group.items}
-                            employees={employees}
-                            projects={projects}
-                            defaultResponsible={group.defaultResponsible}
-                            onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
-                            onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
-                            onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
-                            onArchiveItem={(itemId) => handleArchiveItem(index, itemId)}
-                            onPersistTempItem={(itemId) => handlePersistTempItem(index, itemId)}
-                            onAddItem={() => handleAddItemToSection(index)}
-                            onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
-                            onRemoveSection={sectionGroups.length > 1 ? () => handleRemoveSection(index) : undefined}
-                            onArchiveSection={() => handleArchiveSection(index)}
-                            onMoveItemsToSection={(targetSectionId) => handleMoveItemsToSection(index, targetSectionId)}
-                            otherSections={getOtherSections(index)}
-                            canEdit={!isEditMode || group.id.startsWith("temp-")}
-                            forceExpanded={!allSectionsCollapsed}
-                            dragHandle={{ attributes, listeners }}
-                            profiles={profiles}
-                            protocolTitle={form.title}
-                          />
-                        )
-                      }
-                    </SortableProtocolSection>
-                  ))}
+                  {sectionGroups.map((group, index) => {
+                    // Skip archived sections in main list
+                    if (group.archived) return null;
+                    
+                    return (
+                      <SortableProtocolSection key={group.id} id={`section-group-${group.id}`}>
+                        {({ attributes, listeners }) =>
+                          group.sectionType === "tender" ? (
+                            <TenderSection
+                              sectionId={group.id}
+                              companyGroups={group.companyGroups || []}
+                              employees={employees}
+                              defaultResponsible={group.defaultResponsible}
+                              onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
+                              onUpdateItem={(companyId, itemId, updates) => handleUpdateTenderItem(index, companyId, itemId, updates)}
+                              onRemoveItem={(companyId, itemId) => handleRemoveTenderItem(index, companyId, itemId)}
+                              onPersistTempItem={(companyId, itemId) => handlePersistTenderItem(index, companyId, itemId)}
+                              onAddItem={(companyId) => handleAddTenderItem(index, companyId)}
+                              onAddCompany={(companyName) => handleAddCompany(index, companyName)}
+                              onRemoveCompany={(companyId) => handleRemoveCompany(index, companyId)}
+                              onRenameCompany={(companyId, newName) => handleRenameCompany(index, companyId, newName)}
+                              onRemoveSection={sectionGroups.filter(g => !g.archived).length > 1 ? () => handleRemoveSection(index) : undefined}
+                              dragHandle={{ attributes, listeners }}
+                              protocolTitle={form.title}
+                            />
+                          ) : (
+                            <UniversalSection
+                              sectionId={group.id}
+                              sectionIndex={index}
+                              sectionType={group.sectionType}
+                              entityId={group.entityId}
+                              entityName={group.entityName}
+                              items={group.items}
+                              employees={employees}
+                              projects={projects}
+                              defaultResponsible={group.defaultResponsible}
+                              onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
+                              onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
+                              onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
+                              onArchiveItem={(itemId) => handleArchiveItem(index, itemId)}
+                              onPersistTempItem={(itemId) => handlePersistTempItem(index, itemId)}
+                              onAddItem={() => handleAddItemToSection(index)}
+                              onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
+                              onRemoveSection={sectionGroups.filter(g => !g.archived).length > 1 ? () => handleRemoveSection(index) : undefined}
+                              onArchiveSection={() => handleArchiveSection(index)}
+                              onMoveItemsToSection={(targetSectionId) => handleMoveItemsToSection(index, targetSectionId)}
+                              otherSections={getOtherSections(index)}
+                              canEdit={!isEditMode || group.id.startsWith("temp-")}
+                              forceExpanded={!allSectionsCollapsed}
+                              dragHandle={{ attributes, listeners }}
+                              profiles={profiles}
+                              isArchived={false}
+                              protocolTitle={form.title}
+                            />
+                          )
+                        }
+                      </SortableProtocolSection>
+                    );
+                  })}
                 </SortableContext>
 
                 <DragOverlay>
@@ -1979,6 +2000,74 @@ export default function ProtocolEditor() {
               </DndContext>
 
             </section>
+
+            {/* Archived sections panel */}
+            {sectionGroups.some(g => g.archived) && (
+              <section className="space-y-4">
+                <details className="group">
+                  <summary className="cursor-pointer text-lg font-medium text-muted-foreground hover:text-foreground flex items-center gap-2">
+                    <Archive className="w-5 h-5" />
+                    Архив секций ({sectionGroups.filter(g => g.archived).length})
+                  </summary>
+                  <div className="mt-4 space-y-4">
+                    {sectionGroups.map((group, index) => {
+                      if (!group.archived) return null;
+                      
+                      return (
+                        <div key={group.id} className="opacity-60">
+                          {group.sectionType === "tender" ? (
+                            <TenderSection
+                              sectionId={group.id}
+                              companyGroups={group.companyGroups || []}
+                              employees={employees}
+                              defaultResponsible={group.defaultResponsible}
+                              onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
+                              onUpdateItem={(companyId, itemId, updates) => handleUpdateTenderItem(index, companyId, itemId, updates)}
+                              onRemoveItem={(companyId, itemId) => handleRemoveTenderItem(index, companyId, itemId)}
+                              onPersistTempItem={(companyId, itemId) => handlePersistTenderItem(index, companyId, itemId)}
+                              onAddItem={(companyId) => handleAddTenderItem(index, companyId)}
+                              onAddCompany={(companyName) => handleAddCompany(index, companyName)}
+                              onRemoveCompany={(companyId) => handleRemoveCompany(index, companyId)}
+                              onRenameCompany={(companyId, newName) => handleRenameCompany(index, companyId, newName)}
+                              onRemoveSection={() => handleRemoveSection(index)}
+                              protocolTitle={form.title}
+                            />
+                          ) : (
+                            <UniversalSection
+                              sectionId={group.id}
+                              sectionIndex={index}
+                              sectionType={group.sectionType}
+                              entityId={group.entityId}
+                              entityName={group.entityName}
+                              items={group.items}
+                              employees={employees}
+                              projects={projects}
+                              defaultResponsible={group.defaultResponsible}
+                              onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
+                              onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
+                              onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
+                              onArchiveItem={(itemId) => handleArchiveItem(index, itemId)}
+                              onPersistTempItem={(itemId) => handlePersistTempItem(index, itemId)}
+                              onAddItem={() => handleAddItemToSection(index)}
+                              onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
+                              onRemoveSection={() => handleRemoveSection(index)}
+                              onArchiveSection={() => handleRestoreSection(index)}
+                              onMoveItemsToSection={(targetSectionId) => handleMoveItemsToSection(index, targetSectionId)}
+                              otherSections={getOtherSections(index)}
+                              canEdit={!isEditMode || group.id.startsWith("temp-")}
+                              defaultExpanded={false}
+                              profiles={profiles}
+                              isArchived={true}
+                              protocolTitle={form.title}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              </section>
+            )}
 
             <div className="pt-4 flex justify-center border-t border-border">
               <Button
