@@ -116,14 +116,8 @@ export function ProtocolItemComments({ itemId, profiles, protocolTitle }: Protoc
     }
   };
 
-  // Don't show for temp items
-  if (itemId.startsWith("temp-")) {
-    return (
-      <div className="text-xs text-muted-foreground italic">
-        Комментарии будут доступны после сохранения пункта
-      </div>
-    );
-  }
+  // For temp items, comments will be saved once the item is persisted
+  const isTempItem = itemId.startsWith("temp-");
 
   return (
     <div className="space-y-2">
