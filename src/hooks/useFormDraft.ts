@@ -25,6 +25,7 @@ export function useFormDraft<T>(
   const [isLoading, setIsLoading] = useState(true);
   const [existingDraft, setExistingDraft] = useState<DraftData<T> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const lastSavedRef = useRef<string | null>(null);
   const hasCheckedDraft = useRef(false);
   const prevEnabledRef = useRef(enabled);
@@ -100,6 +101,7 @@ export function useFormDraft<T>(
         if (error) throw new Error(error.message);
 
         lastSavedRef.current = currentJson;
+        setLastSavedAt(new Date());
       } catch (err) {
         console.error('Error saving draft:', err);
       } finally {
@@ -158,6 +160,7 @@ export function useFormDraft<T>(
       if (error) throw new Error(error.message);
       
       lastSavedRef.current = currentJson;
+      setLastSavedAt(new Date());
     } catch (err) {
       console.error('Error saving draft:', err);
     } finally {
@@ -168,6 +171,7 @@ export function useFormDraft<T>(
   return {
     isLoading,
     isSaving,
+    lastSavedAt,
     existingDraft,
     acceptDraft,
     discardDraft,
