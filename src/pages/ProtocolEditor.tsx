@@ -171,7 +171,8 @@ export default function ProtocolEditor() {
     existingDraft,
     acceptDraft,
     discardDraft,
-    clearDraft
+    clearDraft,
+    saveNow: saveDraftNow
   } = useFormDraft('protocol', draftEntityId, draftData, {
     autoSaveInterval: 3000,
     enabled: !!user && !isCopyDataLoading,
@@ -1744,17 +1745,31 @@ export default function ProtocolEditor() {
               </div>
               {saveProgress ? (
                 <p className="text-sm text-muted-foreground animate-pulse">{saveProgress}</p>
-              ) : draftSaving ? (
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Cloud className="w-3 h-3" />
-                  Автосохранение...
-                </p>
-              ) : draftLastSavedAt ? (
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Cloud className="w-3 h-3" />
-                  Черновик сохранён в {draftLastSavedAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                </p>
-              ) : null}
+              ) : (
+                <div className="flex items-center gap-2">
+                  {draftSaving ? (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Cloud className="w-3 h-3" />
+                      Автосохранение...
+                    </p>
+                  ) : draftLastSavedAt ? (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Cloud className="w-3 h-3" />
+                      Черновик сохранён в {draftLastSavedAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  ) : null}
+                  {hasUnsavedChanges && !draftSaving && (
+                    <button
+                      onClick={saveDraftNow}
+                      className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
+                      title="Сохранить черновик сейчас"
+                    >
+                      <Save className="w-3 h-3" />
+                      <span className="hidden sm:inline">Сохранить</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
