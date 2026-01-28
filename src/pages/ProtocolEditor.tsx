@@ -167,6 +167,7 @@ export default function ProtocolEditor() {
   const {
     isLoading: draftLoading,
     isSaving: draftSaving,
+    lastSavedAt: draftLastSavedAt,
     existingDraft,
     acceptDraft,
     discardDraft,
@@ -1747,6 +1748,11 @@ export default function ProtocolEditor() {
                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                   <Cloud className="w-3 h-3" />
                   Автосохранение...
+                </p>
+              ) : draftLastSavedAt ? (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Cloud className="w-3 h-3" />
+                  Черновик сохранён в {draftLastSavedAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                 </p>
               ) : null}
             </div>
