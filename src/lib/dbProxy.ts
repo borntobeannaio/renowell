@@ -19,6 +19,7 @@ interface ProxyRequest {
   select?: string;
   order?: OrderBy[];
   limit?: number;
+  onConflict?: string;
 }
 
 interface ProxyResponse<T> {
@@ -150,12 +151,13 @@ export const proxyDelete = (
 export const proxyUpsert = <T = unknown>(
   table: string,
   data: Record<string, unknown> | Record<string, unknown>[],
-  select?: string
+  options?: { select?: string; onConflict?: string }
 ): Promise<ProxyResponse<T[]>> => {
   return dbProxy<T[]>({
     action: "upsert",
     table,
     data,
-    select,
+    select: options?.select,
+    onConflict: options?.onConflict,
   });
 };

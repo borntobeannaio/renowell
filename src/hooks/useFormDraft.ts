@@ -97,7 +97,7 @@ export function useFormDraft<T>(
           entity_id: entityId,
           draft_data: JSON.parse(currentJson),
           updated_at: new Date().toISOString()
-        });
+        }, { onConflict: 'user_id,form_type,entity_id' });
         if (error) throw new Error(error.message);
 
         lastSavedRef.current = currentJson;
@@ -156,7 +156,7 @@ export function useFormDraft<T>(
         entity_id: entityId,
         draft_data: JSON.parse(currentJson),
         updated_at: new Date().toISOString()
-      });
+      }, { onConflict: 'user_id,form_type,entity_id' });
       if (error) throw new Error(error.message);
       
       lastSavedRef.current = currentJson;
