@@ -956,7 +956,7 @@ function TaskCard({
         {assigneeNames && (
           <div className="flex items-start gap-2">
             <User className="w-3 h-3 shrink-0 mt-0.5" />
-            <span className="line-clamp-2" title={assigneeNames}>{assigneeNames}</span>
+            <span className="line-clamp-2" title={`Исполнители: ${assigneeNames}`}>{assigneeNames}</span>
           </div>
         )}
         
@@ -967,7 +967,14 @@ function TaskCard({
           </div>
         )}
 
-        {!assigneeNames && !responsibleNames && (
+        {observerNames && (
+          <div className="flex items-start gap-2">
+            <User className="w-3 h-3 shrink-0 mt-0.5 text-amber-500" />
+            <span className="line-clamp-1 text-amber-600" title={`Наблюдатели: ${observerNames}`}>{observerNames}</span>
+          </div>
+        )}
+
+        {!assigneeNames && !responsibleNames && !observerNames && (
           <div className="flex items-center gap-2">
             <User className="w-3 h-3 shrink-0" />
             <span className="text-muted-foreground/60">Не назначен</span>
