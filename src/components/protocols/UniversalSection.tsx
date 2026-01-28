@@ -59,6 +59,7 @@ interface UniversalSectionProps {
   dragHandle?: SortableHandleProps;
   profiles?: { id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[];
   isArchived?: boolean;
+  protocolTitle?: string;
 }
 
 const SECTION_ICONS: Record<SectionType, React.ReactNode> = {
@@ -103,6 +104,7 @@ export function UniversalSection({
   dragHandle,
   profiles = [],
   isArchived = false,
+  protocolTitle,
 }: UniversalSectionProps) {
   const [isExpanded, setIsExpanded] = useState(forceExpanded ?? defaultExpanded);
   const [isEditing, setIsEditing] = useState(false);
@@ -345,6 +347,7 @@ export function UniversalSection({
               onArchiveItem={onArchiveItem}
               sectionType={sectionType}
               profiles={profiles}
+              protocolTitle={protocolTitle}
             />
           )}
 
@@ -376,6 +379,7 @@ export function UniversalSection({
                   onArchiveItem={onArchiveItem}
                   sectionType={sectionType}
                   profiles={profiles}
+                  protocolTitle={protocolTitle}
                 />
               </div>
             </details>

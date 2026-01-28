@@ -48,6 +48,7 @@ interface TenderSectionProps {
   canEdit?: boolean;
   defaultExpanded?: boolean;
   dragHandle?: SortableHandleProps;
+  protocolTitle?: string;
 }
 
 export function TenderSection({
@@ -66,6 +67,7 @@ export function TenderSection({
   canEdit = true,
   defaultExpanded = true,
   dragHandle,
+  protocolTitle,
 }: TenderSectionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [newCompanyName, setNewCompanyName] = useState("");
@@ -202,6 +204,7 @@ export function TenderSection({
               onAddItem={() => onAddItem(company.id)}
               onRemoveCompany={() => onRemoveCompany(company.id)}
               canEdit={canEdit}
+              protocolTitle={protocolTitle}
             />
           ))}
 
@@ -283,6 +286,7 @@ interface CompanySubSectionProps {
   onAddItem: () => void;
   onRemoveCompany: () => void;
   canEdit?: boolean;
+  protocolTitle?: string;
 }
 
 function CompanySubSection({
@@ -300,6 +304,7 @@ function CompanySubSection({
   onAddItem,
   onRemoveCompany,
   canEdit = true,
+  protocolTitle,
 }: CompanySubSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -390,6 +395,7 @@ function CompanySubSection({
               onUpdateItem={onUpdateItem}
               onRemoveItem={onRemoveItem}
               sectionType="tender"
+              protocolTitle={protocolTitle}
             />
           )}
 
