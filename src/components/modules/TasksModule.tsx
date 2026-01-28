@@ -2,7 +2,7 @@ import { useState, DragEvent, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { TaskComments } from "@/components/tasks/TaskComments";
-import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight, Pencil, Users } from "lucide-react";
+import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight, Pencil, Users, Archive, ArchiveRestore } from "lucide-react";
 import { useTasks, useCreateTask, useUpdateTask, DbTask, TaskStatus, TaskPriority, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS, TASK_PRIORITY_COLORS } from "@/hooks/useTasks";
 import { useProjects, Project } from "@/hooks/useProjects";
 import { useEmployees, DbEmployee } from "@/hooks/useEmployees";
@@ -15,6 +15,8 @@ const columns: { id: TaskStatus; label: string }[] = [
   { id: "review", label: "На проверке" },
   { id: "done", label: "Готово" },
 ];
+
+const archivedColumn: { id: TaskStatus; label: string } = { id: "archived", label: "Архив" };
 
 const priorities: { id: TaskPriority; label: string }[] = [
   { id: "critical", label: "Критический" },
@@ -71,6 +73,7 @@ export function TasksModule() {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set(["no-project"]));
   const [expandedAssignees, setExpandedAssignees] = useState<Set<string>>(new Set(["no-assignee"]));
   const [groupBy, setGroupBy] = useState<GroupByMode>("project");
+  const [showArchived, setShowArchived] = useState(false);
   const [form, setForm] = useState({
     title: "",
     assignee_id: "",
@@ -198,7 +201,21 @@ export function TasksModule() {
     });
   };
 
-  const filteredTasks = tasks;
+  // Filter out archived tasks unless showArchived is true
+  const filteredTasks = useMemo(() => {
+    if (showArchived) {
+      return tasks;
+    }
+    return tasks.filter(t => t.status !== "archived");
+  }, [tasks, showArchived]);
+
+  // Get visible columns based on showArchived toggle
+  const visibleColumns = useMemo(() => {
+    if (showArchived) {
+      return [...columns, archivedColumn];
+    }
+    return columns;
+  }, [showArchived]);
 
   // Group tasks by project
   const tasksByProject = useMemo(() => {
@@ -386,6 +403,19 @@ export function TasksModule() {
               <span className="hidden sm:inline">По исполнителям</span>
             </button>
           </div>
+          
+          {/* Archive toggle */}
+          <button
+            onClick={() => setShowArchived(!showArchived)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+              showArchived
+                ? "bg-amber-500/10 border-amber-500/30 text-amber-600"
+                : "bg-card border-border hover:bg-muted text-muted-foreground"
+            }`}
+          >
+            <Archive className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{showArchived ? "Скрыть архив" : "Показать архив"}</span>
+          </button>
         </div>
 
       {/* Tasks grouped by project or assignee */}
@@ -415,7 +445,7 @@ export function TasksModule() {
                 {isExpanded && (
                   <div className="p-2 md:p-4">
                     <div className="flex gap-2 md:gap-3 overflow-x-auto pb-2 -mx-2 px-2">
-                      {columns.map((column) => {
+                      {visibleColumns.map((column) => {
                         const columnTasks = getTasksByStatusAndProject(column.id, project.id);
                         return (
                           <div
@@ -446,6 +476,7 @@ export function TasksModule() {
                                     onStatusChange={(id, status) => updateTask.mutate({ id, status })}
                                     onPriorityChange={(id, priority) => updateTask.mutate({ id, priority })}
                                     onAssigneeChange={handleAssigneeChange}
+                                    onArchive={(id) => updateTask.mutate({ id, status: task.status === "archived" ? "new" : "archived" })}
                                   />
                                 );
                               })}
@@ -484,7 +515,7 @@ export function TasksModule() {
                 {isExpanded && (
                   <div className="p-2 md:p-4">
                     <div className="flex gap-2 md:gap-3 overflow-x-auto pb-2 -mx-2 px-2">
-                      {columns.map((column) => {
+                      {visibleColumns.map((column) => {
                         const columnTasks = getTasksByStatusAndAssignee(column.id, assignee.id);
                         return (
                           <div
@@ -515,6 +546,7 @@ export function TasksModule() {
                                     onStatusChange={(id, status) => updateTask.mutate({ id, status })}
                                     onPriorityChange={(id, priority) => updateTask.mutate({ id, priority })}
                                     onAssigneeChange={handleAssigneeChange}
+                                    onArchive={(id) => updateTask.mutate({ id, status: task.status === "archived" ? "new" : "archived" })}
                                   />
                                 );
                               })}
@@ -770,6 +802,7 @@ interface TaskCardProps {
   onStatusChange: (id: string, status: TaskStatus) => void;
   onPriorityChange: (id: string, priority: TaskPriority) => void;
   onAssigneeChange: (id: string, employeeId: string) => void;
+  onArchive: (id: string) => void;
 }
 
 function TaskCard({
@@ -782,6 +815,7 @@ function TaskCard({
   onStatusChange,
   onPriorityChange,
   onAssigneeChange,
+  onArchive,
 }: TaskCardProps) {
   const priorityStyles = {
     critical: { border: "border-red-500", bg: "bg-red-500", text: "text-white" },
@@ -803,13 +837,29 @@ function TaskCard({
         {TASK_PRIORITY_LABELS[task.priority]}
       </div>
 
-      {/* Edit button */}
-      <button
-        onClick={() => onEdit(task)}
-        className="absolute top-1 right-1 p-1 hover:bg-muted rounded transition-colors"
-      >
-        <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-      </button>
+      {/* Edit and Archive buttons */}
+      <div className="absolute top-1 right-1 flex items-center gap-0.5">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onArchive(task.id);
+          }}
+          className="p-1 hover:bg-muted rounded transition-colors"
+          title={task.status === "archived" ? "Восстановить из архива" : "Архивировать"}
+        >
+          {task.status === "archived" ? (
+            <ArchiveRestore className="w-3.5 h-3.5 text-amber-500" />
+          ) : (
+            <Archive className="w-3.5 h-3.5 text-muted-foreground hover:text-amber-500" />
+          )}
+        </button>
+        <button
+          onClick={() => onEdit(task)}
+          className="p-1 hover:bg-muted rounded transition-colors"
+        >
+          <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+        </button>
+      </div>
 
       {/* Labels above title */}
       {task.labels && task.labels.length > 0 && (
