@@ -178,8 +178,50 @@ function ProtocolCard({
       });
       
       if (sectionsError) throw new Error(sectionsError.message);
+
+      // Fetch comments for all items
+      const itemIds = (freshItems || []).map(item => item.id);
+      let comments: { id: string; item_id: string; author_id: string; content: string; created_at: string }[] = [];
       
-      await generateProtocolPdf(protocol, freshItems || [], projects, sections || undefined);
+      if (itemIds.length > 0) {
+        const { data: commentsData, error: commentsError } = await proxySelect<{
+          id: string;
+          item_id: string;
+          author_id: string;
+          content: string;
+          created_at: string;
+        }>('protocol_item_comments', {
+          filters: [{ column: 'item_id', operator: 'in', value: `(${itemIds.join(',')})` }],
+          order: [{ column: 'created_at', ascending: true }],
+        });
+        
+        if (!commentsError && commentsData) {
+          // Fetch author names from profiles
+          const authorIds = [...new Set(commentsData.map(c => c.author_id))];
+          if (authorIds.length > 0) {
+            const { data: profiles } = await proxySelect<{
+              id: string;
+              first_name: string | null;
+              last_name: string | null;
+            }>('profiles', {
+              filters: [{ column: 'id', operator: 'in', value: `(${authorIds.join(',')})` }],
+            });
+            
+            const profileMap = new Map(
+              (profiles || []).map(p => [p.id, `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Пользователь'])
+            );
+            
+            comments = commentsData.map(c => ({
+              ...c,
+              author_name: profileMap.get(c.author_id) || 'Пользователь'
+            }));
+          } else {
+            comments = commentsData;
+          }
+        }
+      }
+      
+      await generateProtocolPdf(protocol, freshItems || [], projects, sections || undefined, comments);
       toast.success("PDF экспортирован");
     } catch (error) {
       console.error("PDF export error:", error);
