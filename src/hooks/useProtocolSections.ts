@@ -11,6 +11,7 @@ export interface DbProtocolSection {
   entity_name: string | null;
   default_responsible: string | null;
   sort_order: number;
+  archived: boolean;
   created_at: string;
   updated_at: string;
 }

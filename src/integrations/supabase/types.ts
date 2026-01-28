@@ -486,8 +486,43 @@ export type Database = {
         }
         Relationships: []
       }
+      protocol_item_comments: {
+        Row: {
+          author_id: string
+          content: string
+          created_at: string
+          id: string
+          item_id: string
+        }
+        Insert: {
+          author_id: string
+          content: string
+          created_at?: string
+          id?: string
+          item_id: string
+        }
+        Update: {
+          author_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "protocol_item_comments_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "protocol_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       protocol_items: {
         Row: {
+          archived: boolean | null
+          completed: boolean | null
+          completed_at: string | null
           create_task: boolean | null
           created_at: string
           due_date: string | null
@@ -505,6 +540,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          archived?: boolean | null
+          completed?: boolean | null
+          completed_at?: string | null
           create_task?: boolean | null
           created_at?: string
           due_date?: string | null
@@ -522,6 +560,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          archived?: boolean | null
+          completed?: boolean | null
+          completed_at?: string | null
           create_task?: boolean | null
           created_at?: string
           due_date?: string | null
@@ -571,6 +612,7 @@ export type Database = {
       }
       protocol_sections: {
         Row: {
+          archived: boolean | null
           created_at: string
           default_responsible: string | null
           entity_id: string | null
@@ -582,6 +624,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          archived?: boolean | null
           created_at?: string
           default_responsible?: string | null
           entity_id?: string | null
@@ -593,6 +636,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          archived?: boolean | null
           created_at?: string
           default_responsible?: string | null
           entity_id?: string | null

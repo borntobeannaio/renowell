@@ -19,7 +19,10 @@ interface DraggableItemProps {
   projectDefaultResponsible: string | null;
   onUpdate: (updates: Partial<UniversalItemData>) => void;
   onRemove: () => void;
+  onArchive?: () => void;
   sectionType?: SectionType;
+  itemNumber?: string;
+  profiles?: { id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[];
 }
 
 export function DraggableItem({
@@ -28,7 +31,10 @@ export function DraggableItem({
   projectDefaultResponsible,
   onUpdate,
   onRemove,
+  onArchive,
   sectionType = 'project',
+  itemNumber,
+  profiles = [],
 }: DraggableItemProps) {
   const {
     attributes,
@@ -67,6 +73,9 @@ export function DraggableItem({
             projectDefaultResponsible={projectDefaultResponsible}
             onUpdate={onUpdate as (updates: Partial<GoalItemData>) => void}
             onRemove={onRemove}
+            onArchive={onArchive}
+            itemNumber={itemNumber}
+            profiles={profiles}
           />
         ) : (
           <ProtocolItemEditor
@@ -75,6 +84,9 @@ export function DraggableItem({
             projectDefaultResponsible={projectDefaultResponsible}
             onUpdate={onUpdate as (updates: Partial<ProtocolItemData>) => void}
             onRemove={onRemove}
+            onArchive={onArchive}
+            itemNumber={itemNumber}
+            profiles={profiles}
           />
         )}
       </div>

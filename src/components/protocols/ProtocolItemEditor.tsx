@@ -1,5 +1,6 @@
-import { Trash2, CheckCircle2, GripVertical, Link2, Unlink } from "lucide-react";
+import { Trash2, CheckCircle2, Link2, Unlink, Archive, CheckSquare, Square, MessageCircle } from "lucide-react";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
+import { ProtocolItemComments } from "./ProtocolItemComments";
 
 export interface ProtocolItemData {
   id: string;
@@ -9,6 +10,9 @@ export interface ProtocolItemData {
   due_date: string | null;
   create_task: boolean;
   task_id?: string | null;
+  archived?: boolean;
+  completed?: boolean;
+  completed_at?: string | null;
 }
 
 interface ProtocolItemEditorProps {
@@ -17,8 +21,11 @@ interface ProtocolItemEditorProps {
   projectDefaultResponsible: string | null;
   onUpdate: (updates: Partial<ProtocolItemData>) => void;
   onRemove: () => void;
+  onArchive?: () => void;
   showDragHandle?: boolean;
   disabled?: boolean;
+  itemNumber?: string;
+  profiles?: { id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[];
 }
 
 export function ProtocolItemEditor({
@@ -27,8 +34,11 @@ export function ProtocolItemEditor({
   projectDefaultResponsible,
   onUpdate,
   onRemove,
+  onArchive,
   showDragHandle = false,
   disabled = false,
+  itemNumber,
+  profiles = [],
 }: ProtocolItemEditorProps) {
   // Check if item is inheriting from project
   const isInheritingResponsible = item.responsible === null && projectDefaultResponsible !== null;
@@ -59,23 +69,72 @@ export function ProtocolItemEditor({
     onUpdate({ responsible: null });
   };
 
+  const handleToggleCompleted = () => {
+    const newCompleted = !item.completed;
+    onUpdate({ 
+      completed: newCompleted, 
+      completed_at: newCompleted ? new Date().toISOString() : null 
+    });
+  };
+
+  const isCompleted = item.completed;
+  const isArchived = item.archived;
+
   return (
-    <div className={`p-3 rounded-lg space-y-3 border ${isInheritingResponsible ? 'bg-primary/5 border-primary/20' : 'bg-secondary/50 border-border/50'}`}>
+    <div className={`p-3 rounded-lg space-y-3 border ${
+      isArchived 
+        ? 'bg-muted/30 border-dashed opacity-60' 
+        : isCompleted 
+          ? 'bg-green-500/5 border-green-500/30' 
+          : isInheritingResponsible 
+            ? 'bg-primary/5 border-primary/20' 
+            : 'bg-secondary/50 border-border/50'
+    }`}>
       {/* Item text row */}
       <div className="flex items-start gap-2">
-        {showDragHandle && (
-          <button className="p-1 cursor-grab text-muted-foreground hover:text-foreground shrink-0 mt-1.5">
-            <GripVertical className="w-4 h-4" />
-          </button>
+        {/* Completion checkbox */}
+        <button
+          type="button"
+          onClick={handleToggleCompleted}
+          className={`p-1 shrink-0 mt-1 rounded transition-colors ${
+            isCompleted 
+              ? 'text-green-600 hover:text-green-700' 
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+          disabled={disabled}
+          title={isCompleted ? "Снять отметку выполнено" : "Отметить как выполнено"}
+        >
+          {isCompleted ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+        </button>
+
+        {/* Item number */}
+        {itemNumber && (
+          <span className="text-xs font-mono text-muted-foreground shrink-0 mt-2 min-w-[2.5rem]">
+            {itemNumber}
+          </span>
         )}
+
         <input
           type="text"
           value={item.item_text}
           onChange={(e) => onUpdate({ item_text: e.target.value })}
-          className="input-base flex-1"
+          className={`input-base flex-1 ${isCompleted ? 'line-through text-muted-foreground' : ''}`}
           placeholder="Текст пункта"
           disabled={disabled}
         />
+        
+        {onArchive && (
+          <button
+            type="button"
+            onClick={onArchive}
+            className="p-2 text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10 rounded-lg shrink-0 transition-colors"
+            disabled={disabled}
+            title={isArchived ? "Восстановить из архива" : "Архивировать"}
+          >
+            <Archive className="w-4 h-4" />
+          </button>
+        )}
+        
         <button
           type="button"
           onClick={onRemove}
@@ -132,25 +191,32 @@ export function ProtocolItemEditor({
         </div>
       </div>
 
-      {/* Task checkbox */}
-      <div className="flex items-center justify-between">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={item.create_task}
-            onChange={(e) => onUpdate({ create_task: e.target.checked })}
-            className="w-4 h-4 rounded border-input text-primary focus:ring-ring"
-            disabled={disabled}
-          />
-          <span className="text-sm text-muted-foreground">
-            Создать задачу на канбан
-          </span>
-        </label>
-        {item.task_id && (
-          <span className="chip-success shrink-0 flex items-center gap-1 text-xs">
-            <CheckCircle2 className="w-3 h-3" />
-            Задача создана
-          </span>
+      {/* Task checkbox and comments */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={item.create_task}
+              onChange={(e) => onUpdate({ create_task: e.target.checked })}
+              className="w-4 h-4 rounded border-input text-primary focus:ring-ring"
+              disabled={disabled}
+            />
+            <span className="text-sm text-muted-foreground">
+              Создать задачу на канбан
+            </span>
+          </label>
+          {item.task_id && (
+            <span className="chip-success shrink-0 flex items-center gap-1 text-xs">
+              <CheckCircle2 className="w-3 h-3" />
+              Задача создана
+            </span>
+          )}
+        </div>
+
+        {/* Comments section */}
+        {profiles.length > 0 && (
+          <ProtocolItemComments itemId={item.id} profiles={profiles} />
         )}
       </div>
     </div>
