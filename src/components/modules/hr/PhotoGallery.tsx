@@ -54,10 +54,8 @@ function extractPublicKey(url: string): string {
 
 // Fetch photos from Yandex Disk public folder
 async function fetchYandexPhotos(publicUrl: string): Promise<YandexPhoto[]> {
-  const publicKey = extractPublicKey(publicUrl);
-  
   // Use Yandex Disk API to get public folder contents
-  const apiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(publicUrl)}&limit=100`;
+  const apiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(publicUrl)}&limit=100&preview_size=L`;
   
   try {
     const response = await fetch(apiUrl);
@@ -78,12 +76,19 @@ async function fetchYandexPhotos(publicUrl: string): Promise<YandexPhoto[]> {
         const name = item.name.toLowerCase();
         return imageExtensions.some(ext => name.endsWith(ext));
       })
-      .map((item: any) => ({
-        id: item.resource_id || item.name,
-        url: item.file || item.preview?.replace('size=S', 'size=XXXL') || '',
-        preview: item.preview || '',
-        title: item.name,
-      }));
+      .map((item: any) => {
+        // Use preview for thumbnail and construct download URL for full view
+        const previewUrl = item.preview || '';
+        // For full image, use the file download link if available, otherwise use larger preview
+        const fullUrl = item.file || (previewUrl ? previewUrl.replace(/size=\w+/, 'size=XXXL') : '');
+        
+        return {
+          id: item.resource_id || item.name,
+          url: fullUrl,
+          preview: previewUrl,
+          title: item.name,
+        };
+      });
     
     return photos;
   } catch (error) {
