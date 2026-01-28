@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { proxySelect, proxyInsert, proxyDelete } from "@/lib/dbProxy";
+import { proxySelect, proxyInsert, proxyUpdate, proxyDelete } from "@/lib/dbProxy";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 
 export interface TaskComment {
@@ -104,6 +104,35 @@ export function useCreateTaskComment() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["task-comments", variables.taskId] });
+    },
+  });
+}
+
+export function useUpdateTaskComment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ 
+      commentId, 
+      taskId, 
+      content 
+    }: { 
+      commentId: string; 
+      taskId: string; 
+      content: string;
+    }) => {
+      const { data, error } = await proxyUpdate<TaskComment>(
+        "task_comments",
+        { content },
+        [{ column: "id", operator: "eq", value: commentId }],
+        "*, author:profiles!task_comments_author_id_fkey(id, first_name, last_name, avatar_url)"
+      );
+
+      if (error) throw new Error(error.message);
+      return { comment: data?.[0], taskId };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["task-comments", data.taskId] });
     },
   });
 }
