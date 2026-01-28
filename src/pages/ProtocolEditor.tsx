@@ -1773,7 +1773,8 @@ export default function ProtocolEditor() {
           content: string;
           created_at: string;
         }>('protocol_item_comments', {
-          filters: [{ column: 'item_id', operator: 'in', value: `(${itemIds.join(',')})` }],
+          // IMPORTANT: our dbProxy expects an array for `in` filters (not a PostgREST string like "(a,b)")
+          filters: [{ column: 'item_id', operator: 'in', value: itemIds }],
           order: [{ column: 'created_at', ascending: true }],
         });
         
@@ -1786,7 +1787,7 @@ export default function ProtocolEditor() {
               first_name: string | null;
               last_name: string | null;
             }>('profiles', {
-              filters: [{ column: 'id', operator: 'in', value: `(${authorIds.join(',')})` }],
+              filters: [{ column: 'id', operator: 'in', value: authorIds }],
             });
             
             const profileMap = new Map(

@@ -191,7 +191,8 @@ function ProtocolCard({
           content: string;
           created_at: string;
         }>('protocol_item_comments', {
-          filters: [{ column: 'item_id', operator: 'in', value: `(${itemIds.join(',')})` }],
+          // IMPORTANT: dbProxy expects an array for `in` filters
+          filters: [{ column: 'item_id', operator: 'in', value: itemIds }],
           order: [{ column: 'created_at', ascending: true }],
         });
         
@@ -204,7 +205,7 @@ function ProtocolCard({
               first_name: string | null;
               last_name: string | null;
             }>('profiles', {
-              filters: [{ column: 'id', operator: 'in', value: `(${authorIds.join(',')})` }],
+              filters: [{ column: 'id', operator: 'in', value: authorIds }],
             });
             
             const profileMap = new Map(
