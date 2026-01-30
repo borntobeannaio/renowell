@@ -1,20 +1,20 @@
+import { useState } from "react";
 import { Send, ExternalLink, Calendar, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useTelegramChannel, TelegramPost } from "@/hooks/useTelegramChannel";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 
-function PostCard({ post }: { post: TelegramPost }) {
+function PostCard({ post, onSelect }: { post: TelegramPost; onSelect: (post: TelegramPost) => void }) {
   const mediaUrl = post.image_url || post.video_url;
   
   return (
-    <a 
-      href={post.link} 
-      target="_blank" 
-      rel="noopener noreferrer"
-      className="block group"
+    <div 
+      onClick={() => onSelect(post)}
+      className="block group cursor-pointer"
     >
       <div className="rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm 
                       overflow-hidden hover:shadow-lg hover:border-primary/30 
@@ -51,13 +51,59 @@ function PostCard({ post }: { post: TelegramPost }) {
             </div>
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 
                             transition-opacity text-primary">
-              <span>Открыть</span>
+              <span>Читать</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </div>
           </div>
         </div>
       </div>
-    </a>
+    </div>
+  );
+}
+
+function PostModal({ post, onClose }: { post: TelegramPost; onClose: () => void }) {
+  const mediaUrl = post.image_url || post.video_url;
+  
+  return (
+    <Dialog open={true} onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
+        {/* Image/Video */}
+        {mediaUrl && (
+          <div className="w-full">
+            <img 
+              src={mediaUrl} 
+              alt="" 
+              className="w-full h-auto rounded-t-lg"
+            />
+          </div>
+        )}
+        
+        {/* Content */}
+        <div className="p-6 space-y-4">
+          {post.text && (
+            <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+              {post.text}
+            </p>
+          )}
+          
+          {/* Footer */}
+          <div className="flex items-center justify-between pt-4 border-t border-border">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Calendar className="w-4 h-4" />
+              <span>
+                {format(new Date(post.date), "d MMMM yyyy, HH:mm", { locale: ru })}
+              </span>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <a href={post.link} target="_blank" rel="noopener noreferrer">
+                <Send className="w-4 h-4 mr-2" />
+                Открыть в Telegram
+              </a>
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -93,6 +139,7 @@ function LoadingSkeleton() {
 
 export function TelegramFeed() {
   const { data: posts, isLoading, error, refetch, isFetching } = useTelegramChannel();
+  const [selectedPost, setSelectedPost] = useState<TelegramPost | null>(null);
 
   return (
     <div className="h-full flex flex-col">
@@ -146,7 +193,7 @@ export function TelegramFeed() {
           )}
           
           {!isLoading && !error && posts?.map((post) => (
-            <PostCard key={post.id} post={post} />
+            <PostCard key={post.id} post={post} onSelect={setSelectedPost} />
           ))}
           
           {!isLoading && !error && posts?.length === 0 && (
@@ -158,7 +205,12 @@ export function TelegramFeed() {
             </div>
           )}
         </div>
-      </ScrollArea>
+        </ScrollArea>
+
+      {/* Post Modal */}
+      {selectedPost && (
+        <PostModal post={selectedPost} onClose={() => setSelectedPost(null)} />
+      )}
     </div>
   );
 }
