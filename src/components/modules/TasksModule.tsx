@@ -13,7 +13,6 @@ import { toast } from "sonner";
 const columns: { id: TaskStatus; label: string }[] = [
   { id: "new", label: "Новая" },
   { id: "in_progress", label: "В работе" },
-  { id: "review", label: "На проверке" },
   { id: "done", label: "Готово" },
 ];
 
