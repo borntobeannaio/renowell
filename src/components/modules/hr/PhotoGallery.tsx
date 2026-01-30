@@ -52,11 +52,23 @@ function extractPublicKey(url: string): string {
   return match ? match[1] : url;
 }
 
+// Get download URL for a public file
+async function getDownloadUrl(publicKey: string, path: string): Promise<string | null> {
+  try {
+    const apiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=${encodeURIComponent(publicKey)}&path=${encodeURIComponent(path)}`;
+    const response = await fetch(apiUrl);
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.href || null;
+  } catch {
+    return null;
+  }
+}
+
 // Fetch photos from Yandex Disk public folder
 async function fetchYandexPhotos(publicUrl: string): Promise<YandexPhoto[]> {
   // Use Yandex Disk API to get public folder contents
-  // Request with preview_size and preview_crop for stable preview URLs
-  const apiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(publicUrl)}&limit=100&preview_size=XL&preview_crop=false`;
+  const apiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(publicUrl)}&limit=100&preview_size=L&preview_crop=false`;
   
   try {
     const response = await fetch(apiUrl);
@@ -71,32 +83,30 @@ async function fetchYandexPhotos(publicUrl: string): Promise<YandexPhoto[]> {
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
     const items = data._embedded?.items || [];
     
-    const photos: YandexPhoto[] = items
+    // Process items and get download URLs for each
+    const photosPromises = items
       .filter((item: any) => {
         if (item.type !== 'file') return false;
         const name = item.name.toLowerCase();
         return imageExtensions.some(ext => name.endsWith(ext));
       })
-      .map((item: any) => {
-        // item.file is the direct download URL (most reliable for full images)
-        // item.preview is the preview URL (for thumbnails)
-        const fileUrl = item.file || '';
+      .map(async (item: any) => {
+        // Get the preview URL (works without auth)
         const previewUrl = item.preview || '';
         
-        // For thumbnail: prefer preview, fallback to file
-        // For full: prefer file (direct download), fallback to preview with larger size
-        const thumbnailUrl = previewUrl || fileUrl;
-        const fullUrl = fileUrl || (previewUrl ? previewUrl.replace(/size=\w+/, 'size=XXXL') : '');
+        // For full-size, get direct download link via download endpoint
+        const downloadUrl = await getDownloadUrl(publicUrl, `/${item.name}`);
         
         return {
           id: item.resource_id || item.name,
-          url: fullUrl,
-          preview: thumbnailUrl,
+          url: downloadUrl || previewUrl.replace('size=L', 'size=XXXL'),
+          preview: previewUrl,
           title: item.name,
         };
       });
     
-    return photos;
+    const photos = await Promise.all(photosPromises);
+    return photos.filter(p => p.preview); // Only return photos with valid previews
   } catch (error) {
     console.error('Error fetching Yandex photos:', error);
     throw error;
