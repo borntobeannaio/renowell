@@ -1,79 +1,141 @@
 
-# План: Просмотр полного поста Telegram
 
-## Текущее поведение
-- Посты отображаются в карточках с обрезанным текстом (`line-clamp-4` — 4 строки)
-- Клик по карточке открывает пост в Telegram в новой вкладке
-- Нет возможности прочитать длинный пост целиком внутри приложения
+# План: Исправление битых изображений в фотогалерее
 
-## Новое поведение
-- Клик по карточке открывает модальное окно с полным содержимым поста
-- В модалке отображается:
-  - Изображение/видео в полном размере (если есть)
-  - Полный текст поста без обрезки
-  - Дата публикации
-  - Кнопка "Открыть в Telegram" для перехода в оригинал
-- Кнопка закрытия в правом верхнем углу
-- Закрытие по Escape или клику на оверлей
+## Диагностика проблемы
 
-## Изменения в коде
+Текущая реализация имеет несколько проблем:
 
-### Файл: `src/components/modules/brandhub/TelegramFeed.tsx`
+| Проблема | Причина |
+|----------|---------|
+| Preview URL-ы не загружаются | Yandex возвращает ссылки с авторизационными токенами, которые истекают или блокируются CORS |
+| Download URL-ы тоже истекают | API `/download` возвращает временные ссылки (обычно на 2 часа) |
+| Прямые запросы из браузера | CORS ограничения при обращении к `cloud-api.yandex.net` |
 
-1. Добавить состояние для выбранного поста:
-```tsx
-const [selectedPost, setSelectedPost] = useState<TelegramPost | null>(null);
+## Решение: Проксирование через Edge Function
+
+Создать edge-функцию, которая будет серверным прокси для Yandex Disk:
+
+```text
+[Браузер] → [Edge Function yandex-disk-proxy] → [Yandex Disk API]
+                    ↓
+            Кэширование ссылок
+            Обход CORS
+            Стабильные URL-ы
 ```
 
-2. Изменить `PostCard` — заменить ссылку на кнопку:
-```tsx
-// Было: <a href={post.link} target="_blank">
-// Станет: <div onClick={() => onSelect(post)}>
+## Архитектура
+
+### Edge Function: `yandex-disk-proxy`
+
+Два действия:
+1. `list` — получить список фото из публичной папки
+2. `image` — проксировать изображение (возвращает бинарные данные)
+
+```typescript
+// Список фото
+POST { action: "list", publicUrl: "https://disk.yandex.ru/d/XXX" }
+→ { photos: [{ id, name, preview, downloadUrl }] }
+
+// Получить изображение (проксирование бинарных данных)  
+GET /yandex-disk-proxy?url=<encoded_yandex_url>
+→ binary image data с правильными Content-Type заголовками
 ```
 
-3. Добавить компонент модального окна `PostModal`:
+### Изменения в PhotoGallery.tsx
+
+1. Заменить прямые вызовы Yandex API на вызовы edge-функции
+2. Использовать URL edge-функции для `src` изображений:
+
 ```tsx
-function PostModal({ post, onClose }: { post: TelegramPost; onClose: () => void }) {
-  return (
-    <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        {/* Изображение */}
-        {post.image_url && (
-          <img src={post.image_url} className="w-full rounded-lg" />
-        )}
-        
-        {/* Полный текст */}
-        <p className="whitespace-pre-wrap">{post.text}</p>
-        
-        {/* Дата и кнопка */}
-        <div className="flex justify-between">
-          <span>{format(date, "d MMMM yyyy, HH:mm")}</span>
-          <Button asChild>
-            <a href={post.link} target="_blank">Открыть в Telegram</a>
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
+// Вместо:
+<img src={photo.preview} />
+
+// Использовать:
+<img src={`${EDGE_URL}/yandex-disk-proxy?url=${encodeURIComponent(photo.preview)}`} />
+```
+
+## Шаги реализации
+
+### Шаг 1: Создать edge-функцию `yandex-disk-proxy`
+
+```typescript
+// supabase/functions/yandex-disk-proxy/index.ts
+serve(async (req) => {
+  const url = new URL(req.url);
+  
+  // GET запрос — проксирование изображения
+  if (req.method === "GET") {
+    const imageUrl = url.searchParams.get("url");
+    const response = await fetch(imageUrl);
+    return new Response(response.body, {
+      headers: {
+        "Content-Type": response.headers.get("Content-Type") || "image/jpeg",
+        "Cache-Control": "public, max-age=86400", // Кэш на 24 часа
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  }
+  
+  // POST запрос — список файлов
+  const { action, publicUrl } = await req.json();
+  if (action === "list") {
+    const apiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(publicUrl)}&limit=100`;
+    const response = await fetch(apiUrl);
+    const data = await response.json();
+    // Обработка и возврат списка
+  }
+});
+```
+
+### Шаг 2: Обновить PhotoGallery.tsx
+
+```typescript
+// Новая функция для получения фото
+async function fetchYandexPhotos(publicUrl: string): Promise<YandexPhoto[]> {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/yandex-disk-proxy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "list", publicUrl }),
+  });
+  return response.json();
+}
+
+// Обёртка для URL изображений
+function getProxiedImageUrl(originalUrl: string): string {
+  return `${SUPABASE_URL}/functions/v1/yandex-disk-proxy?url=${encodeURIComponent(originalUrl)}`;
 }
 ```
 
-4. Рендерить модалку при выбранном посте:
+### Шаг 3: Использовать проксированные URL в компоненте
+
 ```tsx
-{selectedPost && (
-  <PostModal post={selectedPost} onClose={() => setSelectedPost(null)} />
-)}
+<img 
+  src={getProxiedImageUrl(photo.preview)} 
+  alt={photo.title}
+/>
 ```
 
-## Навигация клавишами
+## Альтернативное решение: Кэширование в Supabase Storage
 
-- **Escape** — закрыть модалку (стандартное поведение Dialog)
-- Опционально: стрелки влево/вправо для переключения между постами
+Если edge-функция не справится с нагрузкой:
 
-## Визуальный стиль
+1. При первом запросе — скачать фото через edge-функцию
+2. Сохранить в Supabase Storage
+3. Вернуть стабильный публичный URL из Storage
+4. При повторных запросах — отдавать из кэша
 
-- Использовать существующий компонент `Dialog` из UI-библиотеки
-- Размытый тёмный оверлей (`bg-black/80`)
-- Плавная анимация появления
-- Максимальная ширина `max-w-2xl` для комфортного чтения
-- Скролл внутри модалки для очень длинных постов
+Это более надёжно, но требует хранилища.
+
+## Файлы для изменения
+
+1. **Создать**: `supabase/functions/yandex-disk-proxy/index.ts`
+2. **Изменить**: `src/components/modules/hr/PhotoGallery.tsx`
+
+## Ожидаемый результат
+
+- Все изображения загружаются стабильно
+- Нет CORS-ошибок
+- Кэширование на уровне браузера (24 часа)
+- Работает и для preview, и для полноразмерных изображений в Lightbox
+
