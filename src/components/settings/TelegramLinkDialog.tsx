@@ -110,7 +110,7 @@ export function TelegramLinkDialog({
     }
   };
 
-  const botUsername = "renowell_portal_bot"; // Replace with actual bot username
+  const botUsername = "renowell_bot";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
