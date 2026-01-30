@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { Modal } from "@/components/ui/Modal";
-import { Plus, Filter } from "lucide-react";
+import { Plus, Filter, Newspaper, Send } from "lucide-react";
 import { NewsItem } from "@/types";
+import { TelegramFeed } from "./brandhub/TelegramFeed";
 
 type NewsKind = "all" | "news" | "congrats";
+type TabView = "news" | "blog";
 
 export function NewsModule() {
   const { news, addNews } = useApp();
+  const [activeTab, setActiveTab] = useState<TabView>("news");
   const [filter, setFilter] = useState<NewsKind>("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState({
@@ -44,77 +47,112 @@ export function NewsModule() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-          <Filter className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          <div className="flex gap-1">
-            {(["all", "news", "congrats"] as const).map((k) => (
-              <button
-                key={k}
-                onClick={() => setFilter(k)}
-                className={`px-2.5 md:px-3 py-1.5 text-xs md:text-sm rounded-md transition-colors whitespace-nowrap ${
-                  filter === k
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                }`}
-              >
-                {k === "all" ? "Все" : kindLabel(k)}
-              </button>
-            ))}
-          </div>
-        </div>
-
+      {/* Tab Navigation */}
+      <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg w-fit">
         <button
-          onClick={() => setIsModalOpen(true)}
-          className="btn-primary h-9 md:h-11 flex items-center justify-center gap-2 text-sm md:text-base"
+          onClick={() => setActiveTab("news")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            activeTab === "news"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
         >
-          <Plus className="w-4 h-4" />
-          <span>Добавить</span>
+          <Newspaper className="w-4 h-4" />
+          Новости
+        </button>
+        <button
+          onClick={() => setActiveTab("blog")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            activeTab === "blog"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Send className="w-4 h-4" />
+          Блог руководителя
         </button>
       </div>
 
-      <div className="grid gap-4">
-        {filteredNews.map((item) => (
-          <article key={item.id} className="card-base p-4 animate-fade-in">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <span
-                    className={
-                      item.kind === "news" ? "chip-info" : "chip-accent"
-                    }
+      {/* Content based on active tab */}
+      {activeTab === "blog" ? (
+        <div className="h-[calc(100vh-200px)]">
+          <TelegramFeed />
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              <Filter className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <div className="flex gap-1">
+                {(["all", "news", "congrats"] as const).map((k) => (
+                  <button
+                    key={k}
+                    onClick={() => setFilter(k)}
+                    className={`px-2.5 md:px-3 py-1.5 text-xs md:text-sm rounded-md transition-colors whitespace-nowrap ${
+                      filter === k
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    }`}
                   >
-                    {kindLabel(item.kind)}
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    {item.date}
-                  </span>
-                </div>
-                <h3 className="text-lg font-semibold text-foreground mb-2">
-                  {item.title}
-                </h3>
-                <p className="text-muted-foreground mb-3">{item.body}</p>
-                <div className="flex flex-wrap items-center gap-2">
-                  {item.tags.map((tag) => (
-                    <span key={tag} className="chip">
-                      {tag}
-                    </span>
-                  ))}
-                  <span className="text-sm text-muted-foreground ml-auto">
-                    — {item.author}
-                  </span>
-                </div>
+                    {k === "all" ? "Все" : kindLabel(k)}
+                  </button>
+                ))}
               </div>
             </div>
-          </article>
-        ))}
 
-        {filteredNews.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground">
-            Нет публикаций
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="btn-primary h-9 md:h-11 flex items-center justify-center gap-2 text-sm md:text-base"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Добавить</span>
+            </button>
           </div>
-        )}
-      </div>
+
+          <div className="grid gap-4">
+            {filteredNews.map((item) => (
+              <article key={item.id} className="card-base p-4 animate-fade-in">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span
+                        className={
+                          item.kind === "news" ? "chip-info" : "chip-accent"
+                        }
+                      >
+                        {kindLabel(item.kind)}
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {item.date}
+                      </span>
+                    </div>
+                    <h3 className="text-lg font-semibold text-foreground mb-2">
+                      {item.title}
+                    </h3>
+                    <p className="text-muted-foreground mb-3">{item.body}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {item.tags.map((tag) => (
+                        <span key={tag} className="chip">
+                          {tag}
+                        </span>
+                      ))}
+                      <span className="text-sm text-muted-foreground ml-auto">
+                        — {item.author}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
+
+            {filteredNews.length === 0 && (
+              <div className="text-center py-12 text-muted-foreground">
+                Нет публикаций
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       <Modal
         isOpen={isModalOpen}
