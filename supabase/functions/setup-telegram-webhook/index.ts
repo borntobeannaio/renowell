@@ -34,8 +34,8 @@ serve(async (req) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         url: webhookUrl,
-        allowed_updates: ["message"],
-        drop_pending_updates: true,
+        allowed_updates: ["message", "channel_post"],
+        drop_pending_updates: false, // Keep pending updates to catch recent posts
       }),
     });
 

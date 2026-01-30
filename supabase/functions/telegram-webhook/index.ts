@@ -6,6 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const CHANNEL_USERNAME = "oparinandrey_renowell";
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -26,7 +28,24 @@ serve(async (req) => {
     const update = await req.json();
     console.log("Telegram update received:", JSON.stringify(update));
 
-    // Extract message data
+    // Handle channel posts (blog posts from the leader's channel)
+    const channelPost = update.channel_post;
+    if (channelPost) {
+      const chat = channelPost.chat;
+      console.log("Channel post from:", chat.username);
+      
+      // Check if it's from our target channel
+      if (chat.username === CHANNEL_USERNAME) {
+        await processChannelPost(supabase, TELEGRAM_BOT_TOKEN, channelPost);
+        console.log("Channel post processed successfully");
+      }
+      
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Handle regular messages (for account linking)
     const message = update.message;
     if (!message || !message.text) {
       return new Response(JSON.stringify({ ok: true }), {
@@ -148,6 +167,79 @@ serve(async (req) => {
     );
   }
 });
+
+// Process channel posts and save to database
+async function processChannelPost(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  botToken: string,
+  post: Record<string, unknown>
+): Promise<void> {
+  const messageId = post.message_id as number;
+  const text = (post.text as string) || (post.caption as string) || null;
+  const date = new Date((post.date as number) * 1000).toISOString();
+  
+  console.log(`Processing channel post ${messageId}: ${text?.substring(0, 50)}...`);
+  
+  // Get photo URL if present
+  let imageUrl: string | null = null;
+  const photo = post.photo as Array<{ file_id: string; width: number; height: number }> | undefined;
+  if (photo && photo.length > 0) {
+    // Get the largest photo (last in array)
+    const largestPhoto = photo[photo.length - 1];
+    imageUrl = await getFileUrl(botToken, largestPhoto.file_id);
+    console.log(`Got photo URL: ${imageUrl}`);
+  }
+  
+  // Get video thumbnail if present
+  let videoUrl: string | null = null;
+  const video = post.video as { thumb?: { file_id: string } } | undefined;
+  if (video?.thumb) {
+    videoUrl = await getFileUrl(botToken, video.thumb.file_id);
+    console.log(`Got video thumbnail URL: ${videoUrl}`);
+  }
+  
+  // Upsert to database
+  const { error } = await supabase
+    .from("telegram_posts")
+    .upsert({
+      message_id: messageId,
+      text,
+      date,
+      image_url: imageUrl,
+      video_url: videoUrl,
+      link: `https://t.me/${CHANNEL_USERNAME}/${messageId}`,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "message_id" });
+  
+  if (error) {
+    console.error("Error upserting channel post:", error);
+    throw error;
+  }
+  
+  console.log(`Channel post ${messageId} saved to database`);
+}
+
+// Get file URL from Telegram servers
+async function getFileUrl(botToken: string, fileId: string): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`
+    );
+    
+    const data = await response.json();
+    
+    if (data.ok && data.result?.file_path) {
+      return `https://api.telegram.org/file/bot${botToken}/${data.result.file_path}`;
+    }
+    
+    console.error("Failed to get file path:", data);
+    return null;
+  } catch (error) {
+    console.error("Error getting file URL:", error);
+    return null;
+  }
+}
 
 async function sendTelegramMessage(
   botToken: string,
