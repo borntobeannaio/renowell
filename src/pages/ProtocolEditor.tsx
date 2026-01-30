@@ -44,6 +44,7 @@ import { useEmployees } from "@/hooks/useEmployees";
 import { useCreateTask, useUpdateTask } from "@/hooks/useTasks";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useAuth } from "@/hooks/useAuth";
+import { useProtocolPermissions } from "@/hooks/useProtocolPermissions";
 import { generateProtocolPdf } from "@/utils/protocolPdf";
 import { proxySelect } from "@/lib/dbProxy";
 import { toast } from "sonner";
@@ -92,8 +93,9 @@ export default function ProtocolEditor() {
   const isEditMode = !!id && id !== "new";
   const isCopyMode = isNew && !!copyFromId;
 
-  // Auth for drafts
+  // Auth and permissions
   const { user } = useAuth();
+  const { canEditProtocols } = useProtocolPermissions();
   
   // Data hooks
   const { data: protocols = [], isLoading: protocolsLoading } = useProtocols();
@@ -135,6 +137,14 @@ export default function ProtocolEditor() {
   // Loading states
   const isCopyDataLoading = isCopyMode && (protocolsLoading || employeesLoading || sourceItemsLoading || sourceSectionsLoading || !sourceProtocol);
   const isEditDataLoading = isEditMode && (protocolsLoading || employeesLoading || existingItemsLoading || existingSectionsLoading);
+
+  // Redirect if no permissions
+  useEffect(() => {
+    if (!canEditProtocols && user) {
+      toast.error("У вас нет прав на редактирование протоколов");
+      navigate("/protocols");
+    }
+  }, [canEditProtocols, user, navigate]);
 
   // Form state
   const [form, setForm] = useState({

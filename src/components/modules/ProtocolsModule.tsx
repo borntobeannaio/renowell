@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, ChevronDown, ChevronUp, Download, Pencil, Copy, FolderOpen, User, Calendar, CheckCircle2, Trash2, Loader2, Building, Users, Briefcase, Target } from "lucide-react";
 import { useProtocols, useProtocolItems, useDeleteProtocol, DbProtocol, DbProtocolItem } from "@/hooks/useProtocols";
 import { useProjects } from "@/hooks/useProjects";
+import { useProtocolPermissions } from "@/hooks/useProtocolPermissions";
 import { proxySelect } from "@/lib/dbProxy";
 import { generateProtocolPdf } from "@/utils/protocolPdf";
 import { formatDisplayDate } from "@/utils/dateFormat";
@@ -24,6 +25,7 @@ export function ProtocolsModule() {
   const { data: protocols = [], isLoading } = useProtocols();
   const { data: projects = [] } = useProjects();
   const deleteProtocol = useDeleteProtocol();
+  const { canCreateProtocol, canEditProtocols, canCopyProtocol, canDeleteProtocol } = useProtocolPermissions();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [protocolToDelete, setProtocolToDelete] = useState<DbProtocol | null>(null);
@@ -63,18 +65,20 @@ export function ProtocolsModule() {
         <p className="text-sm md:text-base text-muted-foreground">
           Протоколов: {protocols.length}
         </p>
-        <button
-          onClick={handleNewProtocol}
-          className="btn-primary h-9 md:h-11 px-3 md:px-5 flex items-center gap-2 text-sm md:text-base"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Новый протокол</span>
-          <span className="sm:hidden">Добавить</span>
-        </button>
+        {canCreateProtocol && (
+          <button
+            onClick={handleNewProtocol}
+            className="btn-primary h-9 md:h-11 px-3 md:px-5 flex items-center gap-2 text-sm md:text-base"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Новый протокол</span>
+            <span className="sm:hidden">Добавить</span>
+          </button>
+        )}
       </div>
 
       {/* Drafts section */}
-      <DraftsSection />
+      {canEditProtocols && <DraftsSection />}
 
       <div className="space-y-4">
         {isLoading ? (
@@ -93,9 +97,9 @@ export function ProtocolsModule() {
               projects={projects}
               isExpanded={expandedId === protocol.id}
               onToggleExpand={() => setExpandedId(expandedId === protocol.id ? null : protocol.id)}
-              onEdit={() => handleEditProtocol(protocol.id)}
-              onCopy={() => handleCopyProtocol(protocol.id)}
-              onDelete={() => handleDeleteClick(protocol)}
+              onEdit={canEditProtocols ? () => handleEditProtocol(protocol.id) : undefined}
+              onCopy={canCopyProtocol ? () => handleCopyProtocol(protocol.id) : undefined}
+              onDelete={canDeleteProtocol ? () => handleDeleteClick(protocol) : undefined}
             />
           ))
         )}
@@ -135,9 +139,9 @@ interface ProtocolCardProps {
   projects: { id: string; name: string }[];
   isExpanded: boolean;
   onToggleExpand: () => void;
-  onEdit: () => void;
-  onCopy: () => void;
-  onDelete: () => void;
+  onEdit?: () => void;
+  onCopy?: () => void;
+  onDelete?: () => void;
 }
 
 function ProtocolCard({
@@ -353,20 +357,24 @@ function ProtocolCard({
           </span>
         </button>
         <div className="flex items-center gap-1">
-          <button
-            onClick={onCopy}
-            className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-            title="Копировать протокол"
-          >
-            <Copy className="w-4 h-4" />
-          </button>
-          <button
-            onClick={onEdit}
-            className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-            title="Редактировать протокол"
-          >
-            <Pencil className="w-4 h-4" />
-          </button>
+          {onCopy && (
+            <button
+              onClick={onCopy}
+              className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+              title="Копировать протокол"
+            >
+              <Copy className="w-4 h-4" />
+            </button>
+          )}
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+              title="Редактировать протокол"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          )}
           <button
             onClick={handleExportPdf}
             disabled={isExporting}
@@ -375,13 +383,15 @@ function ProtocolCard({
           >
             {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
           </button>
-          <button
-            onClick={onDelete}
-            className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
-            title="Удалить протокол"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+              title="Удалить протокол"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
           <button onClick={onToggleExpand} className="p-2">
             {isExpanded ? (
               <ChevronUp className="w-5 h-5 text-muted-foreground" />
@@ -471,15 +481,17 @@ function ProtocolCard({
             </div>
 
             {/* Edit button */}
-            <div className="pt-4 border-t border-border flex justify-end">
-              <button
-                onClick={onEdit}
-                className="btn-secondary text-sm flex items-center gap-2"
-              >
-                <Pencil className="w-4 h-4" />
-                Редактировать
-              </button>
-            </div>
+            {onEdit && (
+              <div className="pt-4 border-t border-border flex justify-end">
+                <button
+                  onClick={onEdit}
+                  className="btn-secondary text-sm flex items-center gap-2"
+                >
+                  <Pencil className="w-4 h-4" />
+                  Редактировать
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
