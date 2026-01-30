@@ -15,7 +15,7 @@ import {
 import renowellLogo from "@/assets/renowell-logo-text.png";
 
 const navItems: { id: NavigationSection; path: string; label: string; icon: React.ElementType }[] = [
-  { id: "brandhub", path: "/brandhub", label: "Brand Hub", icon: Sparkles },
+  { id: "brandhub", path: "/brandhub", label: "О нас", icon: Sparkles },
   { id: "news", path: "/news", label: "Новости", icon: Newspaper },
   { id: "protocols", path: "/protocols", label: "Протоколы", icon: FileText },
   { id: "tasks", path: "/tasks", label: "Задачи", icon: CheckSquare },
