@@ -370,8 +370,8 @@ export default function ProtocolEditor() {
           groups[key].push({
             ...createItemFromDb(item, 'project'),
             id: generateTempId(),
-            create_task: false,
-            task_id: null,
+            // Keep task_id link when copying (don't create new tasks)
+            task_id: item.task_id,
           });
         });
 
@@ -670,7 +670,6 @@ export default function ProtocolEditor() {
           kpi: goalItem.kpi,
           status: goalItem.status,
           status_date: goalItem.status_date,
-          create_task: goalItem.create_task,
           section_id: sectionId,
           completed: goalItem.completed,
           completed_at: goalItem.completed_at,
@@ -715,7 +714,6 @@ export default function ProtocolEditor() {
         item_text: regularItem.item_text || "Новый пункт",
         responsible: regularItem.responsible,
         due_date: regularItem.due_date,
-        create_task: regularItem.create_task,
         project_id: regularItem.project_id || group.entityId,
         section_id: sectionId,
         completed: regularItem.completed,
@@ -776,7 +774,6 @@ export default function ProtocolEditor() {
         item_text: `[${company!.companyName}] ${item.item_text || "Новый пункт"}`,
         responsible: item.responsible,
         due_date: item.due_date,
-        create_task: item.create_task,
         section_id: sectionId,
         completed: item.completed,
         completed_at: item.completed_at,
@@ -988,7 +985,6 @@ export default function ProtocolEditor() {
         item_text: "",
         responsible: null,
         due_date: null,
-        create_task: false,
       };
       return {
         ...g,
@@ -1284,7 +1280,6 @@ export default function ProtocolEditor() {
                 item_text: `[${company.companyName}] ${item.item_text}`,
                 responsible: effectiveResponsible,
                 due_date: item.due_date,
-                create_task: item.create_task,
                 sort_order: sortOrder++,
                 kpi: null,
                 status: null,
@@ -1293,7 +1288,8 @@ export default function ProtocolEditor() {
 
               idMapping[item.id] = createdItem.id;
 
-              if (item.create_task) {
+              // Always create task for every protocol item (unless copying with existing task)
+              if (!item.task_id) {
                 const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
                 const taskResult = await createTask.mutateAsync({
@@ -1312,6 +1308,14 @@ export default function ProtocolEditor() {
                 });
 
                 taskIdMapping[createdItem.id] = taskResult.id;
+              } else {
+                // Copy mode: link to existing task
+                await updateProtocolItem.mutateAsync({
+                  id: createdItem.id,
+                  protocol_id: result.id,
+                  task_id: item.task_id,
+                });
+                taskIdMapping[createdItem.id] = item.task_id;
               }
             }
           }
@@ -1330,7 +1334,6 @@ export default function ProtocolEditor() {
               item_text: item.item_text,
               responsible: effectiveResponsible,
               due_date: item.due_date,
-              create_task: item.create_task,
               sort_order: sortOrder++,
               kpi: isGoal ? goalItem.kpi : null,
               status: isGoal ? goalItem.status : null,
@@ -1339,7 +1342,8 @@ export default function ProtocolEditor() {
 
             idMapping[item.id] = createdItem.id;
 
-            if (item.create_task) {
+            // Always create task for every protocol item (unless copying with existing task)
+            if (!item.task_id) {
               const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
               const taskResult = await createTask.mutateAsync({
@@ -1358,6 +1362,14 @@ export default function ProtocolEditor() {
               });
 
               taskIdMapping[createdItem.id] = taskResult.id;
+            } else {
+              // Copy mode: link to existing task
+              await updateProtocolItem.mutateAsync({
+                id: createdItem.id,
+                protocol_id: result.id,
+                task_id: item.task_id,
+              });
+              taskIdMapping[createdItem.id] = item.task_id;
             }
           }
         }
@@ -1449,7 +1461,6 @@ export default function ProtocolEditor() {
               item_text: itemText,
               responsible: effectiveResponsible,
               due_date: item.due_date,
-              create_task: item.create_task,
               sort_order: currentSortOrder,
               kpi: isGoal ? goalItem.kpi : null,
               status: isGoal ? goalItem.status : null,
@@ -1461,8 +1472,8 @@ export default function ProtocolEditor() {
 
             let taskId: string | undefined;
 
-            // Create task if needed
-            if (item.create_task) {
+            // Always create task for new items (unless already has task from copy)
+            if (!item.task_id) {
               const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
               const taskResult = await createTask.mutateAsync({
@@ -1481,6 +1492,14 @@ export default function ProtocolEditor() {
               });
 
               taskId = taskResult.id;
+            } else {
+              // Link to existing task (copy mode)
+              await updateProtocolItem.mutateAsync({
+                id: createdItem.id,
+                protocol_id: id,
+                task_id: item.task_id,
+              });
+              taskId = item.task_id || undefined;
             }
             
             return { success: true, itemId: item.id, itemText: item.item_text, newId: createdItem.id, taskId };
@@ -1494,7 +1513,6 @@ export default function ProtocolEditor() {
               item_text: itemText,
               responsible: effectiveResponsible,
               due_date: item.due_date,
-              create_task: item.create_task,
               kpi: isGoal ? goalItem.kpi : null,
               status: isGoal ? goalItem.status : null,
               status_date: isGoal ? goalItem.status_date : null,
@@ -1506,8 +1524,8 @@ export default function ProtocolEditor() {
 
             let taskId: string | undefined = item.task_id || undefined;
 
-            // Create task if checkbox was set and no task exists yet
-            if (item.create_task && !item.task_id) {
+            // Create task if no task exists yet, update if exists
+            if (!item.task_id) {
               const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
               const taskResult = await createTask.mutateAsync({
@@ -1527,8 +1545,8 @@ export default function ProtocolEditor() {
 
               taskId = taskResult.id;
               toast.success(`Задача "${item.item_text.slice(0, 30)}..." создана`);
-            } else if (item.create_task && item.task_id) {
-              // Update existing task with current item data (text, assignees, due date)
+            } else {
+              // Update existing task with current item data (sync all editable fields)
               const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
               await updateTask.mutateAsync({
@@ -1537,15 +1555,6 @@ export default function ProtocolEditor() {
                 assignee_ids: assigneeProfileIds,
                 due_date: item.due_date || null,
               });
-            } else if (!item.create_task && item.task_id) {
-              // Checkbox was unchecked but task exists - unlink task from protocol item
-              await updateProtocolItem.mutateAsync({
-                id: item.id,
-                protocol_id: id,
-                task_id: null,
-              });
-              taskId = undefined;
-              toast.info(`Задача отвязана от пункта`);
             }
             
             return { success: true, itemId: item.id, itemText: item.item_text, taskId };

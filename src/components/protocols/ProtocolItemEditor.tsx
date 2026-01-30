@@ -8,7 +8,6 @@ export interface ProtocolItemData {
   item_text: string;
   responsible: string | null;
   due_date: string | null;
-  create_task: boolean;
   task_id?: string | null;
   archived?: boolean;
   completed?: boolean;
@@ -196,33 +195,22 @@ export function ProtocolItemEditor({
         </div>
       </div>
 
-      {/* Task checkbox and comments */}
+      {/* Task link indicator and comments */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={item.create_task}
-              onChange={(e) => onUpdate({ create_task: e.target.checked })}
-              className="w-4 h-4 rounded border-input text-primary focus:ring-ring"
-              disabled={disabled}
-            />
-            <span className="text-sm text-muted-foreground">
-              Создать задачу на канбан
-            </span>
-          </label>
-          {item.task_id && (
+        {item.task_id && (
+          <div className="flex items-center gap-2">
             <span className="chip-success shrink-0 flex items-center gap-1 text-xs">
               <CheckCircle2 className="w-3 h-3" />
-              Задача создана
+              Связанная задача
             </span>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Comments section */}
         {profiles.length > 0 && (
           <ProtocolItemComments 
             itemId={item.id} 
+            taskId={item.task_id || null}
             profiles={profiles} 
             protocolTitle={protocolTitle}
             onPersistTempItem={onPersistTempItem}
