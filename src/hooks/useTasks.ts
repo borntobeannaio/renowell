@@ -1,13 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { proxySelect, proxyInsert, proxyUpdate } from "@/lib/dbProxy";
 
-export type TaskStatus = "new" | "in_progress" | "review" | "done" | "archived";
+export type TaskStatus = "new" | "in_progress" | "done" | "archived";
 export type TaskPriority = "critical" | "high" | "normal" | "low";
 
 export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   new: "Новая",
   in_progress: "В работе",
-  review: "На проверке",
   done: "Готово",
   archived: "Архив",
 };
