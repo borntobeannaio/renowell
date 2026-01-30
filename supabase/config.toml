@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.telegram-channel]
 verify_jwt = false
+
+[functions.yandex-disk-proxy]
+verify_jwt = false

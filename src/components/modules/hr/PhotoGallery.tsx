@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Folder, ArrowLeft, Image, Loader2 } from "lucide-react";
 import { Lightbox } from "@/components/ui/Lightbox";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
 interface PhotoFolder {
   id: string;
   name: string;
@@ -12,9 +14,9 @@ interface PhotoFolder {
 
 interface YandexPhoto {
   id: string;
-  url: string;
-  preview: string;
-  title: string;
+  name: string;
+  preview: string | null;
+  downloadUrl: string | null;
 }
 
 // Predefined folders with Yandex Disk links
@@ -45,72 +47,27 @@ const PHOTO_FOLDERS: PhotoFolder[] = [
   },
 ];
 
-// Extract public key from Yandex Disk URL
-function extractPublicKey(url: string): string {
-  // URL format: https://disk.yandex.ru/d/XXXXX
-  const match = url.match(/\/d\/([^/?]+)/);
-  return match ? match[1] : url;
+// Get proxied image URL through edge function
+function getProxiedImageUrl(originalUrl: string): string {
+  if (!originalUrl) return '';
+  return `${SUPABASE_URL}/functions/v1/yandex-disk-proxy?url=${encodeURIComponent(originalUrl)}`;
 }
 
-// Get download URL for a public file
-async function getDownloadUrl(publicKey: string, path: string): Promise<string | null> {
-  try {
-    const apiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=${encodeURIComponent(publicKey)}&path=${encodeURIComponent(path)}`;
-    const response = await fetch(apiUrl);
-    if (!response.ok) return null;
-    const data = await response.json();
-    return data.href || null;
-  } catch {
-    return null;
-  }
-}
-
-// Fetch photos from Yandex Disk public folder
+// Fetch photos from Yandex Disk via proxy edge function
 async function fetchYandexPhotos(publicUrl: string): Promise<YandexPhoto[]> {
-  // Use Yandex Disk API to get public folder contents
-  const apiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(publicUrl)}&limit=100&preview_size=L&preview_crop=false`;
-  
-  try {
-    const response = await fetch(apiUrl);
-    
-    if (!response.ok) {
-      throw new Error(`Yandex API error: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    // Filter only image files
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
-    const items = data._embedded?.items || [];
-    
-    // Process items and get download URLs for each
-    const photosPromises = items
-      .filter((item: any) => {
-        if (item.type !== 'file') return false;
-        const name = item.name.toLowerCase();
-        return imageExtensions.some(ext => name.endsWith(ext));
-      })
-      .map(async (item: any) => {
-        // Get the preview URL (works without auth)
-        const previewUrl = item.preview || '';
-        
-        // For full-size, get direct download link via download endpoint
-        const downloadUrl = await getDownloadUrl(publicUrl, `/${item.name}`);
-        
-        return {
-          id: item.resource_id || item.name,
-          url: downloadUrl || previewUrl.replace('size=L', 'size=XXXL'),
-          preview: previewUrl,
-          title: item.name,
-        };
-      });
-    
-    const photos = await Promise.all(photosPromises);
-    return photos.filter(p => p.preview); // Only return photos with valid previews
-  } catch (error) {
-    console.error('Error fetching Yandex photos:', error);
-    throw error;
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/yandex-disk-proxy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'list', publicUrl }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch photos');
   }
+
+  const data = await response.json();
+  return data.photos || [];
 }
 
 export function PhotoGallery() {
@@ -145,6 +102,16 @@ export function PhotoGallery() {
       </div>
     );
   }
+
+  // Prepare photos for display with proxied URLs
+  const displayPhotos = photos.map(photo => ({
+    id: photo.id,
+    // Use download URL for full size, fall back to preview
+    url: getProxiedImageUrl(photo.downloadUrl || photo.preview || ''),
+    // Use preview for thumbnails
+    preview: getProxiedImageUrl(photo.preview || photo.downloadUrl || ''),
+    title: photo.name,
+  }));
 
   // Photos view inside folder
   return (
@@ -188,16 +155,16 @@ export function PhotoGallery() {
       )}
 
       {/* Photos grid */}
-      {!isLoading && !error && photos.length > 0 && (
+      {!isLoading && !error && displayPhotos.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {photos.map((photo, index) => (
+          {displayPhotos.map((photo, index) => (
             <button
               key={photo.id}
               onClick={() => setLightboxIndex(index)}
               className="aspect-square rounded-lg overflow-hidden bg-secondary hover:opacity-90 transition-opacity relative group"
             >
               <img
-                src={photo.preview || photo.url}
+                src={photo.preview}
                 alt={photo.title}
                 className="w-full h-full object-cover"
                 loading="lazy"
@@ -209,7 +176,7 @@ export function PhotoGallery() {
       )}
 
       {/* Empty state */}
-      {!isLoading && !error && photos.length === 0 && (
+      {!isLoading && !error && displayPhotos.length === 0 && (
         <div className="text-center py-12">
           <Image className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
           <p className="text-muted-foreground">Нет фотографий в этой папке</p>
@@ -225,14 +192,14 @@ export function PhotoGallery() {
       )}
 
       {/* Lightbox */}
-      {lightboxIndex !== null && photos.length > 0 && (
+      {lightboxIndex !== null && displayPhotos.length > 0 && (
         <Lightbox
-          photos={photos.map(p => ({ id: p.id, url: p.url, title: p.title }))}
+          photos={displayPhotos.map(p => ({ id: p.id, url: p.url, title: p.title }))}
           currentIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onPrev={() => setLightboxIndex((i) => Math.max(0, (i || 0) - 1))}
           onNext={() =>
-            setLightboxIndex((i) => Math.min(photos.length - 1, (i || 0) + 1))
+            setLightboxIndex((i) => Math.min(displayPhotos.length - 1, (i || 0) + 1))
           }
         />
       )}
