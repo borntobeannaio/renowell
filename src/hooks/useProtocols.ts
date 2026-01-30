@@ -22,7 +22,6 @@ export interface DbProtocolItem {
   item_text: string;
   responsible: string | null;
   due_date: string | null;
-  create_task: boolean;
   task_id: string | null;
   sort_order: number;
   // Goal-specific fields
@@ -146,7 +145,6 @@ export function useCreateProtocolItem() {
       item_text: string;
       responsible?: string | null;
       due_date?: string | null;
-      create_task?: boolean;
       sort_order?: number;
       // Goal-specific fields
       kpi?: string | null;
@@ -166,7 +164,6 @@ export function useCreateProtocolItem() {
           item_text: item.item_text,
           responsible: item.responsible || null,
           due_date: item.due_date || null,
-          create_task: item.create_task || false,
           sort_order: item.sort_order || 0,
           kpi: item.kpi || null,
           status: item.status || null,
@@ -200,7 +197,6 @@ export function useUpdateProtocolItem() {
       responsible?: string | null;
       due_date?: string | null;
       task_id?: string | null;
-      create_task?: boolean;
       sort_order?: number;
       // Goal-specific fields
       kpi?: string | null;

@@ -2,10 +2,11 @@ import { useState, DragEvent, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { TaskComments } from "@/components/tasks/TaskComments";
-import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight, Pencil, Users, Archive, ArchiveRestore } from "lucide-react";
+import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight, Pencil, Users, Archive, ArchiveRestore, UserCheck } from "lucide-react";
 import { useTasks, useCreateTask, useUpdateTask, DbTask, TaskStatus, TaskPriority, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS, TASK_PRIORITY_COLORS } from "@/hooks/useTasks";
 import { useProjects, Project } from "@/hooks/useProjects";
 import { useEmployees, DbEmployee } from "@/hooks/useEmployees";
+import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { formatDisplayDate } from "@/utils/dateFormat";
 import { toast } from "sonner";
 
@@ -29,9 +30,11 @@ type GroupByMode = "project" | "assignee";
 
 export function TasksModule() {
   const { data: employees = [] } = useEmployees();
+  const { data: currentProfile } = useCurrentProfile();
 
   // Filter tasks by assignee (employee -> profile_id)
   const [assigneeEmployeeFilterId, setAssigneeEmployeeFilterId] = useState<string>("");
+  const [showMyTasks, setShowMyTasks] = useState(false);
 
   const { data: projects = [], isLoading: projectsLoading } = useProjects();
   const createTask = useCreateTask();
@@ -55,15 +58,17 @@ export function TasksModule() {
   }, [employees]);
 
   const assigneeProfileFilterId = useMemo(() => {
+    // "My Tasks" filter takes priority
+    if (showMyTasks && currentProfile?.id) {
+      return currentProfile.id;
+    }
     if (!assigneeEmployeeFilterId) return null;
     const profileId = employeeProfileMaps.employeeToProfile.get(assigneeEmployeeFilterId) || null;
     if (!profileId) {
-      // Should not happen if all employees are linked, but keep UX safe
-      toast.error("У выбранного сотрудника нет связанного профиля");
       return null;
     }
     return profileId;
-  }, [assigneeEmployeeFilterId, employeeProfileMaps]);
+  }, [assigneeEmployeeFilterId, employeeProfileMaps, showMyTasks, currentProfile]);
 
   const { data: tasks = [], isLoading: tasksLoading } = useTasks({ assigneeId: assigneeProfileFilterId });
 
@@ -381,20 +386,42 @@ export function TasksModule() {
 
         {/* Filter row */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          {/* My Tasks toggle */}
+          <button
+            onClick={() => {
+              setShowMyTasks(!showMyTasks);
+              if (!showMyTasks) setAssigneeEmployeeFilterId("");
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors flex-shrink-0 ${
+              showMyTasks
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-card border-border hover:bg-muted text-foreground"
+            }`}
+          >
+            <UserCheck className="w-3.5 h-3.5" />
+            <span>Мои задачи</span>
+          </button>
+          
           <span className="text-sm text-muted-foreground flex-shrink-0">Исполнитель:</span>
-          <div className="flex-1 min-w-0">
+          <div className={`flex-1 min-w-0 ${showMyTasks ? 'opacity-50 pointer-events-none' : ''}`}>
             <EmployeeMultiSelect
               employees={employees}
               selectedIds={assigneeEmployeeFilterId ? [assigneeEmployeeFilterId] : []}
-              onChange={(ids) => setAssigneeEmployeeFilterId(ids[0] || "")}
+              onChange={(ids) => {
+                setAssigneeEmployeeFilterId(ids[0] || "");
+                if (ids[0]) setShowMyTasks(false);
+              }}
               placeholder="Все исполнители"
               single
             />
           </div>
-          {assigneeEmployeeFilterId && (
+          {(assigneeEmployeeFilterId || showMyTasks) && (
             <button
               type="button"
-              onClick={() => setAssigneeEmployeeFilterId("")}
+              onClick={() => {
+                setAssigneeEmployeeFilterId("");
+                setShowMyTasks(false);
+              }}
               className="btn-secondary h-9 px-3 py-1.5 text-sm flex-shrink-0"
             >
               Сбросить

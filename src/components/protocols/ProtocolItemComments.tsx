@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { MessageCircle, Send, Trash2, Loader2, Pencil, X, Check } from "lucide-react";
+import { useState, useMemo } from "react";
+import { MessageCircle, Send, Trash2, Loader2, Pencil, X, Check, Link2 } from "lucide-react";
 import { useProtocolItemComments, useCreateProtocolItemComment, useUpdateProtocolItemComment, useDeleteProtocolItemComment } from "@/hooks/useProtocolItemComments";
+import { useTaskComments } from "@/hooks/useTaskComments";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { useEmployees } from "@/hooks/useEmployees";
 import { formatDistanceToNow } from "date-fns";
@@ -11,12 +12,21 @@ import { MentionInput, extractMentions } from "@/components/tasks/MentionInput";
 
 interface ProtocolItemCommentsProps {
   itemId: string;
+  taskId: string | null;
   profiles: { id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[];
   protocolTitle?: string;
   onPersistTempItem?: () => Promise<string | null>; // Returns new item ID after persistence
 }
 
-export function ProtocolItemComments({ itemId, profiles, protocolTitle, onPersistTempItem }: ProtocolItemCommentsProps) {
+interface UnifiedComment {
+  id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+  source: 'protocol' | 'task';
+}
+
+export function ProtocolItemComments({ itemId, taskId, profiles, protocolTitle, onPersistTempItem }: ProtocolItemCommentsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [persistedItemId, setPersistedItemId] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
@@ -31,10 +41,34 @@ export function ProtocolItemComments({ itemId, profiles, protocolTitle, onPersis
   const effectiveItemId = persistedItemId || itemId;
   const isTempItem = effectiveItemId.startsWith("temp-");
   
-  const { data: comments = [], isLoading } = useProtocolItemComments(isTempItem ? null : effectiveItemId);
+  const { data: protocolComments = [], isLoading: protocolLoading } = useProtocolItemComments(isTempItem ? null : effectiveItemId);
+  const { data: taskComments = [], isLoading: taskLoading } = useTaskComments(taskId);
   const createComment = useCreateProtocolItemComment();
   const updateComment = useUpdateProtocolItemComment();
   const deleteComment = useDeleteProtocolItemComment();
+
+  // Merge and sort comments from both sources
+  const allComments = useMemo<UnifiedComment[]>(() => {
+    const unified: UnifiedComment[] = [
+      ...protocolComments.map(c => ({
+        id: c.id,
+        author_id: c.author_id,
+        content: c.content,
+        created_at: c.created_at,
+        source: 'protocol' as const,
+      })),
+      ...taskComments.map(c => ({
+        id: c.id,
+        author_id: c.author_id,
+        content: c.content,
+        created_at: c.created_at,
+        source: 'task' as const,
+      })),
+    ];
+    return unified.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  }, [protocolComments, taskComments]);
+
+  const isLoading = protocolLoading || taskLoading;
 
   const getAuthorInfo = (authorId: string) => {
     const author = profiles.find(p => p.id === authorId);
@@ -156,11 +190,17 @@ export function ProtocolItemComments({ itemId, profiles, protocolTitle, onPersis
       >
         <MessageCircle className="w-3.5 h-3.5" />
         <span>
-          {comments.length > 0 
-            ? `Комментарии (${comments.length})`
+          {allComments.length > 0 
+            ? `Комментарии (${allComments.length})`
             : "Добавить комментарий"
           }
         </span>
+        {taskId && allComments.some(c => c.source === 'task') && (
+          <span className="inline-flex items-center gap-0.5 text-primary ml-1">
+            <Link2 className="w-3 h-3" />
+            <span className="text-[10px]">из задачи</span>
+          </span>
+        )}
       </button>
 
       {isExpanded && (
@@ -172,10 +212,11 @@ export function ProtocolItemComments({ itemId, profiles, protocolTitle, onPersis
             </div>
           ) : (
             <>
-              {comments.map((comment) => {
+              {allComments.map((comment) => {
                 const author = getAuthorInfo(comment.author_id);
                 const isOwn = profile?.id === comment.author_id;
                 const isEditing = editingId === comment.id;
+                const isFromTask = comment.source === 'task';
 
                 return (
                   <div key={comment.id} className="flex gap-2 group">
@@ -186,10 +227,15 @@ export function ProtocolItemComments({ itemId, profiles, protocolTitle, onPersis
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-medium text-foreground">{author.name}</span>
+                        {isFromTask && (
+                          <span className="text-[9px] bg-primary/10 text-primary px-1 py-0.5 rounded">
+                            задача
+                          </span>
+                        )}
                         <span className="text-[10px] text-muted-foreground">
                           {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true, locale: ru })}
                         </span>
-                        {isOwn && !isEditing && (
+                        {isOwn && !isEditing && !isFromTask && (
                           <>
                             <button
                               type="button"

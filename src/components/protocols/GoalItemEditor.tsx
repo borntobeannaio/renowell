@@ -11,7 +11,6 @@ export interface GoalItemData {
   kpi: string | null;
   status: string | null;
   status_date: string | null;
-  create_task: boolean;
   task_id?: string | null;
   archived?: boolean;
   completed?: boolean;
@@ -185,31 +184,20 @@ export function GoalItemEditor({
             </div>
           </div>
 
-          {/* Task checkbox */}
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={item.create_task}
-                onChange={(e) => onUpdate({ create_task: e.target.checked })}
-                className="w-4 h-4 rounded border-input text-primary focus:ring-ring"
-                disabled={disabled}
-              />
-              <span className="text-sm text-muted-foreground">
-                Создать задачу на канбан
-              </span>
-            </label>
-            {item.task_id && (
+          {/* Task link indicator */}
+          {item.task_id && (
+            <div className="flex items-center gap-2">
               <span className="chip-success shrink-0 flex items-center gap-1 text-xs">
-                Задача создана
+                Связанная задача
               </span>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Comments section */}
           {profiles.length > 0 && (
             <ProtocolItemComments 
-              itemId={item.id} 
+              itemId={item.id}
+              taskId={item.task_id || null}
               profiles={profiles} 
               protocolTitle={protocolTitle}
               onPersistTempItem={onPersistTempItem}

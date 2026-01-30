@@ -520,7 +520,7 @@ function ProtocolItemView({ item }: ProtocolItemViewProps) {
             <span>{formatDisplayDate(item.due_date)}</span>
           </div>
         )}
-        {item.create_task && (
+        {item.task_id && (
           <span className="chip-success shrink-0 flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3" />
             Задача
