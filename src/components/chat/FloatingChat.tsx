@@ -181,11 +181,15 @@ export function FloatingChat() {
         ? groupTitle || "Групповой чат"
         : `${selectedProfile?.first_name || ""} ${selectedProfile?.last_name || ""}`.trim() || "Чат";
 
-    await createConversation.mutateAsync({
+    const conversation = await createConversation.mutateAsync({
       title,
       type: newChatType,
       participantIds: selectedParticipants,
     });
+
+    // Open the created/found conversation immediately
+    setSelectedConversationId(conversation.id);
+    setActiveTab("general");
 
     setIsNewChatModalOpen(false);
     setSelectedParticipants([]);

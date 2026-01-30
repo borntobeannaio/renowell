@@ -72,10 +72,53 @@ export function useConversationMessages(conversationId: string | null) {
   });
 }
 
+// Hook for finding existing direct conversation between two users
+export function useFindDirectConversation() {
+  return async (profileId: string, otherProfileId: string): Promise<string | null> => {
+    // Get all direct conversations where current user is a participant
+    const { data: myConversations, error: myError } = await proxySelect<{ conversation_id: string }>('chat_participants', {
+      select: 'conversation_id',
+      filters: [{ column: 'user_id', operator: 'eq', value: profileId }],
+    });
+
+    if (myError || !myConversations?.length) return null;
+
+    const conversationIds = myConversations.map(c => c.conversation_id);
+
+    // Check which of these are direct conversations
+    const { data: directConversations, error: convError } = await proxySelect<{ id: string }>('chat_conversations', {
+      select: 'id',
+      filters: [
+        { column: 'id', operator: 'in', value: conversationIds },
+        { column: 'type', operator: 'eq', value: 'direct' },
+      ],
+    });
+
+    if (convError || !directConversations?.length) return null;
+
+    const directConvIds = directConversations.map(c => c.id);
+
+    // Check if the other user is also a participant in any of these direct conversations
+    const { data: otherParticipations, error: otherError } = await proxySelect<{ conversation_id: string }>('chat_participants', {
+      select: 'conversation_id',
+      filters: [
+        { column: 'user_id', operator: 'eq', value: otherProfileId },
+        { column: 'conversation_id', operator: 'in', value: directConvIds },
+      ],
+    });
+
+    if (otherError || !otherParticipations?.length) return null;
+
+    // Return the first existing direct conversation between these two users
+    return otherParticipations[0].conversation_id;
+  };
+}
+
 // Hook for creating a conversation
 export function useCreateConversation() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const findDirectConversation = useFindDirectConversation();
 
   return useMutation({
     mutationFn: async ({
@@ -100,7 +143,22 @@ export function useCreateConversation() {
       const profile = profiles?.[0];
       if (!profile) throw new Error("Profile not found");
 
-      // Create conversation
+      // For direct chats, check if conversation already exists
+      if (type === "direct" && participantIds.length === 1) {
+        const existingConvId = await findDirectConversation(profile.id, participantIds[0]);
+        if (existingConvId) {
+          // Return existing conversation info
+          const { data: existingConv } = await proxySelect<ChatConversation>('chat_conversations', {
+            filters: [{ column: 'id', operator: 'eq', value: existingConvId }],
+            limit: 1,
+          });
+          if (existingConv?.[0]) {
+            return existingConv[0];
+          }
+        }
+      }
+
+      // Create new conversation
       const { data: conversations, error: convError } = await proxyInsert<ChatConversation>('chat_conversations', {
         title,
         type,
@@ -128,7 +186,7 @@ export function useCreateConversation() {
   });
 }
 
-// Hook for sending a message
+// Hook for sending a message with notifications
 export function useSendMessage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -143,9 +201,9 @@ export function useSendMessage() {
     }) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Get user's profile ID
-      const { data: profiles, error: profileError } = await proxySelect<{ id: string }>('profiles', {
-        select: 'id',
+      // Get user's profile ID and name
+      const { data: profiles, error: profileError } = await proxySelect<{ id: string; first_name: string | null; last_name: string | null }>('profiles', {
+        select: 'id, first_name, last_name',
         filters: [{ column: 'user_id', operator: 'eq', value: user.id }],
         limit: 1,
       });
@@ -167,6 +225,30 @@ export function useSendMessage() {
         { updated_at: new Date().toISOString() },
         [{ column: 'id', operator: 'eq', value: conversationId }]
       );
+
+      // Get all participants except sender
+      const { data: participants } = await proxySelect<{ user_id: string }>('chat_participants', {
+        select: 'user_id',
+        filters: [{ column: 'conversation_id', operator: 'eq', value: conversationId }],
+      });
+
+      const senderName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Пользователь';
+      const preview = content.length > 100 ? content.substring(0, 100) + '...' : content;
+
+      // Create notifications for other participants
+      if (participants) {
+        const otherParticipants = participants.filter(p => p.user_id !== profile.id);
+        
+        for (const participant of otherParticipants) {
+          await proxyInsert('notifications', {
+            recipient_id: participant.user_id,
+            type: 'chat_message',
+            title: `Сообщение от ${senderName}`,
+            body: preview,
+            link: `/chat/${conversationId}`,
+          });
+        }
+      }
 
       return data?.[0];
     },
