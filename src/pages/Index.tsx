@@ -13,13 +13,14 @@ import { CalendarModule } from "@/components/modules/CalendarModule";
 import { ChatModule } from "@/components/modules/ChatModule";
 import { SearchModule } from "@/components/modules/SearchModule";
 import { BrandHubModule } from "@/components/modules/BrandHubModule";
+import { AboutPlatformModule } from "@/components/modules/AboutPlatformModule";
 import { FloatingChat } from "@/components/chat/FloatingChat";
 import { useDbProxyWarmup } from "@/hooks/useDbProxyWarmup";
 import { NavigationSection } from "@/types";
 
 const sectionFromPath = (pathname: string): NavigationSection => {
   const path = pathname.slice(1) || "news";
-  const validSections: NavigationSection[] = ["news", "protocols", "tasks", "hr", "knowledge", "calendar", "chats", "search", "brandhub"];
+  const validSections: NavigationSection[] = ["news", "protocols", "tasks", "hr", "knowledge", "calendar", "chats", "search", "brandhub", "about"];
   return validSections.includes(path as NavigationSection) ? (path as NavigationSection) : "news";
 };
 
@@ -65,6 +66,8 @@ function PortalContent() {
         return <SearchModule />;
       case "brandhub":
         return <BrandHubModule />;
+      case "about":
+        return <AboutPlatformModule />;
       default:
         return <NewsModule />;
     }
