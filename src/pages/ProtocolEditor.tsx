@@ -1655,6 +1655,7 @@ export default function ProtocolEditor() {
                 id: item.task_id,
                 title: item.item_text,
                 assignee_ids: assigneeProfileIds,
+                project_id: projectId,
                 due_date: item.due_date || null,
               });
             }
