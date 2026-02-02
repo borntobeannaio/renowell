@@ -81,6 +81,7 @@ const SECTION_TYPE_PROJECT_IDS: Partial<Record<SectionType, string>> = {
   tender: "bf2ef5b4-1fe7-4e69-b533-30393a4d386b", // Тендеры/задачи
   business: "5b30ab38-7ecd-4643-960e-8dc2bf353d98", // Бизнес процессы
   hr: "620c7f0e-6558-4116-8e80-7681457127b8", // Подбор персонала
+  goals: "39036f39-f9f7-4286-bc70-2c14c10824d2", // Цели компании
 };
 
 // Helper to get project ID based on section type
