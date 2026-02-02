@@ -1,159 +1,70 @@
 
-# План: Улучшение уведомлений о задачах и добавление уведомлений о чатах
+# План: Перенос фотогалереи в раздел Новости
 
-## Найденные проблемы
+## Текущая ситуация
 
-### Проблема 1: Типы уведомлений ограничены в базе данных
-В таблице `notifications` есть CHECK constraint который разрешает только типы:
-- `task_assigned`, `deadline_week`, `deadline_day`, `mention`
+Фотогалерея находится в HR модуле как отдельная вкладка (4-я по счёту).
 
-Тип `chat_message` **не разрешён**, поэтому уведомления о сообщениях в чате просто не вставляются!
+```text
+Сейчас:
+Новости: [Новости] [Блог руководителя]
+HR:      [Сотрудники] [Отпуска] [Документы] [Фотогалерея]
+```
 
-### Проблема 2: Текст уведомлений о задачах неполный
-Текущий формат:
-- **Новая задача**: title="Новая задача", body="{название задачи}" — нужно: "У вас появилась новая задача: {название}"
-- **Упоминание**: title="Вас упомянули в комментарии", body="{автор} в задаче 'Задача'" — нужно добавить текст комментария
+## Целевая структура
 
-### Проблема 3: Нет уведомлений при создании нового чата
-Когда пользователя добавляют в чат, он не получает уведомление об этом
-
-## Изменения в базе данных
-
-### 1. Обновить CHECK constraint для типов уведомлений
-
-```sql
-ALTER TABLE notifications 
-DROP CONSTRAINT notifications_type_check;
-
-ALTER TABLE notifications 
-ADD CONSTRAINT notifications_type_check 
-CHECK (type = ANY (ARRAY[
-  'task_assigned',
-  'deadline_week', 
-  'deadline_day',
-  'mention',
-  'chat_message',      -- уведомления о сообщениях
-  'chat_created'       -- уведомления о добавлении в чат
-]));
+```text
+После:
+Новости: [Новости] [Блог руководителя] [Фотогалерея]
+HR:      [Сотрудники] [Отпуска] [Документы]
 ```
 
 ## Изменения в коде
 
-### 1. Улучшить уведомления о новых задачах (`useTasks.ts`)
+### 1. Обновить NewsModule.tsx
+
+- Импортировать компонент `PhotoGallery` из `./hr/PhotoGallery`
+- Добавить иконку `Image` из lucide-react
+- Расширить тип `TabView`: `"news" | "blog" | "photos"`
+- Добавить третью кнопку-вкладку "Фотогалерея"
+- Добавить условный рендеринг для вкладки photos
 
 ```typescript
-// Было:
-{
-  recipient_id: assigneeId,
-  type: 'task_assigned',
-  title: 'Новая задача',
-  body: task.title,
-  related_task_id: newTask.id,
-}
+type TabView = "news" | "blog" | "photos";
 
-// Стало:
-{
-  recipient_id: assigneeId,
-  type: 'task_assigned',
-  title: 'У вас появилась новая задача',
-  body: task.title,
-  related_task_id: newTask.id,
-}
+// В JSX - добавить кнопку после "Блог руководителя":
+<button onClick={() => setActiveTab("photos")} ...>
+  <Image className="w-4 h-4" />
+  Фотогалерея
+</button>
+
+// В условном рендеринге добавить:
+{activeTab === "photos" && (
+  <div className="h-[calc(100vh-200px)]">
+    <PhotoGallery />
+  </div>
+)}
 ```
 
-### 2. Улучшить уведомления об упоминаниях (`useTaskComments.ts`)
+### 2. Обновить HRModule.tsx
 
-```typescript
-// Было:
-{
-  recipient_id: mentionedId,
-  type: "mention",
-  title: "Вас упомянули в комментарии",
-  body: `${authorName} в задаче "${taskTitle}"`,
-  related_task_id: taskId,
-}
-
-// Стало:
-{
-  recipient_id: mentionedId,
-  type: "mention",
-  title: `Вас упомянули в задаче "${taskTitle}"`,
-  body: content.length > 150 ? content.substring(0, 150) + '...' : content,
-  related_task_id: taskId,
-}
-```
-
-### 3. Добавить уведомления о создании чата (`useChat.ts`)
-
-```typescript
-// В useCreateConversation — уведомить участников о добавлении:
-{
-  recipient_id: participantId,
-  type: 'chat_created',
-  title: 'Вас добавили в чат',
-  body: title,
-  link: `/chat/${conversation.id}`,
-}
-```
-
-### 4. Исправить уведомления о сообщениях (`useChat.ts`)
-
-Код уже есть, но не работал из-за constraint. После обновления базы начнёт работать:
-```typescript
-{
-  recipient_id: participant.user_id,
-  type: 'chat_message',
-  title: `Сообщение от ${senderName}`,
-  body: preview,
-  link: `/chat/${conversationId}`,
-}
-```
-
-### 5. Обновить типы и иконки уведомлений
-
-**`useNotifications.ts`**:
-```typescript
-export type NotificationType = 
-  | "task_assigned" 
-  | "deadline_week" 
-  | "deadline_day" 
-  | "mention"
-  | "chat_message"   // новый тип
-  | "chat_created";  // новый тип
-```
-
-**`NotificationItem.tsx`**:
-```typescript
-const ICON_MAP: Record<string, typeof Bell> = {
-  task_assigned: Bell,
-  deadline_week: Clock,
-  deadline_day: AlertTriangle,
-  mention: AtSign,
-  chat_message: MessageCircle,  // новый
-  chat_created: Users,          // новый
-};
-
-const ICON_COLOR_MAP: Record<string, string> = {
-  // ... существующие
-  chat_message: "text-green-500",
-  chat_created: "text-blue-500",
-};
-```
+- Удалить импорт `PhotoGallery`
+- Удалить иконку `Image` из импорта (если не используется)
+- Убрать "photos" из типа `HRTab`
+- Убрать кнопку-вкладку "Фотогалерея" из массива tabs
+- Убрать условный рендеринг `{activeTab === "photos" && ...}`
+- Удалить компонент `PhotosTab`
 
 ## Файлы для изменения
 
 | Файл | Действие |
 |------|----------|
-| Миграция БД | Обновить CHECK constraint |
-| `src/hooks/useNotifications.ts` | Добавить новые типы |
-| `src/hooks/useTasks.ts` | Улучшить текст уведомления |
-| `src/hooks/useTaskComments.ts` | Добавить текст комментария |
-| `src/hooks/useChat.ts` | Добавить уведомления о чатах |
-| `src/components/notifications/NotificationItem.tsx` | Добавить иконки |
+| `src/components/modules/NewsModule.tsx` | Добавить вкладку Фотогалерея |
+| `src/components/modules/HRModule.tsx` | Удалить вкладку Фотогалерея |
 
-## Ожидаемый результат
+## Результат
 
-- Уведомление о новой задаче: "У вас появилась новая задача" + название задачи
-- Уведомление об упоминании: "Вас упомянули в задаче '{название}'" + текст комментария
-- Уведомление о новом сообщении: "Сообщение от {имя}" + превью текста
-- Уведомление о добавлении в чат: "Вас добавили в чат" + название чата
+После изменений:
+- Фотогалерея доступна в разделе Новости (третья вкладка)
+- HR модуль содержит только Сотрудники, Отпуска, Документы
+- Компонент `PhotoGallery` остаётся в папке `hr/` (можно переименовать позже если нужно)
