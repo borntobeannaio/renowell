@@ -76,6 +76,21 @@ interface SectionGroup {
   archived?: boolean;
 }
 
+// Mapping section types to project IDs for task creation
+const SECTION_TYPE_PROJECT_IDS: Partial<Record<SectionType, string>> = {
+  tender: "bf2ef5b4-1fe7-4e69-b533-30393a4d386b", // Тендеры/задачи
+  business: "5b30ab38-7ecd-4643-960e-8dc2bf353d98", // Бизнес процессы
+  hr: "620c7f0e-6558-4116-8e80-7681457127b8", // Подбор персонала
+};
+
+// Helper to get project ID based on section type
+const getProjectIdForSection = (sectionType: SectionType, entityId: string | null): string | null => {
+  if (sectionType === "project") {
+    return entityId;
+  }
+  return SECTION_TYPE_PROJECT_IDS[sectionType] || null;
+};
+
 // Result type for parallel item processing
 interface ItemProcessResult {
   success: boolean;
@@ -1330,9 +1345,11 @@ export default function ProtocolEditor() {
 
               const effectiveResponsible = item.responsible ?? group.defaultResponsible;
 
+              const sectionProjectId = getProjectIdForSection(group.sectionType, group.entityId);
+
               const createdItem = await createProtocolItem.mutateAsync({
                 protocol_id: result.id,
-                project_id: null,
+                project_id: sectionProjectId,
                 section_id: createdSection.id,
                 item_text: `[${company.companyName}] ${item.item_text}`,
                 responsible: effectiveResponsible,
@@ -1345,14 +1362,13 @@ export default function ProtocolEditor() {
 
               idMapping[item.id] = createdItem.id;
 
-              // Always create task for every protocol item (unless copying with existing task)
               if (!item.task_id) {
                 const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
                 const taskResult = await createTask.mutateAsync({
                   title: item.item_text,
                   assignee_ids: assigneeProfileIds,
-                  project_id: null,
+                  project_id: sectionProjectId,
                   due_date: item.due_date || null,
                   status: "new",
                   priority: "normal",
@@ -1383,10 +1399,11 @@ export default function ProtocolEditor() {
             const effectiveResponsible = item.responsible ?? group.defaultResponsible;
             const isGoal = group.sectionType === "goals";
             const goalItem = item as GoalItemData;
+            const sectionProjectId = getProjectIdForSection(group.sectionType, group.entityId);
 
             const createdItem = await createProtocolItem.mutateAsync({
               protocol_id: result.id,
-              project_id: group.sectionType === "project" ? group.entityId : null,
+              project_id: sectionProjectId,
               section_id: createdSection.id,
               item_text: item.item_text,
               responsible: effectiveResponsible,
@@ -1406,7 +1423,7 @@ export default function ProtocolEditor() {
               const taskResult = await createTask.mutateAsync({
                 title: item.item_text,
                 assignee_ids: assigneeProfileIds,
-                project_id: group.sectionType === "project" ? group.entityId : null,
+                project_id: sectionProjectId,
                 due_date: item.due_date || null,
                 status: "new",
                 priority: "normal",
@@ -1695,7 +1712,7 @@ export default function ProtocolEditor() {
           });
         }
 
-        const projectId = group.sectionType === "project" ? group.entityId : null;
+        const projectId = getProjectIdForSection(group.sectionType, group.entityId);
         const isGoal = group.sectionType === "goals";
 
         setSaveProgress("Сохранение пунктов...");
@@ -1706,7 +1723,7 @@ export default function ProtocolEditor() {
             processItemsInParallel(
               company.items,
               sectionId,
-              null,
+              projectId,
               group.defaultResponsible,
               false,
               true,
