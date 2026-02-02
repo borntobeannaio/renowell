@@ -22,6 +22,7 @@ export interface NewsItem {
   author: string;
   date: DateISO;
   tags: string[];
+  mentionedEmployees?: string[]; // массив имён упомянутых сотрудников
   attachments?: FileRef[];
 }
 
