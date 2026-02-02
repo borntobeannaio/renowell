@@ -1,127 +1,159 @@
 
-# План: Исправление истекающих изображений в блоге руководителя
+# План: Улучшение уведомлений о задачах и добавление уведомлений о чатах
 
-## Диагностика проблемы
+## Найденные проблемы
 
-| Что сейчас | Почему не работает |
-|------------|-------------------|
-| Webhook получает `file_id` от Telegram | ✅ Работает |
-| Вызывает `getFile` API и получает временный URL | ⚠️ URL истекает через ~1 час |
-| Сохраняет этот URL в `image_url` | ❌ Через час URL возвращает 404 |
-| Прокси пытается загрузить по старому URL | ❌ 404 Not Found |
+### Проблема 1: Типы уведомлений ограничены в базе данных
+В таблице `notifications` есть CHECK constraint который разрешает только типы:
+- `task_assigned`, `deadline_week`, `deadline_day`, `mention`
 
-## Решение
+Тип `chat_message` **не разрешён**, поэтому уведомления о сообщениях в чате просто не вставляются!
 
-Аналогично тому, как мы исправили Yandex Disk — хранить **стабильные идентификаторы** (`file_id`), а свежие URL получать в момент отображения.
+### Проблема 2: Текст уведомлений о задачах неполный
+Текущий формат:
+- **Новая задача**: title="Новая задача", body="{название задачи}" — нужно: "У вас появилась новая задача: {название}"
+- **Упоминание**: title="Вас упомянули в комментарии", body="{автор} в задаче 'Задача'" — нужно добавить текст комментария
 
-```text
-Текущая схема (сломана):
-[Webhook] → getFile → URL → DB → [Браузер] → 404
-
-Новая схема (стабильная):
-[Webhook] → file_id → DB
-[Браузер] → [telegram-image-proxy] → getFile (свежий URL) → fetch → image
-```
+### Проблема 3: Нет уведомлений при создании нового чата
+Когда пользователя добавляют в чат, он не получает уведомление об этом
 
 ## Изменения в базе данных
 
-Добавить колонку `file_id` в таблицу `telegram_posts`:
+### 1. Обновить CHECK constraint для типов уведомлений
 
 ```sql
-ALTER TABLE telegram_posts ADD COLUMN IF NOT EXISTS file_id TEXT;
-ALTER TABLE telegram_posts ADD COLUMN IF NOT EXISTS video_file_id TEXT;
+ALTER TABLE notifications 
+DROP CONSTRAINT notifications_type_check;
+
+ALTER TABLE notifications 
+ADD CONSTRAINT notifications_type_check 
+CHECK (type = ANY (ARRAY[
+  'task_assigned',
+  'deadline_week', 
+  'deadline_day',
+  'mention',
+  'chat_message',      -- уведомления о сообщениях
+  'chat_created'       -- уведомления о добавлении в чат
+]));
 ```
 
-## Изменения в Edge Functions
+## Изменения в коде
 
-### 1. Обновить `telegram-webhook` (сохранять file_id)
+### 1. Улучшить уведомления о новых задачах (`useTasks.ts`)
 
 ```typescript
-// Вместо:
-imageUrl = await getFileUrl(botToken, largestPhoto.file_id);
-
-// Сохранять file_id напрямую:
-const fileId = largestPhoto.file_id;
-
-// В upsert:
+// Было:
 {
-  ...
-  file_id: fileId,        // стабильный идентификатор
-  image_url: null,        // больше не нужен
+  recipient_id: assigneeId,
+  type: 'task_assigned',
+  title: 'Новая задача',
+  body: task.title,
+  related_task_id: newTask.id,
+}
+
+// Стало:
+{
+  recipient_id: assigneeId,
+  type: 'task_assigned',
+  title: 'У вас появилась новая задача',
+  body: task.title,
+  related_task_id: newTask.id,
 }
 ```
 
-### 2. Создать `telegram-image-proxy` (получать свежие URL)
-
-Новая edge-функция для проксирования Telegram изображений:
+### 2. Улучшить уведомления об упоминаниях (`useTaskComments.ts`)
 
 ```typescript
-// GET /telegram-image-proxy?file_id=XXX
+// Было:
+{
+  recipient_id: mentionedId,
+  type: "mention",
+  title: "Вас упомянули в комментарии",
+  body: `${authorName} в задаче "${taskTitle}"`,
+  related_task_id: taskId,
+}
 
-serve(async (req) => {
-  const url = new URL(req.url);
-  const fileId = url.searchParams.get('file_id');
-  
-  // 1. Получить свежий file_path через Bot API
-  const response = await fetch(
-    `https://api.telegram.org/bot${TOKEN}/getFile?file_id=${fileId}`
-  );
-  const { result } = await response.json();
-  
-  // 2. Загрузить изображение
-  const imageUrl = `https://api.telegram.org/file/bot${TOKEN}/${result.file_path}`;
-  const imageResponse = await fetch(imageUrl);
-  
-  // 3. Вернуть с кэшированием
-  return new Response(imageResponse.body, {
-    headers: {
-      'Content-Type': imageResponse.headers.get('Content-Type'),
-      'Cache-Control': 'public, max-age=3600', // кэш на 1 час
-    }
-  });
-});
-```
-
-### 3. Обновить `TelegramFeed.tsx`
-
-```typescript
-function getProxiedImageUrl(post: TelegramPost): string | null {
-  // Если есть file_id — использовать новый прокси
-  if (post.file_id) {
-    return `${SUPABASE_URL}/functions/v1/telegram-image-proxy?file_id=${post.file_id}`;
-  }
-  // Fallback для старых постов с image_url
-  if (post.image_url) {
-    return `${SUPABASE_URL}/functions/v1/yandex-disk-proxy?url=${encodeURIComponent(post.image_url)}`;
-  }
-  return null;
+// Стало:
+{
+  recipient_id: mentionedId,
+  type: "mention",
+  title: `Вас упомянули в задаче "${taskTitle}"`,
+  body: content.length > 150 ? content.substring(0, 150) + '...' : content,
+  related_task_id: taskId,
 }
 ```
 
-## Миграция старых данных
+### 3. Добавить уведомления о создании чата (`useChat.ts`)
 
-Для постов, которые уже в БД с протухшими URL:
-1. Удалить старые записи или
-2. Перезапустить парсинг HTML (fallback в `telegram-channel`)
+```typescript
+// В useCreateConversation — уведомить участников о добавлении:
+{
+  recipient_id: participantId,
+  type: 'chat_created',
+  title: 'Вас добавили в чат',
+  body: title,
+  link: `/chat/${conversation.id}`,
+}
+```
 
-Предлагаю очистить старые записи и дать webhook заново наполнить базу:
-```sql
-DELETE FROM telegram_posts WHERE file_id IS NULL;
+### 4. Исправить уведомления о сообщениях (`useChat.ts`)
+
+Код уже есть, но не работал из-за constraint. После обновления базы начнёт работать:
+```typescript
+{
+  recipient_id: participant.user_id,
+  type: 'chat_message',
+  title: `Сообщение от ${senderName}`,
+  body: preview,
+  link: `/chat/${conversationId}`,
+}
+```
+
+### 5. Обновить типы и иконки уведомлений
+
+**`useNotifications.ts`**:
+```typescript
+export type NotificationType = 
+  | "task_assigned" 
+  | "deadline_week" 
+  | "deadline_day" 
+  | "mention"
+  | "chat_message"   // новый тип
+  | "chat_created";  // новый тип
+```
+
+**`NotificationItem.tsx`**:
+```typescript
+const ICON_MAP: Record<string, typeof Bell> = {
+  task_assigned: Bell,
+  deadline_week: Clock,
+  deadline_day: AlertTriangle,
+  mention: AtSign,
+  chat_message: MessageCircle,  // новый
+  chat_created: Users,          // новый
+};
+
+const ICON_COLOR_MAP: Record<string, string> = {
+  // ... существующие
+  chat_message: "text-green-500",
+  chat_created: "text-blue-500",
+};
 ```
 
 ## Файлы для изменения
 
 | Файл | Действие |
 |------|----------|
-| Миграция БД | Добавить колонки `file_id`, `video_file_id` |
-| `supabase/functions/telegram-webhook/index.ts` | Сохранять `file_id` вместо URL |
-| `supabase/functions/telegram-image-proxy/index.ts` | **Создать** новую функцию |
-| `src/hooks/useTelegramChannel.ts` | Добавить `file_id` в интерфейс |
-| `src/components/modules/brandhub/TelegramFeed.tsx` | Использовать новый прокси |
+| Миграция БД | Обновить CHECK constraint |
+| `src/hooks/useNotifications.ts` | Добавить новые типы |
+| `src/hooks/useTasks.ts` | Улучшить текст уведомления |
+| `src/hooks/useTaskComments.ts` | Добавить текст комментария |
+| `src/hooks/useChat.ts` | Добавить уведомления о чатах |
+| `src/components/notifications/NotificationItem.tsx` | Добавить иконки |
 
 ## Ожидаемый результат
 
-- Изображения будут загружаться стабильно, даже через дни/недели
-- Каждый запрос получает свежий URL от Telegram API
-- Кэширование на 1 час снижает нагрузку на API
-- Старые посты (без file_id) будут показываться без картинок или удалены
+- Уведомление о новой задаче: "У вас появилась новая задача" + название задачи
+- Уведомление об упоминании: "Вас упомянули в задаче '{название}'" + текст комментария
+- Уведомление о новом сообщении: "Сообщение от {имя}" + превью текста
+- Уведомление о добавлении в чат: "Вас добавили в чат" + название чата
