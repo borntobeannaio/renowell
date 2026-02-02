@@ -884,34 +884,40 @@ export type Database = {
         Row: {
           created_at: string | null
           date: string
+          file_id: string | null
           id: string
           image_url: string | null
           link: string
           message_id: number
           text: string | null
           updated_at: string | null
+          video_file_id: string | null
           video_url: string | null
         }
         Insert: {
           created_at?: string | null
           date: string
+          file_id?: string | null
           id?: string
           image_url?: string | null
           link: string
           message_id: number
           text?: string | null
           updated_at?: string | null
+          video_file_id?: string | null
           video_url?: string | null
         }
         Update: {
           created_at?: string | null
           date?: string
+          file_id?: string | null
           id?: string
           image_url?: string | null
           link?: string
           message_id?: number
           text?: string | null
           updated_at?: string | null
+          video_file_id?: string | null
           video_url?: string | null
         }
         Relationships: []

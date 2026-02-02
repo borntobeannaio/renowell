@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.yandex-disk-proxy]
 verify_jwt = false
+
+[functions.telegram-image-proxy]
+verify_jwt = false
