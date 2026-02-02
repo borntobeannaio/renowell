@@ -126,13 +126,16 @@ serve(async (req) => {
 
     // POST request — list files or get download URL
     if (req.method === 'POST') {
-      const { action, publicUrl, path } = await req.json();
+      const { action, publicUrl, path: subPath } = await req.json();
 
       if (action === 'list') {
-        // Get list of files from public folder
-        const apiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(publicUrl)}&limit=100&preview_size=L&preview_crop=false`;
+        // Get list of files from public folder (with optional subpath)
+        let apiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(publicUrl)}&limit=100&preview_size=L&preview_crop=false`;
+        if (subPath) {
+          apiUrl += `&path=${encodeURIComponent(subPath)}`;
+        }
         
-        console.log('Fetching folder contents:', publicUrl);
+        console.log('Fetching folder contents:', publicUrl, subPath || '(root)');
         
         const response = await fetch(apiUrl, { headers: browserHeaders });
 
@@ -147,13 +150,14 @@ serve(async (req) => {
 
         const data = await response.json();
         
-        // Filter only image files
+        // Filter for image files and folders
         const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
         const imageMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'];
         const items = data._embedded?.items || [];
         
         const photos = items
           .filter((item: any) => {
+            if (item.type === 'dir') return false; // Handle folders separately
             if (item.type !== 'file') return false;
             // Check by mime_type first (more reliable)
             if (item.mime_type && imageMimeTypes.some(mt => item.mime_type.startsWith(mt.split('/')[0]))) {
@@ -171,15 +175,24 @@ serve(async (req) => {
             size: item.size,
           }));
 
+        // Get subfolders
+        const folders = items
+          .filter((item: any) => item.type === 'dir')
+          .map((item: any) => ({
+            id: item.resource_id || item.name,
+            name: item.name,
+            path: item.path || `/${item.name}`,
+          }));
+
         return new Response(
-          JSON.stringify({ photos }),
+          JSON.stringify({ photos, folders }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
       if (action === 'download') {
         // Get download URL for a specific file (legacy, but kept for compatibility)
-        const downloadApiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=${encodeURIComponent(publicUrl)}&path=${encodeURIComponent(path)}`;
+        const downloadApiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=${encodeURIComponent(publicUrl)}&path=${encodeURIComponent(subPath || '/')}`;
         
         const response = await fetch(downloadApiUrl, { headers: browserHeaders });
         if (!response.ok) {
