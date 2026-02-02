@@ -1,141 +1,95 @@
 
+Цель: сделать так, чтобы фото в HR → Фотогалерея перестали «ломаться» и выглядели как загрузка “напрямую с Диска”, но без проблем CORS/истечения ссылок.
 
-# План: Исправление битых изображений в фотогалерее
+Важно про “напрямую”:
+- Браузер не может стабильно грузить картинки напрямую с Яндекс.Диска из-за CORS + временных URL (они истекают).
+- Поэтому единственный надежный вариант — давать браузеру стабильные URL нашего “backend-proxy”, который в момент запроса сам забирает файл с Диска и отдает как картинку. Для пользователя это будет выглядеть как “прямая загрузка”, но технически будет безопасный прокси.
 
-## Диагностика проблемы
+Что сейчас сломано (по коду):
+1) `PhotoGallery.tsx` вставляет в `<img src=...>` ссылку на `.../functions/v1/yandex-disk-proxy?url=<TEMP_URL>`.
+2) Эти `TEMP_URL` (preview/downloadUrl) от Яндекса могут истекать через короткое время.
+3) В `yandex-disk-proxy` для GET мы делаем `await response.arrayBuffer()` — для больших фото это может приводить к проблемам (память/таймаут), а в браузере выглядит как “битые картинки”.
 
-Текущая реализация имеет несколько проблем:
+Решение (меняем подход): перестаем отдавать в фронт временные URL Яндекса
+- Вместо этого фронт будет формировать стабильные ссылки вида:
+  - thumbnail: `/functions/v1/yandex-disk-proxy?publicUrl=...&path=...&mode=preview`
+  - full: `/functions/v1/yandex-disk-proxy?publicUrl=...&path=...&mode=download`
+- А функция на каждый GET сама:
+  - для preview: берет актуальный `preview` через Public API и сразу же проксирует бинарь
+  - для full: получает актуальный `download href` через Public API и сразу же проксирует бинарь
+Так ссылки не “протухают”, потому что протухает только внутренний href, который мы заново получаем на каждый запрос.
 
-| Проблема | Причина |
-|----------|---------|
-| Preview URL-ы не загружаются | Yandex возвращает ссылки с авторизационными токенами, которые истекают или блокируются CORS |
-| Download URL-ы тоже истекают | API `/download` возвращает временные ссылки (обычно на 2 часа) |
-| Прямые запросы из браузера | CORS ограничения при обращении к `cloud-api.yandex.net` |
+План изменений
 
-## Решение: Проксирование через Edge Function
+1) Обновить backend-функцию `supabase/functions/yandex-disk-proxy/index.ts`
+   1.1. Расширить CORS заголовки (на будущее и стабильность), чтобы соответствовали требованиям веб-приложений:
+   - добавить `x-supabase-client-*` заголовки в `Access-Control-Allow-Headers`.
+   1.2. Изменить GET-режим:
+   - поддержать 2 варианта:
+     A) старый режим `?url=...` оставить для совместимости (но не основной).
+     B) новый режим `?publicUrl=...&path=...&mode=preview|download`.
+   1.3. Реализовать получение “живых” ссылок через Yandex Disk Public API:
+   - Если mode=preview:
+     - запрос `public/resources?public_key=...&path=...&preview_size=L&preview_crop=false`
+     - взять `preview` из ответа
+     - fetch(preview) и вернуть картинку
+   - Если mode=download:
+     - запрос `public/resources/download?public_key=...&path=...`
+     - взять `href` из ответа
+     - fetch(href) и вернуть картинку
+   1.4. Ключевое: перестать буферизовать картинку целиком в память
+   - заменить `arrayBuffer()` на streaming:
+     - `return new Response(response.body, { headers: ... })`
+   Это резко снижает шанс “битых” изображений на больших файлах.
+   1.5. Добавить “похожие на браузер” заголовки при fetch к Яндексу (уменьшает 403/антибот):
+   - `User-Agent` уже есть
+   - добавить `Accept: image/avif,image/webp,image/*,*/*;q=0.8`
+   - добавить `Referer: https://disk.yandex.ru/` (или referer от publicUrl, если есть)
+   1.6. Корректно выставлять `Content-Type`
+   - брать из ответа Яндекса, fallback `image/jpeg`
+   - добавить `Cache-Control: public, max-age=86400` (оставить)
+   1.7. Улучшить диагностику:
+   - в ошибках возвращать JSON с причиной (status, text snippet), чтобы можно было понять, 403 это или 404, или ссылка протухла.
 
-Создать edge-функцию, которая будет серверным прокси для Yandex Disk:
+2) Обновить `src/components/modules/hr/PhotoGallery.tsx`
+   2.1. В `fetchYandexPhotos`:
+   - по-прежнему получать список через POST `action=list`
+   - но дополнительно вернуть для каждого файла `path` (если приходит от API) или хотя бы `name`, чтобы построить `path = '/' + name`.
+   - желательно: возвращать `path` из Yandex API, потому что имена могут быть не уникальными/могут быть подпапки.
+   2.2. Заменить `getProxiedImageUrl(originalUrl)` на две функции:
+   - `getPreviewSrc(publicUrl, path)` → строит URL к функции с mode=preview
+   - `getFullSrc(publicUrl, path)` → строит URL к функции с mode=download
+   2.3. `displayPhotos` строить не из `photo.preview/downloadUrl`, а из `publicUrl + path`
+   - thumbnail `<img src=previewSrc ...>`
+   - lightbox `url=fullSrc`
+   2.4. (Опционально, но полезно) добавить обработчик `onError` у `<img>`:
+   - если preview не загрузился, попробовать `mode=download` как fallback (или наоборот).
+   Это повышает шанс показать хоть что-то.
 
-```text
-[Браузер] → [Edge Function yandex-disk-proxy] → [Yandex Disk API]
-                    ↓
-            Кэширование ссылок
-            Обход CORS
-            Стабильные URL-ы
-```
+3) Обновить `action=list` в `yandex-disk-proxy` (POST)
+   3.1. Возвращать более “стабильные” поля для фронта:
+   - `id`
+   - `name`
+   - `path` (важно)
+   - опционально `mimeType`, `size`
+   3.2. Фильтрация изображений оставить, но лучше опираться на `mime_type`, если он есть (надежнее, чем расширение).
 
-## Архитектура
+4) Проверка (что именно проверяем после внесения правок)
+   4.1. Открыть HR → Фотогалерея → любую папку:
+   - превью загружаются без “битых” картинок
+   - при клике в lightbox полноразмерные тоже загружаются
+   4.2. Проверить в Network:
+   - запросы к `.../yandex-disk-proxy?publicUrl=...&path=...&mode=preview` возвращают `200` и `Content-Type: image/*`
+   - нет 500 на больших файлах (streaming должен устранить)
+   4.3. Долговечность:
+   - обновить страницу через 1–2 часа (раньше это ломалось из‑за протухших ссылок) — должно продолжать работать.
 
-### Edge Function: `yandex-disk-proxy`
+Ожидаемый результат
+- Фото перестают быть “битые” даже спустя время.
+- Загрузка становится стабильной на больших файлах.
+- Пользовательский эффект: “фото грузятся прямо с Диска”, без редиректов в отдельные вкладки и без CORS/истечения ссылок.
 
-Два действия:
-1. `list` — получить список фото из публичной папки
-2. `image` — проксировать изображение (возвращает бинарные данные)
-
-```typescript
-// Список фото
-POST { action: "list", publicUrl: "https://disk.yandex.ru/d/XXX" }
-→ { photos: [{ id, name, preview, downloadUrl }] }
-
-// Получить изображение (проксирование бинарных данных)  
-GET /yandex-disk-proxy?url=<encoded_yandex_url>
-→ binary image data с правильными Content-Type заголовками
-```
-
-### Изменения в PhotoGallery.tsx
-
-1. Заменить прямые вызовы Yandex API на вызовы edge-функции
-2. Использовать URL edge-функции для `src` изображений:
-
-```tsx
-// Вместо:
-<img src={photo.preview} />
-
-// Использовать:
-<img src={`${EDGE_URL}/yandex-disk-proxy?url=${encodeURIComponent(photo.preview)}`} />
-```
-
-## Шаги реализации
-
-### Шаг 1: Создать edge-функцию `yandex-disk-proxy`
-
-```typescript
-// supabase/functions/yandex-disk-proxy/index.ts
-serve(async (req) => {
-  const url = new URL(req.url);
-  
-  // GET запрос — проксирование изображения
-  if (req.method === "GET") {
-    const imageUrl = url.searchParams.get("url");
-    const response = await fetch(imageUrl);
-    return new Response(response.body, {
-      headers: {
-        "Content-Type": response.headers.get("Content-Type") || "image/jpeg",
-        "Cache-Control": "public, max-age=86400", // Кэш на 24 часа
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
-  }
-  
-  // POST запрос — список файлов
-  const { action, publicUrl } = await req.json();
-  if (action === "list") {
-    const apiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(publicUrl)}&limit=100`;
-    const response = await fetch(apiUrl);
-    const data = await response.json();
-    // Обработка и возврат списка
-  }
-});
-```
-
-### Шаг 2: Обновить PhotoGallery.tsx
-
-```typescript
-// Новая функция для получения фото
-async function fetchYandexPhotos(publicUrl: string): Promise<YandexPhoto[]> {
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/yandex-disk-proxy`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "list", publicUrl }),
-  });
-  return response.json();
-}
-
-// Обёртка для URL изображений
-function getProxiedImageUrl(originalUrl: string): string {
-  return `${SUPABASE_URL}/functions/v1/yandex-disk-proxy?url=${encodeURIComponent(originalUrl)}`;
-}
-```
-
-### Шаг 3: Использовать проксированные URL в компоненте
-
-```tsx
-<img 
-  src={getProxiedImageUrl(photo.preview)} 
-  alt={photo.title}
-/>
-```
-
-## Альтернативное решение: Кэширование в Supabase Storage
-
-Если edge-функция не справится с нагрузкой:
-
-1. При первом запросе — скачать фото через edge-функцию
-2. Сохранить в Supabase Storage
-3. Вернуть стабильный публичный URL из Storage
-4. При повторных запросах — отдавать из кэша
-
-Это более надёжно, но требует хранилища.
-
-## Файлы для изменения
-
-1. **Создать**: `supabase/functions/yandex-disk-proxy/index.ts`
-2. **Изменить**: `src/components/modules/hr/PhotoGallery.tsx`
-
-## Ожидаемый результат
-
-- Все изображения загружаются стабильно
-- Нет CORS-ошибок
-- Кэширование на уровне браузера (24 часа)
-- Работает и для preview, и для полноразмерных изображений в Lightbox
-
+Технические риски и как их закроем
+- Если Яндекс начнет отдавать 403 без Referer/Accept — добавим эти заголовки (заложено в план).
+- Если в папке есть подпапки/одинаковые имена — используем `item.path` из API, а не `name`.
+- Если каких-то картинок нет в preview — fallback на download через onError.
