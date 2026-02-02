@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Plus, Loader2, Save, Download, Cloud, ChevronsUpDown, Archive, RotateCcw, History } from "lucide-react";
+import { ArrowLeft, Plus, Loader2, Save, Download, Cloud, ChevronsUpDown, Archive, RotateCcw, History, WifiOff } from "lucide-react";
 import {
   DndContext,
   DragEndEvent,
@@ -49,7 +49,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useProtocolPermissions } from "@/hooks/useProtocolPermissions";
 import { DraftSnapshot } from "@/hooks/useDraftSnapshots";
 import { generateProtocolPdf } from "@/utils/protocolPdf";
-import { proxySelect } from "@/lib/dbProxy";
+import { proxySelect, proxyPing } from "@/lib/dbProxy";
 import { toast } from "sonner";
 
 
@@ -185,11 +185,39 @@ export default function ProtocolEditor() {
   const [allSectionsCollapsed, setAllSectionsCollapsed] = useState(false);
   const [draftRestorePrompted, setDraftRestorePrompted] = useState(false);
   
+  // Connection status state
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  const connectionCheckRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Save progress state for UX feedback
   const [saveProgress, setSaveProgress] = useState<string | null>(null);
   
   // Ref to prevent double-submit
   const isSavingRef = useRef(false);
+  
+  // Connection check effect
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const result = await proxyPing();
+        setConnectionStatus(result.error ? 'disconnected' : 'connected');
+      } catch {
+        setConnectionStatus('disconnected');
+      }
+    };
+    
+    // Check immediately
+    checkConnection();
+    
+    // Check every 30 seconds
+    connectionCheckRef.current = setInterval(checkConnection, 30000);
+    
+    return () => {
+      if (connectionCheckRef.current) {
+        clearInterval(connectionCheckRef.current);
+      }
+    };
+  }, []);
   
   // Draft auto-save hook
   const draftEntityId = isNew ? (isCopyMode ? `copy-${copyFromId}` : 'new') : id!;
@@ -2007,6 +2035,24 @@ export default function ProtocolEditor() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Connection status indicator */}
+            {connectionStatus === 'disconnected' && (
+              <div 
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-destructive/10 text-destructive border border-destructive/20"
+                title="Нет подключения к серверу"
+              >
+                <WifiOff className="w-4 h-4" />
+                <span className="text-xs font-medium hidden sm:inline">Нет связи</span>
+              </div>
+            )}
+            {connectionStatus === 'checking' && (
+              <div 
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted text-muted-foreground"
+                title="Проверка подключения..."
+              >
+                <Loader2 className="w-4 h-4 animate-spin" />
+              </div>
+            )}
             <Button 
               onClick={() => setAllSectionsCollapsed(!allSectionsCollapsed)} 
               variant="outline" 
