@@ -816,6 +816,11 @@ export default function ProtocolEditor() {
   };
 
   const handleRemoveItem = async (groupIndex: number, itemId: string) => {
+    // Find the item to get task_id before removing
+    const group = sectionGroups[groupIndex];
+    const item = group?.items.find(i => i.id === itemId);
+    const taskId = item && 'task_id' in item ? (item as ProtocolItemData).task_id : null;
+
     // For edit mode, also delete from DB if it's a real item
     if (isEditMode && !itemId.startsWith("temp-")) {
       try {
@@ -823,6 +828,16 @@ export default function ProtocolEditor() {
       } catch (error) {
         toast.error("Ошибка удаления пункта");
         return;
+      }
+    }
+
+    // Archive linked task if exists
+    if (taskId) {
+      try {
+        await updateTask.mutateAsync({ id: taskId, status: 'archived' });
+      } catch (error) {
+        console.error("Failed to archive linked task:", error);
+        // Don't block item removal if task archive fails
       }
     }
     
@@ -1016,6 +1031,12 @@ export default function ProtocolEditor() {
   };
 
   const handleRemoveTenderItem = async (groupIndex: number, companyId: string, itemId: string) => {
+    // Find the item to get task_id before removing
+    const group = sectionGroups[groupIndex];
+    const companyGroup = group?.companyGroups?.find(c => c.id === companyId);
+    const item = companyGroup?.items.find(i => i.id === itemId);
+    const taskId = item?.task_id || null;
+
     // For edit mode, also delete from DB if it's a real item
     if (isEditMode && !itemId.startsWith("temp-")) {
       try {
@@ -1023,6 +1044,16 @@ export default function ProtocolEditor() {
       } catch (error) {
         toast.error("Ошибка удаления пункта");
         return;
+      }
+    }
+
+    // Archive linked task if exists
+    if (taskId) {
+      try {
+        await updateTask.mutateAsync({ id: taskId, status: 'archived' });
+      } catch (error) {
+        console.error("Failed to archive linked task:", error);
+        // Don't block item removal if task archive fails
       }
     }
 
