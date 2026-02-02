@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Bell, Clock, AlertTriangle, AtSign, X, MessageCircle } from "lucide-react";
+import { Bell, Clock, AlertTriangle, AtSign, X, MessageCircle, Users } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import {
@@ -21,6 +21,7 @@ const ICON_MAP: Record<string, typeof Bell> = {
   deadline_day: AlertTriangle,
   mention: AtSign,
   chat_message: MessageCircle,
+  chat_created: Users,
 };
 
 const ICON_COLOR_MAP: Record<string, string> = {
@@ -29,6 +30,7 @@ const ICON_COLOR_MAP: Record<string, string> = {
   deadline_day: "text-destructive",
   mention: "text-blue-500",
   chat_message: "text-green-500",
+  chat_created: "text-blue-500",
 };
 
 export function NotificationItem({ notification, onClose }: NotificationItemProps) {

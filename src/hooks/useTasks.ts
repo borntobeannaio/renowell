@@ -97,7 +97,7 @@ export function useCreateTask() {
         const notifications = task.assignee_ids.map(assigneeId => ({
           recipient_id: assigneeId,
           type: 'task_assigned',
-          title: 'Новая задача',
+          title: 'У вас появилась новая задача',
           body: task.title,
           related_task_id: newTask.id,
         }));
