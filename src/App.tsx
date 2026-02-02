@@ -136,6 +136,14 @@ const App = () => (
                   }
                 />
                 <Route
+                  path="/about"
+                  element={
+                    <ProtectedRoute>
+                      <Index />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/profile"
                   element={
                     <ProtectedRoute>
