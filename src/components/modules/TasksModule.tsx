@@ -3,9 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { TaskComments } from "@/components/tasks/TaskComments";
-import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight, Pencil, Users, Archive, ArchiveRestore, UserCheck } from "lucide-react";
+import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight, Pencil, Users, Archive, ArchiveRestore, UserCheck, MoreVertical } from "lucide-react";
 import { useTasks, useCreateTask, useUpdateTask, DbTask, TaskStatus, TaskPriority, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS, TASK_PRIORITY_COLORS } from "@/hooks/useTasks";
-import { useProjects, Project } from "@/hooks/useProjects";
+import { useProjects, useUpdateProject, Project } from "@/hooks/useProjects";
 import { useEmployees, DbEmployee } from "@/hooks/useEmployees";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { formatDisplayDate } from "@/utils/dateFormat";
@@ -37,9 +37,11 @@ export function TasksModule() {
   const [assigneeEmployeeFilterId, setAssigneeEmployeeFilterId] = useState<string>("");
   const [showMyTasks, setShowMyTasks] = useState(false);
 
-  const { data: projects = [], isLoading: projectsLoading } = useProjects();
+  const [showArchivedProjects, setShowArchivedProjects] = useState(false);
+  const { data: projects = [], isLoading: projectsLoading } = useProjects({ includeArchived: showArchivedProjects });
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
+  const updateProject = useUpdateProject();
 
   // Build maps using direct profile_id from employees table
   const employeeProfileMaps = useMemo(() => {
@@ -526,6 +528,21 @@ export function TasksModule() {
             <Archive className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">{showArchived ? "Скрыть архив" : "Показать архив"}</span>
           </button>
+
+          {/* Archived projects toggle */}
+          {groupBy === "project" && (
+            <button
+              onClick={() => setShowArchivedProjects(!showArchivedProjects)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                showArchivedProjects
+                  ? "bg-amber-500/10 border-amber-500/30 text-amber-600"
+                  : "bg-card border-border hover:bg-muted text-muted-foreground"
+              }`}
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{showArchivedProjects ? "Скрыть архивные проекты" : "Архивные проекты"}</span>
+            </button>
+          )}
         </div>
 
       {/* Tasks grouped by project or assignee */}
@@ -537,20 +554,51 @@ export function TasksModule() {
             const isExpanded = expandedProjects.has(project.id);
 
             return (
-              <div key={project.id} className="border border-border rounded-xl overflow-hidden">
-                <button
-                  onClick={() => toggleProject(project.id)}
-                  className="w-full flex items-center gap-3 p-4 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
-                >
-                  {isExpanded ? (
-                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              <div key={project.id} className={`border border-border rounded-xl overflow-hidden ${(project as Project).archived ? 'opacity-60' : ''}`}>
+                <div className="flex items-center bg-muted/30 hover:bg-muted/50 transition-colors">
+                  <button
+                    onClick={() => toggleProject(project.id)}
+                    className="flex-1 flex items-center gap-3 p-4 text-left"
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    )}
+                    <FolderOpen className="w-4 h-4 text-primary" />
+                    <span className="font-medium text-foreground flex-1">
+                      {project.name}
+                      {(project as Project).archived && <span className="text-muted-foreground ml-2">(архив)</span>}
+                    </span>
+                    <span className="chip">{projectTaskCount}</span>
+                  </button>
+                  
+                  {/* Archive project button */}
+                  {project.id !== "no-project" && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const isArchived = (project as Project).archived;
+                        updateProject.mutate(
+                          { id: project.id, archived: !isArchived },
+                          {
+                            onSuccess: () => {
+                              toast.success(isArchived ? "Проект восстановлен из архива" : "Проект архивирован");
+                            },
+                          }
+                        );
+                      }}
+                      className="p-2 mr-2 hover:bg-muted rounded-lg transition-colors"
+                      title={(project as Project).archived ? "Восстановить из архива" : "Архивировать проект"}
+                    >
+                      {(project as Project).archived ? (
+                        <ArchiveRestore className="w-4 h-4 text-amber-500" />
+                      ) : (
+                        <Archive className="w-4 h-4 text-muted-foreground hover:text-amber-500" />
+                      )}
+                    </button>
                   )}
-                  <FolderOpen className="w-4 h-4 text-primary" />
-                  <span className="font-medium text-foreground flex-1">{project.name}</span>
-                  <span className="chip">{projectTaskCount}</span>
-                </button>
+                </div>
 
                 {isExpanded && (
                   <div className="p-2 md:p-4">
@@ -578,7 +626,21 @@ export function TasksModule() {
                                   profileToEmployee={employeeProfileMaps.profileToEmployee}
                                   onDragStart={handleDragStart}
                                   onEdit={openEditModal}
-                                  onArchive={(id) => updateTask.mutate({ id, status: task.status === "archived" ? "new" : "archived" })}
+                                  onArchive={(id) => {
+                                    const isArchived = task.status === "archived";
+                                    const newStatus = isArchived ? "new" : "archived";
+                                    updateTask.mutate(
+                                      { id, status: newStatus },
+                                      {
+                                        onSuccess: () => {
+                                          toast.success(isArchived ? "Задача восстановлена" : "Задача архивирована");
+                                          if (!isArchived && !showArchived) {
+                                            setShowArchived(true);
+                                          }
+                                        },
+                                      }
+                                    );
+                                  }}
                                 />
                               ))}
                             </div>
@@ -639,7 +701,21 @@ export function TasksModule() {
                                   profileToEmployee={employeeProfileMaps.profileToEmployee}
                                   onDragStart={handleDragStart}
                                   onEdit={openEditModal}
-                                  onArchive={(id) => updateTask.mutate({ id, status: task.status === "archived" ? "new" : "archived" })}
+                                  onArchive={(id) => {
+                                    const isArchived = task.status === "archived";
+                                    const newStatus = isArchived ? "new" : "archived";
+                                    updateTask.mutate(
+                                      { id, status: newStatus },
+                                      {
+                                        onSuccess: () => {
+                                          toast.success(isArchived ? "Задача восстановлена" : "Задача архивирована");
+                                          if (!isArchived && !showArchived) {
+                                            setShowArchived(true);
+                                          }
+                                        },
+                                      }
+                                    );
+                                  }}
                                 />
                               ))}
                             </div>

@@ -538,18 +538,21 @@ export type Database = {
       }
       projects: {
         Row: {
+          archived: boolean
           created_at: string
           id: string
           name: string
           updated_at: string
         }
         Insert: {
+          archived?: boolean
           created_at?: string
           id?: string
           name: string
           updated_at?: string
         }
         Update: {
+          archived?: boolean
           created_at?: string
           id?: string
           name?: string
