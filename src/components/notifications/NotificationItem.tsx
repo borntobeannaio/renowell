@@ -48,12 +48,29 @@ export function NotificationItem({ notification, onClose }: NotificationItemProp
       markRead.mutate(notification.id);
     }
 
-    // Обработка специальных ссылок на чаты (#chat:conversationId)
+    // Обработка ссылок на чаты — открываем виджет без навигации
     if (notification.link?.startsWith("#chat:")) {
       const conversationId = notification.link.replace("#chat:", "");
       openChat(conversationId);
       onClose?.();
       return;
+    }
+    
+    // Перехватываем URL-ссылки на чаты (/chat/:id или ?open_chat=:id)
+    if (notification.link?.startsWith("/chat/")) {
+      const conversationId = notification.link.replace("/chat/", "");
+      openChat(conversationId);
+      onClose?.();
+      return;
+    }
+    
+    if (notification.link?.includes("open_chat=")) {
+      const match = notification.link.match(/open_chat=([^&]+)/);
+      if (match) {
+        openChat(match[1]);
+        onClose?.();
+        return;
+      }
     }
 
     // Навигация к задаче если есть link или related_task_id
