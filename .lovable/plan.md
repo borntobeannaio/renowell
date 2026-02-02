@@ -1,95 +1,127 @@
 
-Цель: сделать так, чтобы фото в HR → Фотогалерея перестали «ломаться» и выглядели как загрузка “напрямую с Диска”, но без проблем CORS/истечения ссылок.
+# План: Исправление истекающих изображений в блоге руководителя
 
-Важно про “напрямую”:
-- Браузер не может стабильно грузить картинки напрямую с Яндекс.Диска из-за CORS + временных URL (они истекают).
-- Поэтому единственный надежный вариант — давать браузеру стабильные URL нашего “backend-proxy”, который в момент запроса сам забирает файл с Диска и отдает как картинку. Для пользователя это будет выглядеть как “прямая загрузка”, но технически будет безопасный прокси.
+## Диагностика проблемы
 
-Что сейчас сломано (по коду):
-1) `PhotoGallery.tsx` вставляет в `<img src=...>` ссылку на `.../functions/v1/yandex-disk-proxy?url=<TEMP_URL>`.
-2) Эти `TEMP_URL` (preview/downloadUrl) от Яндекса могут истекать через короткое время.
-3) В `yandex-disk-proxy` для GET мы делаем `await response.arrayBuffer()` — для больших фото это может приводить к проблемам (память/таймаут), а в браузере выглядит как “битые картинки”.
+| Что сейчас | Почему не работает |
+|------------|-------------------|
+| Webhook получает `file_id` от Telegram | ✅ Работает |
+| Вызывает `getFile` API и получает временный URL | ⚠️ URL истекает через ~1 час |
+| Сохраняет этот URL в `image_url` | ❌ Через час URL возвращает 404 |
+| Прокси пытается загрузить по старому URL | ❌ 404 Not Found |
 
-Решение (меняем подход): перестаем отдавать в фронт временные URL Яндекса
-- Вместо этого фронт будет формировать стабильные ссылки вида:
-  - thumbnail: `/functions/v1/yandex-disk-proxy?publicUrl=...&path=...&mode=preview`
-  - full: `/functions/v1/yandex-disk-proxy?publicUrl=...&path=...&mode=download`
-- А функция на каждый GET сама:
-  - для preview: берет актуальный `preview` через Public API и сразу же проксирует бинарь
-  - для full: получает актуальный `download href` через Public API и сразу же проксирует бинарь
-Так ссылки не “протухают”, потому что протухает только внутренний href, который мы заново получаем на каждый запрос.
+## Решение
 
-План изменений
+Аналогично тому, как мы исправили Yandex Disk — хранить **стабильные идентификаторы** (`file_id`), а свежие URL получать в момент отображения.
 
-1) Обновить backend-функцию `supabase/functions/yandex-disk-proxy/index.ts`
-   1.1. Расширить CORS заголовки (на будущее и стабильность), чтобы соответствовали требованиям веб-приложений:
-   - добавить `x-supabase-client-*` заголовки в `Access-Control-Allow-Headers`.
-   1.2. Изменить GET-режим:
-   - поддержать 2 варианта:
-     A) старый режим `?url=...` оставить для совместимости (но не основной).
-     B) новый режим `?publicUrl=...&path=...&mode=preview|download`.
-   1.3. Реализовать получение “живых” ссылок через Yandex Disk Public API:
-   - Если mode=preview:
-     - запрос `public/resources?public_key=...&path=...&preview_size=L&preview_crop=false`
-     - взять `preview` из ответа
-     - fetch(preview) и вернуть картинку
-   - Если mode=download:
-     - запрос `public/resources/download?public_key=...&path=...`
-     - взять `href` из ответа
-     - fetch(href) и вернуть картинку
-   1.4. Ключевое: перестать буферизовать картинку целиком в память
-   - заменить `arrayBuffer()` на streaming:
-     - `return new Response(response.body, { headers: ... })`
-   Это резко снижает шанс “битых” изображений на больших файлах.
-   1.5. Добавить “похожие на браузер” заголовки при fetch к Яндексу (уменьшает 403/антибот):
-   - `User-Agent` уже есть
-   - добавить `Accept: image/avif,image/webp,image/*,*/*;q=0.8`
-   - добавить `Referer: https://disk.yandex.ru/` (или referer от publicUrl, если есть)
-   1.6. Корректно выставлять `Content-Type`
-   - брать из ответа Яндекса, fallback `image/jpeg`
-   - добавить `Cache-Control: public, max-age=86400` (оставить)
-   1.7. Улучшить диагностику:
-   - в ошибках возвращать JSON с причиной (status, text snippet), чтобы можно было понять, 403 это или 404, или ссылка протухла.
+```text
+Текущая схема (сломана):
+[Webhook] → getFile → URL → DB → [Браузер] → 404
 
-2) Обновить `src/components/modules/hr/PhotoGallery.tsx`
-   2.1. В `fetchYandexPhotos`:
-   - по-прежнему получать список через POST `action=list`
-   - но дополнительно вернуть для каждого файла `path` (если приходит от API) или хотя бы `name`, чтобы построить `path = '/' + name`.
-   - желательно: возвращать `path` из Yandex API, потому что имена могут быть не уникальными/могут быть подпапки.
-   2.2. Заменить `getProxiedImageUrl(originalUrl)` на две функции:
-   - `getPreviewSrc(publicUrl, path)` → строит URL к функции с mode=preview
-   - `getFullSrc(publicUrl, path)` → строит URL к функции с mode=download
-   2.3. `displayPhotos` строить не из `photo.preview/downloadUrl`, а из `publicUrl + path`
-   - thumbnail `<img src=previewSrc ...>`
-   - lightbox `url=fullSrc`
-   2.4. (Опционально, но полезно) добавить обработчик `onError` у `<img>`:
-   - если preview не загрузился, попробовать `mode=download` как fallback (или наоборот).
-   Это повышает шанс показать хоть что-то.
+Новая схема (стабильная):
+[Webhook] → file_id → DB
+[Браузер] → [telegram-image-proxy] → getFile (свежий URL) → fetch → image
+```
 
-3) Обновить `action=list` в `yandex-disk-proxy` (POST)
-   3.1. Возвращать более “стабильные” поля для фронта:
-   - `id`
-   - `name`
-   - `path` (важно)
-   - опционально `mimeType`, `size`
-   3.2. Фильтрация изображений оставить, но лучше опираться на `mime_type`, если он есть (надежнее, чем расширение).
+## Изменения в базе данных
 
-4) Проверка (что именно проверяем после внесения правок)
-   4.1. Открыть HR → Фотогалерея → любую папку:
-   - превью загружаются без “битых” картинок
-   - при клике в lightbox полноразмерные тоже загружаются
-   4.2. Проверить в Network:
-   - запросы к `.../yandex-disk-proxy?publicUrl=...&path=...&mode=preview` возвращают `200` и `Content-Type: image/*`
-   - нет 500 на больших файлах (streaming должен устранить)
-   4.3. Долговечность:
-   - обновить страницу через 1–2 часа (раньше это ломалось из‑за протухших ссылок) — должно продолжать работать.
+Добавить колонку `file_id` в таблицу `telegram_posts`:
 
-Ожидаемый результат
-- Фото перестают быть “битые” даже спустя время.
-- Загрузка становится стабильной на больших файлах.
-- Пользовательский эффект: “фото грузятся прямо с Диска”, без редиректов в отдельные вкладки и без CORS/истечения ссылок.
+```sql
+ALTER TABLE telegram_posts ADD COLUMN IF NOT EXISTS file_id TEXT;
+ALTER TABLE telegram_posts ADD COLUMN IF NOT EXISTS video_file_id TEXT;
+```
 
-Технические риски и как их закроем
-- Если Яндекс начнет отдавать 403 без Referer/Accept — добавим эти заголовки (заложено в план).
-- Если в папке есть подпапки/одинаковые имена — используем `item.path` из API, а не `name`.
-- Если каких-то картинок нет в preview — fallback на download через onError.
+## Изменения в Edge Functions
+
+### 1. Обновить `telegram-webhook` (сохранять file_id)
+
+```typescript
+// Вместо:
+imageUrl = await getFileUrl(botToken, largestPhoto.file_id);
+
+// Сохранять file_id напрямую:
+const fileId = largestPhoto.file_id;
+
+// В upsert:
+{
+  ...
+  file_id: fileId,        // стабильный идентификатор
+  image_url: null,        // больше не нужен
+}
+```
+
+### 2. Создать `telegram-image-proxy` (получать свежие URL)
+
+Новая edge-функция для проксирования Telegram изображений:
+
+```typescript
+// GET /telegram-image-proxy?file_id=XXX
+
+serve(async (req) => {
+  const url = new URL(req.url);
+  const fileId = url.searchParams.get('file_id');
+  
+  // 1. Получить свежий file_path через Bot API
+  const response = await fetch(
+    `https://api.telegram.org/bot${TOKEN}/getFile?file_id=${fileId}`
+  );
+  const { result } = await response.json();
+  
+  // 2. Загрузить изображение
+  const imageUrl = `https://api.telegram.org/file/bot${TOKEN}/${result.file_path}`;
+  const imageResponse = await fetch(imageUrl);
+  
+  // 3. Вернуть с кэшированием
+  return new Response(imageResponse.body, {
+    headers: {
+      'Content-Type': imageResponse.headers.get('Content-Type'),
+      'Cache-Control': 'public, max-age=3600', // кэш на 1 час
+    }
+  });
+});
+```
+
+### 3. Обновить `TelegramFeed.tsx`
+
+```typescript
+function getProxiedImageUrl(post: TelegramPost): string | null {
+  // Если есть file_id — использовать новый прокси
+  if (post.file_id) {
+    return `${SUPABASE_URL}/functions/v1/telegram-image-proxy?file_id=${post.file_id}`;
+  }
+  // Fallback для старых постов с image_url
+  if (post.image_url) {
+    return `${SUPABASE_URL}/functions/v1/yandex-disk-proxy?url=${encodeURIComponent(post.image_url)}`;
+  }
+  return null;
+}
+```
+
+## Миграция старых данных
+
+Для постов, которые уже в БД с протухшими URL:
+1. Удалить старые записи или
+2. Перезапустить парсинг HTML (fallback в `telegram-channel`)
+
+Предлагаю очистить старые записи и дать webhook заново наполнить базу:
+```sql
+DELETE FROM telegram_posts WHERE file_id IS NULL;
+```
+
+## Файлы для изменения
+
+| Файл | Действие |
+|------|----------|
+| Миграция БД | Добавить колонки `file_id`, `video_file_id` |
+| `supabase/functions/telegram-webhook/index.ts` | Сохранять `file_id` вместо URL |
+| `supabase/functions/telegram-image-proxy/index.ts` | **Создать** новую функцию |
+| `src/hooks/useTelegramChannel.ts` | Добавить `file_id` в интерфейс |
+| `src/components/modules/brandhub/TelegramFeed.tsx` | Использовать новый прокси |
+
+## Ожидаемый результат
+
+- Изображения будут загружаться стабильно, даже через дни/недели
+- Каждый запрос получает свежий URL от Telegram API
+- Кэширование на 1 час снижает нагрузку на API
+- Старые посты (без file_id) будут показываться без картинок или удалены
