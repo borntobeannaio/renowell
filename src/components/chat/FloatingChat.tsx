@@ -7,7 +7,7 @@ import { Modal } from "@/components/ui/Modal";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useChatContext } from "@/context/ChatContext";
-import { useNotifications } from "@/hooks/useNotifications";
+import { useUnreadCounts, useMarkConversationRead, useChatNotificationSound, useTotalUnreadCount } from "@/hooks/useChatUnread";
 
 type ChatTab = "general" | "ai";
 
@@ -30,12 +30,6 @@ export function FloatingChat() {
   const [groupTitle, setGroupTitle] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Unread chat notifications count
-  const notificationsQuery = useNotifications();
-  const unreadChatCount = (notificationsQuery.data ?? []).filter(
-    n => !n.is_read && (n.type === "chat_message" || n.type === "chat_created")
-  ).length;
-
   // Database hooks
   const { data: conversations = [] } = useConversations();
   const { data: conversationMessages = [] } = useConversationMessages(selectedConversationId);
@@ -45,6 +39,15 @@ export function FloatingChat() {
   const saveAIMessage = useSaveAIMessage();
   const clearAIHistory = useClearAIHistory();
   const createCall = useCreateCall();
+  
+  // Unread counts per conversation
+  const conversationIds = conversations.map(c => c.id);
+  const { data: unreadCounts = [] } = useUnreadCounts(conversationIds);
+  const totalUnreadCount = useTotalUnreadCount(conversationIds);
+  const markRead = useMarkConversationRead();
+  
+  // Sound notification for new messages
+  useChatNotificationSound(selectedConversationId, isOpen);
 
   // Fetch profiles for participant selection
   const { data: profiles = [] } = useQuery({
@@ -61,10 +64,12 @@ export function FloatingChat() {
   // Get current user's profile
   const currentProfile = profiles.find(p => p.user_id === user?.id);
 
-  // При открытии с conversationId - переключаемся на вкладку чатов
+  // При открытии с conversationId - переключаемся на вкладку чатов и отмечаем как прочитанное
   useEffect(() => {
     if (isOpen && selectedConversationId) {
       setActiveTab("general");
+      // Mark conversation as read when opening it
+      markRead.mutate(selectedConversationId);
     }
   }, [isOpen, selectedConversationId]);
 
@@ -302,28 +307,45 @@ export function FloatingChat() {
         </div>
       </button>
 
-      {conversations.map((conv) => (
-        <button
-          key={conv.id}
-          onClick={() => {
-            setSelectedConversation(conv.id);
-            setActiveTab("general");
-          }}
-          className="w-full p-2 rounded-lg text-left transition-colors bg-secondary/50 hover:bg-secondary text-sm"
-        >
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <Users className="w-4 h-4 text-primary" />
+      {conversations.map((conv) => {
+        const unreadCount = unreadCounts.find(u => u.conversationId === conv.id)?.count || 0;
+        
+        return (
+          <button
+            key={conv.id}
+            onClick={() => {
+              setSelectedConversation(conv.id);
+              setActiveTab("general");
+            }}
+            className={`w-full p-2 rounded-lg text-left transition-colors text-sm ${
+              unreadCount > 0 
+                ? "bg-primary/10 hover:bg-primary/15 border border-primary/20" 
+                : "bg-secondary/50 hover:bg-secondary"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center relative ${
+                unreadCount > 0 ? "bg-primary/20" : "bg-primary/10"
+              }`}>
+                <Users className="w-4 h-4 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`truncate ${unreadCount > 0 ? "font-semibold text-foreground" : "font-medium text-foreground"}`}>
+                  {getConversationDisplayTitle(conv)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {formatTime(conv.updated_at)}
+                </p>
+              </div>
+              {unreadCount > 0 && (
+                <span className="min-w-5 h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-foreground truncate">{getConversationDisplayTitle(conv)}</p>
-              <p className="text-xs text-muted-foreground">
-                {formatTime(conv.updated_at)}
-              </p>
-            </div>
-          </div>
-        </button>
-      ))}
+          </button>
+        );
+      })}
 
       {conversations.length === 0 && (
         <div className="text-center py-8 text-muted-foreground text-sm">
@@ -436,9 +458,9 @@ export function FloatingChat() {
         }`}
       >
         <MessageCircle className="w-6 h-6" />
-        {unreadChatCount > 0 && (
+        {totalUnreadCount > 0 && (
           <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex items-center justify-center">
-            {unreadChatCount > 99 ? "99+" : unreadChatCount}
+            {totalUnreadCount > 99 ? "99+" : totalUnreadCount}
           </span>
         )}
       </button>
