@@ -926,7 +926,7 @@ export function TasksModule() {
         {/* Comments section */}
         {editingTask && (
           <div className="mt-6 pt-6 border-t border-border">
-            <TaskComments taskId={editingTask.id} />
+            <TaskComments taskId={editingTask.id} taskTitle={editingTask.title} />
           </div>
         )}
       </Modal>
