@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useMemo } from "react";
 import { AppProvider, useApp } from "@/context/AppContext";
+import { ChatProvider } from "@/context/ChatContext";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { Header } from "@/components/layout/Header";
@@ -91,7 +92,9 @@ function PortalContent() {
 const Index = () => {
   return (
     <AppProvider>
-      <PortalContent />
+      <ChatProvider>
+        <PortalContent />
+      </ChatProvider>
     </AppProvider>
   );
 };

@@ -7,6 +7,7 @@ import {
   useMarkNotificationRead,
   useDeleteNotification,
 } from "@/hooks/useNotifications";
+import { useChatContext } from "@/context/ChatContext";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -37,6 +38,7 @@ export function NotificationItem({ notification, onClose }: NotificationItemProp
   const navigate = useNavigate();
   const markRead = useMarkNotificationRead();
   const deleteNotification = useDeleteNotification();
+  const { openChat } = useChatContext();
 
   const Icon = ICON_MAP[notification.type] || Bell;
   const iconColor = ICON_COLOR_MAP[notification.type] || "text-muted-foreground";
@@ -44,6 +46,14 @@ export function NotificationItem({ notification, onClose }: NotificationItemProp
   const handleClick = () => {
     if (!notification.is_read) {
       markRead.mutate(notification.id);
+    }
+
+    // Обработка специальных ссылок на чаты (#chat:conversationId)
+    if (notification.link?.startsWith("#chat:")) {
+      const conversationId = notification.link.replace("#chat:", "");
+      openChat(conversationId);
+      onClose?.();
+      return;
     }
 
     // Навигация к задаче если есть link или related_task_id

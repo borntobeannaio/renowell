@@ -6,6 +6,7 @@ import { useCreateCall } from "@/hooks/useCalls";
 import { Modal } from "@/components/ui/Modal";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { useChatContext } from "@/context/ChatContext";
 
 type ChatTab = "general" | "ai";
 
@@ -16,10 +17,9 @@ interface StreamingAIMessage {
 
 export function FloatingChat() {
   const { user } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
+  const { isOpen, selectedConversationId, openChat, closeChat, setSelectedConversation } = useChatContext();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeTab, setActiveTab] = useState<ChatTab>("ai");
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [streamingMessages, setStreamingMessages] = useState<StreamingAIMessage[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -53,6 +53,13 @@ export function FloatingChat() {
 
   // Get current user's profile
   const currentProfile = profiles.find(p => p.user_id === user?.id);
+
+  // При открытии с conversationId - переключаемся на вкладку чатов
+  useEffect(() => {
+    if (isOpen && selectedConversationId) {
+      setActiveTab("general");
+    }
+  }, [isOpen, selectedConversationId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -188,7 +195,7 @@ export function FloatingChat() {
     });
 
     // Open the created/found conversation immediately
-    setSelectedConversationId(conversation.id);
+    setSelectedConversation(conversation.id);
     setActiveTab("general");
 
     setIsNewChatModalOpen(false);
@@ -292,7 +299,7 @@ export function FloatingChat() {
         <button
           key={conv.id}
           onClick={() => {
-            setSelectedConversationId(conv.id);
+            setSelectedConversation(conv.id);
             setActiveTab("general");
           }}
           className="w-full p-2 rounded-lg text-left transition-colors bg-secondary/50 hover:bg-secondary text-sm"
@@ -416,7 +423,7 @@ export function FloatingChat() {
     <>
       {/* Floating button */}
       <button
-        onClick={() => setIsOpen(true)}
+        onClick={() => openChat()}
         className={`fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-105 transition-transform flex items-center justify-center ${
           isOpen ? "hidden" : ""
         }`}
@@ -432,7 +439,7 @@ export function FloatingChat() {
             <div className="flex items-center justify-between p-3">
               {selectedConversationId && activeTab === "general" ? (
                 <button
-                  onClick={() => setSelectedConversationId(null)}
+                  onClick={() => setSelectedConversation(null)}
                   className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -487,7 +494,7 @@ export function FloatingChat() {
                 </button>
                 <button
                   onClick={() => {
-                    setIsOpen(false);
+                    closeChat();
                     setIsFullscreen(false);
                   }}
                   className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
@@ -502,7 +509,7 @@ export function FloatingChat() {
               <button
                 onClick={() => {
                   setActiveTab("general");
-                  setSelectedConversationId(null);
+                  setSelectedConversation(null);
                 }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                   activeTab === "general"
