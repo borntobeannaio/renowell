@@ -8,6 +8,8 @@ export interface TelegramPost {
   date: string;
   image_url: string | null;
   video_url: string | null;
+  file_id: string | null;
+  video_file_id: string | null;
   link: string;
   created_at: string;
   updated_at: string;

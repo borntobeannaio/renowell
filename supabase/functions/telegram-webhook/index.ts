@@ -172,7 +172,7 @@ serve(async (req) => {
 async function processChannelPost(
   // deno-lint-ignore no-explicit-any
   supabase: any,
-  botToken: string,
+  _botToken: string,
   post: Record<string, unknown>
 ): Promise<void> {
   const messageId = post.message_id as number;
@@ -181,33 +181,35 @@ async function processChannelPost(
   
   console.log(`Processing channel post ${messageId}: ${text?.substring(0, 50)}...`);
   
-  // Get photo URL if present
-  let imageUrl: string | null = null;
+  // Get photo file_id if present (save stable identifier, not temporary URL)
+  let fileId: string | null = null;
   const photo = post.photo as Array<{ file_id: string; width: number; height: number }> | undefined;
   if (photo && photo.length > 0) {
     // Get the largest photo (last in array)
     const largestPhoto = photo[photo.length - 1];
-    imageUrl = await getFileUrl(botToken, largestPhoto.file_id);
-    console.log(`Got photo URL: ${imageUrl}`);
+    fileId = largestPhoto.file_id;
+    console.log(`Got photo file_id: ${fileId}`);
   }
   
-  // Get video thumbnail if present
-  let videoUrl: string | null = null;
-  const video = post.video as { thumb?: { file_id: string } } | undefined;
-  if (video?.thumb) {
-    videoUrl = await getFileUrl(botToken, video.thumb.file_id);
-    console.log(`Got video thumbnail URL: ${videoUrl}`);
+  // Get video file_id if present
+  let videoFileId: string | null = null;
+  const video = post.video as { file_id: string; thumb?: { file_id: string } } | undefined;
+  if (video?.file_id) {
+    videoFileId = video.file_id;
+    console.log(`Got video file_id: ${videoFileId}`);
   }
   
-  // Upsert to database
+  // Upsert to database with stable file_id instead of temporary URLs
   const { error } = await supabase
     .from("telegram_posts")
     .upsert({
       message_id: messageId,
       text,
       date,
-      image_url: imageUrl,
-      video_url: videoUrl,
+      file_id: fileId,
+      video_file_id: videoFileId,
+      image_url: null, // No longer storing temporary URLs
+      video_url: null,
       link: `https://t.me/${CHANNEL_USERNAME}/${messageId}`,
       updated_at: new Date().toISOString(),
     }, { onConflict: "message_id" });

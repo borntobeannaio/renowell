@@ -10,14 +10,25 @@ import { ru } from "date-fns/locale";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-// Proxy external images through edge function to avoid CORS/expiration issues
-function getProxiedImageUrl(url: string | null): string | null {
-  if (!url) return null;
-  return `${SUPABASE_URL}/functions/v1/yandex-disk-proxy?url=${encodeURIComponent(url)}`;
+// Get proxied image URL using stable file_id for Telegram images
+function getMediaUrl(post: TelegramPost): string | null {
+  // Priority 1: Use stable file_id with new telegram-image-proxy
+  if (post.file_id) {
+    return `${SUPABASE_URL}/functions/v1/telegram-image-proxy?file_id=${encodeURIComponent(post.file_id)}`;
+  }
+  if (post.video_file_id) {
+    return `${SUPABASE_URL}/functions/v1/telegram-image-proxy?file_id=${encodeURIComponent(post.video_file_id)}`;
+  }
+  // Fallback for legacy posts with temporary URLs (may be expired)
+  const legacyUrl = post.image_url || post.video_url;
+  if (legacyUrl) {
+    return `${SUPABASE_URL}/functions/v1/yandex-disk-proxy?url=${encodeURIComponent(legacyUrl)}`;
+  }
+  return null;
 }
 
 function PostCard({ post, onSelect }: { post: TelegramPost; onSelect: (post: TelegramPost) => void }) {
-  const mediaUrl = getProxiedImageUrl(post.image_url || post.video_url);
+  const mediaUrl = getMediaUrl(post);
   
   return (
     <div 
@@ -70,7 +81,7 @@ function PostCard({ post, onSelect }: { post: TelegramPost; onSelect: (post: Tel
 }
 
 function PostModal({ post, onClose }: { post: TelegramPost; onClose: () => void }) {
-  const mediaUrl = getProxiedImageUrl(post.image_url || post.video_url);
+  const mediaUrl = getMediaUrl(post);
   
   return (
     <Dialog open={true} onOpenChange={() => onClose()}>
