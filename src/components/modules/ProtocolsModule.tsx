@@ -305,6 +305,7 @@ function ProtocolCard({
     entity_name: string | null;
     default_responsible: string | null;
     sort_order: number | null;
+    archived: boolean | null;
   }[]>([]);
 
   // Load sections when expanded
@@ -318,8 +319,12 @@ function ProtocolCard({
         entity_name: string | null;
         default_responsible: string | null;
         sort_order: number | null;
+        archived: boolean | null;
       }>('protocol_sections', {
-        filters: [{ column: 'protocol_id', operator: 'eq', value: protocol.id }],
+        filters: [
+          { column: 'protocol_id', operator: 'eq', value: protocol.id },
+          { column: 'archived', operator: 'neq', value: true },
+        ],
         order: [{ column: 'sort_order', ascending: true }],
       }).then(({ data }) => {
         setSections(data || []);
@@ -327,23 +332,26 @@ function ProtocolCard({
     }
   }, [isExpanded, protocol.id]);
 
-  // Group items by section
+  // Group items by section (excluding archived items)
   const itemsBySection = useMemo(() => {
     const groups: Record<string, typeof items> = {};
+    
+    // Filter out archived items
+    const activeItems = items.filter(item => !item.archived);
     
     // If we have sections, group by section_id
     if (sections.length > 0) {
       sections.forEach(section => {
-        groups[section.id] = items.filter(item => item.section_id === section.id);
+        groups[section.id] = activeItems.filter(item => item.section_id === section.id);
       });
       // Items without section_id
-      const orphanItems = items.filter(item => !item.section_id);
+      const orphanItems = activeItems.filter(item => !item.section_id);
       if (orphanItems.length > 0) {
         groups["no_section"] = orphanItems;
       }
     } else {
       // Fallback to project grouping for legacy protocols
-      items.forEach((item) => {
+      activeItems.forEach((item) => {
         const key = item.project_id || "no_project";
         if (!groups[key]) groups[key] = [];
         groups[key].push(item);
