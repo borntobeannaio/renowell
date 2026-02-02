@@ -96,7 +96,7 @@ export function BrandHubModule() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="platform" className="flex-1 flex gap-6 min-h-0 overflow-hidden mt-0">
+        <TabsContent value="platform" className="mt-0 data-[state=active]:flex-1 data-[state=active]:flex data-[state=active]:gap-6 data-[state=active]:min-h-0 data-[state=active]:overflow-hidden data-[state=inactive]:hidden">
           {/* Pyramid section */}
           <div 
             className={`
@@ -132,7 +132,7 @@ export function BrandHubModule() {
           </div>
         </TabsContent>
 
-        <TabsContent value="channel" className="flex-1 min-h-0 mt-0">
+        <TabsContent value="channel" className="mt-0 data-[state=active]:flex-1 data-[state=active]:min-h-0 data-[state=inactive]:hidden">
           <TelegramFeed />
         </TabsContent>
       </Tabs>
