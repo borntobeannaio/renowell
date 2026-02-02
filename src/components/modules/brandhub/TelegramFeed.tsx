@@ -8,8 +8,16 @@ import { useTelegramChannel, TelegramPost } from "@/hooks/useTelegramChannel";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
+// Proxy external images through edge function to avoid CORS/expiration issues
+function getProxiedImageUrl(url: string | null): string | null {
+  if (!url) return null;
+  return `${SUPABASE_URL}/functions/v1/yandex-disk-proxy?url=${encodeURIComponent(url)}`;
+}
+
 function PostCard({ post, onSelect }: { post: TelegramPost; onSelect: (post: TelegramPost) => void }) {
-  const mediaUrl = post.image_url || post.video_url;
+  const mediaUrl = getProxiedImageUrl(post.image_url || post.video_url);
   
   return (
     <div 
@@ -62,7 +70,7 @@ function PostCard({ post, onSelect }: { post: TelegramPost; onSelect: (post: Tel
 }
 
 function PostModal({ post, onClose }: { post: TelegramPost; onClose: () => void }) {
-  const mediaUrl = post.image_url || post.video_url;
+  const mediaUrl = getProxiedImageUrl(post.image_url || post.video_url);
   
   return (
     <Dialog open={true} onOpenChange={() => onClose()}>
