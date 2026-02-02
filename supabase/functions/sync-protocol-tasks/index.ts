@@ -32,6 +32,20 @@ interface Employee {
   profile_id: string | null;
 }
 
+// Mapping of section types to system project IDs
+const SECTION_TYPE_PROJECT_IDS: Partial<Record<string, string>> = {
+  tender: "bf2ef5b4-1fe7-4e69-b533-30393a4d386b",   // Тендеры/задачи
+  business: "5b30ab38-7ecd-4643-960e-8dc2bf353d98", // Бизнес процессы
+  hr: "620c7f0e-6558-4116-8e80-7681457127b8",      // Подбор персонала
+};
+
+function getProjectIdForSection(sectionType: string | null, entityId: string | null): string | null {
+  if (sectionType === "project") {
+    return entityId;
+  }
+  return sectionType ? SECTION_TYPE_PROJECT_IDS[sectionType] || null : null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -184,10 +198,11 @@ Deno.serve(async (req) => {
       const responsible = latestItem.responsible || latestItem.protocol_sections?.default_responsible;
       const profileIds = getProfileIds(responsible);
       
-      // Get project_id from section if it's a project type
-      const projectId = latestItem.protocol_sections?.section_type === 'project' 
-        ? latestItem.protocol_sections.entity_id 
-        : null;
+      // Get project_id from section (handles project, tender, business, hr types)
+      const projectId = getProjectIdForSection(
+        latestItem.protocol_sections?.section_type || null,
+        latestItem.protocol_sections?.entity_id || null
+      );
 
       // Create task
       const { data: newTask, error: taskError } = await supabase
@@ -310,9 +325,10 @@ Deno.serve(async (req) => {
     for (const [taskId, item] of latestByTask) {
       const responsible = item.responsible || item.protocol_sections?.default_responsible;
       const profileIds = getProfileIds(responsible);
-      const projectId = item.protocol_sections?.section_type === 'project' 
-        ? item.protocol_sections.entity_id 
-        : null;
+      const projectId = getProjectIdForSection(
+        item.protocol_sections?.section_type || null,
+        item.protocol_sections?.entity_id || null
+      );
 
       const { error: updateError } = await supabase
         .from('tasks')
