@@ -1579,7 +1579,7 @@ export default function ProtocolEditor() {
               const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
               const taskResult = await createTask.mutateAsync({
-                title: item.item_text,
+                title: itemText,
                 assignee_ids: assigneeProfileIds,
                 project_id: projectId,
                 due_date: item.due_date || null,
@@ -1631,7 +1631,7 @@ export default function ProtocolEditor() {
               const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
               const taskResult = await createTask.mutateAsync({
-                title: item.item_text,
+                title: itemText,
                 assignee_ids: assigneeProfileIds,
                 project_id: projectId,
                 due_date: item.due_date || null,
@@ -1653,7 +1653,7 @@ export default function ProtocolEditor() {
 
               await updateTask.mutateAsync({
                 id: item.task_id,
-                title: item.item_text,
+                title: itemText,
                 assignee_ids: assigneeProfileIds,
                 project_id: projectId,
                 due_date: item.due_date || null,
