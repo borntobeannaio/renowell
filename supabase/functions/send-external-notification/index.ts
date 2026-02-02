@@ -232,9 +232,19 @@ Deno.serve(async (req) => {
       employeeEmail = employee?.email || null;
     }
 
-    // Build full link URL
-    const baseUrl = "https://renowell.lovable.app";
-    const fullLink = notification.link ? `${baseUrl}${notification.link}` : null;
+    // Build full link URL - use custom domain from environment or default
+    const baseUrl = Deno.env.get("APP_URL") || "https://renowell.ru";
+    
+    // Handle chat links specially - they use #chat:id format which should open in-app
+    let fullLink: string | null = null;
+    if (notification.link) {
+      if (notification.link.startsWith("#chat:")) {
+        // Chat links should redirect to the main app which will handle opening the chat
+        fullLink = `${baseUrl}/?open_chat=${notification.link.replace("#chat:", "")}`;
+      } else {
+        fullLink = `${baseUrl}${notification.link}`;
+      }
+    }
 
     const results = {
       telegram: false,

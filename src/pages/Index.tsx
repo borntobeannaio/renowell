@@ -1,7 +1,7 @@
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo } from "react";
 import { AppProvider, useApp } from "@/context/AppContext";
-import { ChatProvider } from "@/context/ChatContext";
+import { ChatProvider, useChatContext } from "@/context/ChatContext";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { Header } from "@/components/layout/Header";
@@ -29,9 +29,22 @@ function PortalContent() {
   useDbProxyWarmup();
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentSection, setCurrentSection, setSearchQuery, searchQuery } = useApp();
+  const { openChat } = useChatContext();
 
   const sectionFromUrl = useMemo(() => sectionFromPath(location.pathname), [location.pathname]);
+
+  // Handle open_chat URL parameter from external notifications
+  useEffect(() => {
+    const chatId = searchParams.get("open_chat");
+    if (chatId) {
+      openChat(chatId);
+      // Remove the parameter from URL
+      searchParams.delete("open_chat");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, openChat, setSearchParams]);
 
   // Sync URL -> context
   useEffect(() => {
