@@ -7,6 +7,7 @@ import { Modal } from "@/components/ui/Modal";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useChatContext } from "@/context/ChatContext";
+import { useNotifications } from "@/hooks/useNotifications";
 
 type ChatTab = "general" | "ai";
 
@@ -19,7 +20,7 @@ export function FloatingChat() {
   const { user } = useAuth();
   const { isOpen, selectedConversationId, openChat, closeChat, setSelectedConversation } = useChatContext();
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [activeTab, setActiveTab] = useState<ChatTab>("ai");
+  const [activeTab, setActiveTab] = useState<ChatTab>("general");
   const [message, setMessage] = useState("");
   const [streamingMessages, setStreamingMessages] = useState<StreamingAIMessage[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -28,6 +29,12 @@ export function FloatingChat() {
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [groupTitle, setGroupTitle] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Unread chat notifications count
+  const notificationsQuery = useNotifications();
+  const unreadChatCount = (notificationsQuery.data ?? []).filter(
+    n => !n.is_read && (n.type === "chat_message" || n.type === "chat_created")
+  ).length;
 
   // Database hooks
   const { data: conversations = [] } = useConversations();
@@ -429,6 +436,11 @@ export function FloatingChat() {
         }`}
       >
         <MessageCircle className="w-6 h-6" />
+        {unreadChatCount > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex items-center justify-center">
+            {unreadChatCount > 99 ? "99+" : unreadChatCount}
+          </span>
+        )}
       </button>
 
       {/* Chat panel */}
