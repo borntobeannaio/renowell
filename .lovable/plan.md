@@ -1,172 +1,175 @@
 
-# План: Исправление отображения данных в списке протоколов
 
-## Обнаруженные проблемы
+# План исправления маппинга проектов для задач из протоколов
 
-1. **Неактуальные данные**: Редактор открывается в отдельной вкладке, и изменения не синхронизируются с исходной вкладкой списка
-2. **Комментарии не отображаются**: Компонент просмотра пункта протокола не загружает и не показывает комментарии
+## Описание проблемы
+
+Задачи, созданные из секций протоколов типов **Тендеры**, **Бизнес-процессы** и **HR/Подбор персонала**, не попадают в соответствующие папки проектов на Kanban-доске и остаются в папке «Без проекта».
+
+### Причины
+
+Обнаружено **два места** с некорректной логикой:
+
+1. **ProtocolEditor.tsx (строка 1654-1659)** — при обновлении существующей задачи `project_id` не передаётся:
+   ```typescript
+   await updateTask.mutateAsync({
+     id: item.task_id,
+     title: item.item_text,
+     assignee_ids: assigneeProfileIds,
+     due_date: item.due_date || null,
+     // project_id НЕ ПЕРЕДАЁТСЯ!
+   });
+   ```
+
+2. **sync-protocol-tasks Edge Function (строки 188-190, 313-315)** — маппинг проекта работает только для секций типа `project`, а для `tender`, `business`, `hr` возвращает `null`:
+   ```typescript
+   const projectId = item.protocol_sections?.section_type === 'project' 
+     ? item.protocol_sections.entity_id 
+     : null;  // ← для tender/business/hr всегда null!
+   ```
+
+### Существующий маппинг (ProtocolEditor.tsx)
+
+```typescript
+const SECTION_TYPE_PROJECT_IDS = {
+  tender: "bf2ef5b4-1fe7-4e69-b533-30393a4d386b",   // Тендеры/задачи
+  business: "5b30ab38-7ecd-4643-960e-8dc2bf353d98", // Бизнес процессы
+  hr: "620c7f0e-6558-4116-8e80-7681457127b8",      // Подбор персонала
+};
+```
 
 ---
 
 ## Решение
 
-### Часть 1: Обновление данных при возврате к списку
+### Шаг 1: Исправить ProtocolEditor.tsx
 
-Добавим автоматическое обновление кэша при получении фокуса окна:
+Добавить `project_id` при обновлении существующей задачи:
 
-```text
-+------------------+     открытие      +------------------+
-|  Список          |  =============>  |  Редактор        |
-|  протоколов      |                   |  (новая вкладка) |
-|  (stale data)    |                   |  mutate + save   |
-+--------+---------+                   +------------------+
-         |                                      |
-         |  <-- при focus -->                   |
-         v                                      v
-+------------------+                   
-|  invalidateQueries                   
-|  refetch all     |                   
-+------------------+                   
+**Файл:** `src/pages/ProtocolEditor.tsx`  
+**Строки:** 1654-1659
+
+```typescript
+// БЫЛО:
+await updateTask.mutateAsync({
+  id: item.task_id,
+  title: item.item_text,
+  assignee_ids: assigneeProfileIds,
+  due_date: item.due_date || null,
+});
+
+// СТАНЕТ:
+await updateTask.mutateAsync({
+  id: item.task_id,
+  title: item.item_text,
+  assignee_ids: assigneeProfileIds,
+  project_id: projectId,  // ← добавляем
+  due_date: item.due_date || null,
+});
 ```
-
-**Изменения:**
-- В `useProtocols()` и `useProtocolItems()` включить `refetchOnWindowFocus: true`
-- Это переопределит глобальную настройку `refetchOnWindowFocus: false` для этих критических запросов
-- При возврате к вкладке со списком данные автоматически обновятся
-
-### Часть 2: Отображение комментариев в списке
-
-Добавим загрузку и показ комментариев в компоненте `ProtocolItemView`:
-
-**Изменения:**
-1. Использовать `useProtocolItemComments(itemId)` для загрузки комментариев для каждого пункта при раскрытии протокола
-2. Добавить отображение комментариев в `ProtocolItemView`
 
 ---
 
-## Технические детали
+### Шаг 2: Исправить sync-protocol-tasks Edge Function
 
-### Файл 1: `src/hooks/useProtocols.ts`
+Добавить маппинг типов секций на системные проекты.
 
-Добавить `refetchOnWindowFocus: true` в хуки:
+**Файл:** `supabase/functions/sync-protocol-tasks/index.ts`
 
-```typescript
-export function useProtocols() {
-  return useQuery({
-    queryKey: ["protocols"],
-    queryFn: async () => { ... },
-    retry: 2,
-    retryDelay: ...,
-    refetchOnWindowFocus: true,  // <-- добавить
-  });
-}
-
-export function useProtocolItems(protocolId: string | null) {
-  return useQuery({
-    queryKey: ["protocol_items", protocolId],
-    queryFn: async () => { ... },
-    enabled: !!protocolId,
-    retry: 2,
-    retryDelay: ...,
-    refetchOnWindowFocus: true,  // <-- добавить
-  });
-}
-```
-
-### Файл 2: `src/hooks/useProtocolSections.ts`
-
-Добавить `refetchOnWindowFocus: true`:
+**2.1. Добавить константу маппинга (в начало файла после интерфейсов):**
 
 ```typescript
-export function useProtocolSections(protocolId: string | null) {
-  return useQuery({
-    queryKey: ["protocol_sections", protocolId],
-    queryFn: async () => { ... },
-    enabled: !!protocolId,
-    retry: 2,
-    retryDelay: ...,
-    refetchOnWindowFocus: true,  // <-- добавить
-  });
-}
-```
+const SECTION_TYPE_PROJECT_IDS: Partial<Record<string, string>> = {
+  tender: "bf2ef5b4-1fe7-4e69-b533-30393a4d386b",   // Тендеры/задачи
+  business: "5b30ab38-7ecd-4643-960e-8dc2bf353d98", // Бизнес процессы
+  hr: "620c7f0e-6558-4116-8e80-7681457127b8",      // Подбор персонала
+};
 
-### Файл 3: `src/components/modules/ProtocolsModule.tsx`
-
-1. **Обновить `ProtocolCard`** - загружать комментарии при раскрытии:
-
-```typescript
-import { useProtocolItemComments } from "@/hooks/useProtocolItemComments";
-
-// Внутри ProtocolCard, после items:
-const [itemComments, setItemComments] = useState<Record<string, Array<{...}>>>({});
-
-// При раскрытии загружать комментарии для всех items
-useEffect(() => {
-  if (isExpanded && items.length > 0) {
-    const loadComments = async () => {
-      const itemIds = items.filter(i => !i.id.startsWith("temp-")).map(i => i.id);
-      if (itemIds.length === 0) return;
-      
-      const { data: comments } = await proxySelect('protocol_item_comments', {
-        filters: [{ column: 'item_id', operator: 'in', value: itemIds }],
-        order: [{ column: 'created_at', ascending: true }],
-      });
-      
-      // Группировать по item_id
-      const grouped = {};
-      comments?.forEach(c => {
-        if (!grouped[c.item_id]) grouped[c.item_id] = [];
-        grouped[c.item_id].push(c);
-      });
-      setItemComments(grouped);
-    };
-    loadComments();
+function getProjectIdForSection(sectionType: string | null, entityId: string | null): string | null {
+  if (sectionType === "project") {
+    return entityId;
   }
-}, [isExpanded, items]);
-```
-
-2. **Обновить `ProtocolItemView`** - показывать комментарии:
-
-```typescript
-function ProtocolItemView({ item, comments = [] }: ProtocolItemViewProps & { comments?: Array<...> }) {
-  return (
-    <div className="p-3 bg-secondary/50 rounded-lg">
-      <p className="text-foreground">{item.item_text}</p>
-      {/* ... существующие поля ... */}
-      
-      {/* Комментарии */}
-      {comments.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
-          <span className="text-xs text-muted-foreground">
-            Комментарии ({comments.length}):
-          </span>
-          {comments.map(comment => (
-            <div key={comment.id} className="text-sm text-muted-foreground">
-              <span className="font-medium">{comment.author_name}</span>: {comment.content}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  return sectionType ? SECTION_TYPE_PROJECT_IDS[sectionType] || null : null;
 }
 ```
 
+**2.2. Заменить логику в Step 2 (строка ~188):**
+
+```typescript
+// БЫЛО:
+const projectId = latestItem.protocol_sections?.section_type === 'project' 
+  ? latestItem.protocol_sections.entity_id 
+  : null;
+
+// СТАНЕТ:
+const projectId = getProjectIdForSection(
+  latestItem.protocol_sections?.section_type || null,
+  latestItem.protocol_sections?.entity_id || null
+);
+```
+
+**2.3. Заменить логику в Step 4 (строка ~313):**
+
+```typescript
+// БЫЛО:
+const projectId = item.protocol_sections?.section_type === 'project' 
+  ? item.protocol_sections.entity_id 
+  : null;
+
+// СТАНЕТ:
+const projectId = getProjectIdForSection(
+  item.protocol_sections?.section_type || null,
+  item.protocol_sections?.entity_id || null
+);
+```
+
 ---
 
-## Порядок выполнения
+### Шаг 3: Миграция существующих данных
 
-1. Обновить `useProtocols.ts` - добавить `refetchOnWindowFocus: true`
-2. Обновить `useProtocolSections.ts` - добавить `refetchOnWindowFocus: true`  
-3. Обновить `ProtocolsModule.tsx`:
-   - Добавить загрузку комментариев в `ProtocolCard`
-   - Загрузить профили авторов для имён
-   - Обновить `ProtocolItemView` для показа комментариев
+После обновления кода нужно запустить миграцию для исправления уже существующих задач с `project_id = NULL`.
+
+**SQL-запрос для исправления:**
+
+```sql
+-- Обновить задачи из секций типа tender
+UPDATE tasks t
+SET project_id = 'bf2ef5b4-1fe7-4e69-b533-30393a4d386b'
+FROM protocol_items pi
+JOIN protocol_sections ps ON pi.section_id = ps.id
+WHERE pi.task_id = t.id
+  AND ps.section_type = 'tender'
+  AND t.project_id IS NULL;
+
+-- Обновить задачи из секций типа business
+UPDATE tasks t
+SET project_id = '5b30ab38-7ecd-4643-960e-8dc2bf353d98'
+FROM protocol_items pi
+JOIN protocol_sections ps ON pi.section_id = ps.id
+WHERE pi.task_id = t.id
+  AND ps.section_type = 'business'
+  AND t.project_id IS NULL;
+
+-- Обновить задачи из секций типа hr
+UPDATE tasks t
+SET project_id = '620c7f0e-6558-4116-8e80-7681457127b8'
+FROM protocol_items pi
+JOIN protocol_sections ps ON pi.section_id = ps.id
+WHERE pi.task_id = t.id
+  AND ps.section_type = 'hr'
+  AND t.project_id IS NULL;
+```
 
 ---
 
-## Ожидаемый результат
+## Результат
 
-- При возврате к вкладке со списком протоколов данные автоматически обновятся
-- Комментарии к пунктам будут видны при раскрытии протокола в списке
-- Задержка обновления составит ~200-500мс (сетевой запрос)
+После внесения изменений:
+
+- Новые задачи из протоколов будут автоматически попадать в правильные папки
+- Существующие задачи (после миграции) появятся в соответствующих проектах:
+  - Тендерные пункты → папка «Тендеры/задачи»
+  - Бизнес-процессы → папка «Бизнес процессы»
+  - HR-задачи → папка «Подбор персонала»
+- При редактировании протокола и сохранении — `project_id` задачи будет корректно обновляться
+
