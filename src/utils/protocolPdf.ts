@@ -49,6 +49,9 @@ interface Project {
   name: string;
 }
 
+// Marker to identify comment cells for proper font application in willDrawCell
+const COMMENT_CELL_MARKER = "__COMMENT_CELL__";
+
 function buildCommentBlockCell(
   text: string,
   colSpan: number,
@@ -56,12 +59,15 @@ function buildCommentBlockCell(
 ): any {
   // NOTE: Avoid emojis in PDF text (they can break encoding and corrupt Cyrillic output).
   // We render comments as a full-width block under the item row.
+  // Use marker to ensure font is applied correctly in willDrawCell hook.
   return {
     content: text,
     colSpan,
+    // Store marker in custom property for identification
+    _isComment: true,
     styles: {
       font: hasCyrillicFont ? "Roboto" : "helvetica",
-      fontStyle: "italic",
+      fontStyle: hasCyrillicFont ? "normal" : "italic", // Roboto doesn't have italic, use normal
       textColor: [80, 80, 80],
       fillColor: [245, 245, 245],
       fontSize: 8,
@@ -351,6 +357,15 @@ function renderProjectsTable(
     alternateRowStyles: {
       fillColor: [245, 245, 245],
     },
+    willDrawCell: (data) => {
+      // Ensure Cyrillic font is set for comment cells
+      if (hasCyrillicFont && data.section === "body") {
+        const rawCell = data.cell.raw as any;
+        if (rawCell && rawCell._isComment) {
+          doc.setFont("Roboto", "normal");
+        }
+      }
+    },
     didParseCell: (data) => {
       if (data.section === "body" && data.column.index === 0) {
         const text = String(data.cell.raw);
@@ -476,6 +491,15 @@ function renderSectionTypeTable(
         2: { cellWidth: 40 },
         3: { cellWidth: 25 },
       },
+      willDrawCell: (data) => {
+        // Ensure Cyrillic font is set for comment cells
+        if (hasCyrillicFont && data.section === "body") {
+          const rawCell = data.cell.raw as any;
+          if (rawCell && rawCell._isComment) {
+            doc.setFont("Roboto", "normal");
+          }
+        }
+      },
       didParseCell: (data) => {
         if (data.section === "body" && data.column.index === 0) {
           const txt = String(data.cell.raw);
@@ -488,7 +512,6 @@ function renderSectionTypeTable(
         // Also bold the company name in column 1 / style comments
         if (data.section === "body" && data.column.index === 1 && data.row.index !== undefined) {
           const numCell = data.row.cells[0];
-          const text = String(data.cell.raw);
           if (numCell && /^\d+$/.test(String(numCell.raw))) {
             data.cell.styles.fontStyle = "bold";
             data.cell.styles.fillColor = [230, 240, 250];
@@ -544,9 +567,14 @@ function renderSectionTypeTable(
         1: { cellWidth: 40 },
         2: { cellWidth: 25 },
       },
-      didParseCell: (data) => {
-        // Styles for comment rows are applied via cell.styles in buildCommentBlockCell
-        void data;
+      willDrawCell: (data) => {
+        // Ensure Cyrillic font is set for comment cells
+        if (hasCyrillicFont && data.section === "body") {
+          const rawCell = data.cell.raw as any;
+          if (rawCell && rawCell._isComment) {
+            doc.setFont("Roboto", "normal");
+          }
+        }
       },
     });
 
@@ -608,9 +636,14 @@ function renderSectionTypeTable(
       alternateRowStyles: {
         fillColor: [245, 245, 245],
       },
-      didParseCell: (data) => {
-        // Styles for comment rows are applied via cell.styles in buildCommentBlockCell
-        void data;
+      willDrawCell: (data) => {
+        // Ensure Cyrillic font is set for comment cells
+        if (hasCyrillicFont && data.section === "body") {
+          const rawCell = data.cell.raw as any;
+          if (rawCell && rawCell._isComment) {
+            doc.setFont("Roboto", "normal");
+          }
+        }
       },
     });
 
