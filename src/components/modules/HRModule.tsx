@@ -4,12 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { proxySelect } from "@/lib/dbProxy";
 import { Modal } from "@/components/ui/Modal";
 import { formatDisplayDate } from "@/utils/dateFormat";
-import { PhotoGallery } from "./hr/PhotoGallery";
 import {
   Users,
   Calendar,
   FileText,
-  Image,
   Mail,
   Phone,
   Cake,
@@ -27,7 +25,7 @@ interface DbEmployee {
   birthday: string | null;
 }
 
-type HRTab = "employees" | "vacations" | "docs" | "photos";
+type HRTab = "employees" | "vacations" | "docs";
 
 export function HRModule() {
   const [activeTab, setActiveTab] = useState<HRTab>("employees");
@@ -36,7 +34,6 @@ export function HRModule() {
     { id: "employees", label: "Сотрудники", icon: Users },
     { id: "vacations", label: "Отпуска", icon: Calendar },
     { id: "docs", label: "Документы", icon: FileText },
-    { id: "photos", label: "Фотогалерея", icon: Image },
   ];
 
   return (
@@ -61,7 +58,6 @@ export function HRModule() {
       {activeTab === "employees" && <EmployeesTab />}
       {activeTab === "vacations" && <VacationsTab />}
       {activeTab === "docs" && <DocsTab />}
-      {activeTab === "photos" && <PhotosTab />}
     </div>
   );
 }
@@ -282,8 +278,4 @@ function DocsTab() {
       )}
     </div>
   );
-}
-
-function PhotosTab() {
-  return <PhotoGallery />;
 }

@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { Modal } from "@/components/ui/Modal";
-import { Plus, Filter, Newspaper, Send } from "lucide-react";
+import { Plus, Filter, Newspaper, Send, Image } from "lucide-react";
 import { NewsItem } from "@/types";
 import { TelegramFeed } from "./brandhub/TelegramFeed";
+import { PhotoGallery } from "./hr/PhotoGallery";
 
 type NewsKind = "all" | "news" | "congrats";
-type TabView = "news" | "blog";
+type TabView = "news" | "blog" | "photos";
 
 export function NewsModule() {
   const { news, addNews } = useApp();
@@ -71,12 +72,27 @@ export function NewsModule() {
           <Send className="w-4 h-4" />
           Блог руководителя
         </button>
+        <button
+          onClick={() => setActiveTab("photos")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            activeTab === "photos"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Image className="w-4 h-4" />
+          Фотогалерея
+        </button>
       </div>
 
       {/* Content based on active tab */}
       {activeTab === "blog" ? (
         <div className="h-[calc(100vh-200px)]">
           <TelegramFeed />
+        </div>
+      ) : activeTab === "photos" ? (
+        <div className="h-[calc(100vh-200px)]">
+          <PhotoGallery />
         </div>
       ) : (
         <>
