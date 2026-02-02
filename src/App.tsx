@@ -32,6 +32,13 @@ function RootRedirect() {
   return <Navigate to={`/brandhub${location.search || ""}`} replace />;
 }
 
+// Redirect /chat/:id to /?open_chat=:id for deep linking from notifications
+function ChatRedirect() {
+  const location = useLocation();
+  const chatId = location.pathname.replace("/chat/", "");
+  return <Navigate to={`/brandhub?open_chat=${chatId}`} replace />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
@@ -153,6 +160,15 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <Profile />
+                    </ProtectedRoute>
+                  }
+                />
+                {/* Chat deep link redirect */}
+                <Route
+                  path="/chat/:id"
+                  element={
+                    <ProtectedRoute>
+                      <ChatRedirect />
                     </ProtectedRoute>
                   }
                 />
