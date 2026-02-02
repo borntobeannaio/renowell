@@ -1,4 +1,5 @@
-import { useState, DragEvent, useMemo } from "react";
+import { useState, DragEvent, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { TaskComments } from "@/components/tasks/TaskComments";
@@ -28,6 +29,7 @@ const priorities: { id: TaskPriority; label: string }[] = [
 type GroupByMode = "project" | "assignee";
 
 export function TasksModule() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: employees = [] } = useEmployees();
   const { data: currentProfile } = useCurrentProfile();
 
@@ -88,6 +90,61 @@ export function TasksModule() {
     priority: "normal" as TaskPriority,
     labels: "",
   });
+
+  // Handle task query param from notifications
+  const taskIdFromUrl = searchParams.get("task");
+  
+  useEffect(() => {
+    if (taskIdFromUrl && tasks.length > 0 && !tasksLoading) {
+      const task = tasks.find(t => t.id === taskIdFromUrl);
+      if (task) {
+        // Open the task in edit modal - inline logic to avoid circular dependency
+        const assigneeEmployeeIds = (task.assignee_ids || [])
+          .map(pid => employeeProfileMaps.profileToEmployee.get(pid))
+          .filter(Boolean) as string[];
+
+        const responsibleEmployeeIds = (task.responsible_ids || [])
+          .map(pid => employeeProfileMaps.profileToEmployee.get(pid))
+          .filter(Boolean) as string[];
+
+        const observerEmployeeIds = (task.observer_ids || [])
+          .map(pid => employeeProfileMaps.profileToEmployee.get(pid))
+          .filter(Boolean) as string[];
+
+        setEditingTask(task);
+        setForm({
+          title: task.title,
+          assignee_ids: assigneeEmployeeIds,
+          responsible_ids: responsibleEmployeeIds,
+          observer_ids: observerEmployeeIds,
+          project: task.project_id || "",
+          due: task.due_date || new Date().toISOString().slice(0, 10),
+          priority: task.priority,
+          labels: task.labels?.join(", ") || "",
+        });
+        
+        // Expand the project/assignee group containing this task
+        if (task.project_id) {
+          setExpandedProjects(prev => new Set([...prev, task.project_id!]));
+        }
+        if (task.assignee_id) {
+          setExpandedAssignees(prev => new Set([...prev, task.assignee_id!]));
+        }
+        // If task is archived, show archive column
+        if (task.status === "archived") {
+          setShowArchived(true);
+        }
+        // Clear the URL param after opening
+        setSearchParams({}, { replace: true });
+      } else {
+        // Task not found in current filter - reset filters to find the task
+        if (assigneeProfileFilterId !== null) {
+          setAssigneeEmployeeFilterId("");
+          setShowMyTasks(false);
+        }
+      }
+    }
+  }, [taskIdFromUrl, tasks, tasksLoading, employeeProfileMaps, assigneeProfileFilterId, setSearchParams]);
 
   const handleDragStart = (e: DragEvent, taskId: string) => {
     setDraggedTaskId(taskId);
