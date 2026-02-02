@@ -4,7 +4,7 @@ import { proxySelect, proxyInsert, proxyUpdate, proxyDelete } from "@/lib/dbProx
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-export type NotificationType = "task_assigned" | "deadline_week" | "deadline_day" | "mention";
+export type NotificationType = "task_assigned" | "deadline_week" | "deadline_day" | "mention" | "chat_message" | "chat_created";
 
 export interface Notification {
   id: string;

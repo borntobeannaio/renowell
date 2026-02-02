@@ -178,6 +178,19 @@ export function useCreateConversation() {
       const { error: partError } = await proxyInsert('chat_participants', participants);
       if (partError) throw new Error(partError.message);
 
+      // Отправить уведомления участникам о добавлении в чат (кроме создателя)
+      if (participantIds.length > 0) {
+        const chatNotifications = participantIds.map(participantId => ({
+          recipient_id: participantId,
+          type: 'chat_created',
+          title: 'Вас добавили в чат',
+          body: title,
+          link: `/chat/${conversation.id}`,
+        }));
+        
+        await proxyInsert('notifications', chatNotifications);
+      }
+
       return conversation;
     },
     onSuccess: () => {

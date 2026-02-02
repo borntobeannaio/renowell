@@ -82,13 +82,17 @@ export function useCreateTaskComment() {
         );
 
         // Создаём уведомления для упомянутых пользователей напрямую через proxyInsert
+        const commentPreview = content.trim().length > 150 
+          ? content.trim().substring(0, 150) + '...' 
+          : content.trim();
+        
         const notificationsToCreate = mentionedProfileIds
           .filter(mentionedId => mentionedId !== profile.id) // Не уведомляем самого себя
           .map(mentionedId => ({
             recipient_id: mentionedId,
             type: "mention" as const,
-            title: "Вас упомянули в комментарии",
-            body: `${authorName} в задаче "${taskTitle}"`,
+            title: `Вас упомянули в задаче "${taskTitle}"`,
+            body: commentPreview,
             related_task_id: taskId,
           }));
 
