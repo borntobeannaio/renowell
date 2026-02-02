@@ -806,7 +806,29 @@ export default function ProtocolEditor() {
     }
   };
 
-  const handleUpdateItem = (groupIndex: number, itemId: string, updates: Partial<UniversalItemData>) => {
+  const handleUpdateItem = async (groupIndex: number, itemId: string, updates: Partial<UniversalItemData>) => {
+    // Find the item to get task_id for syncing
+    const group = sectionGroups[groupIndex];
+    const item = group?.items.find(i => i.id === itemId);
+    const taskId = item && 'task_id' in item ? (item as ProtocolItemData).task_id : null;
+
+    // If completing item, also update linked task to "done"
+    if (taskId && 'completed' in updates && updates.completed === true) {
+      try {
+        await updateTask.mutateAsync({ id: taskId, status: 'done' });
+      } catch (error) {
+        console.error("Failed to update linked task status:", error);
+      }
+    }
+    // If uncompleting item, set linked task back to "in_progress"
+    if (taskId && 'completed' in updates && updates.completed === false) {
+      try {
+        await updateTask.mutateAsync({ id: taskId, status: 'in_progress' });
+      } catch (error) {
+        console.error("Failed to update linked task status:", error);
+      }
+    }
+
     setSectionGroups(prev => prev.map((g, i) =>
       i === groupIndex
         ? { ...g, items: g.items.map(item => item.id === itemId ? { ...item, ...updates } : item) }
