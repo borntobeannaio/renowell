@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { Modal } from "@/components/ui/Modal";
-import { Plus, Filter, Newspaper, Send, Image } from "lucide-react";
+import { Plus, Filter, Newspaper, Send, Image, Users } from "lucide-react";
 import { NewsItem } from "@/types";
 import { TelegramFeed } from "./brandhub/TelegramFeed";
 import { PhotoGallery } from "./hr/PhotoGallery";
+import { MentionInput, extractMentions } from "@/components/tasks/MentionInput";
+import { NewsBodyWithMentions } from "./news/NewsBodyWithMentions";
 
 type NewsKind = "all" | "news" | "congrats";
 type TabView = "news" | "blog" | "photos";
@@ -30,6 +32,9 @@ export function NewsModule() {
     e.preventDefault();
     if (!form.title.trim() || !form.body.trim()) return;
 
+    // Извлекаем упоминания из текста
+    const mentionedEmployees = extractMentions(form.body);
+
     addNews({
       kind: form.kind,
       title: form.title,
@@ -37,6 +42,7 @@ export function NewsModule() {
       author: form.author || "Аноним",
       date: new Date().toISOString().slice(0, 10),
       tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
+      mentionedEmployees,
     });
 
     setForm({ kind: "news", title: "", body: "", author: "", tags: "" });
@@ -141,11 +147,17 @@ export function NewsModule() {
                       <span className="text-sm text-muted-foreground">
                         {item.date}
                       </span>
+                      {item.mentionedEmployees && item.mentionedEmployees.length > 0 && (
+                        <span className="flex items-center gap-1 text-xs text-primary">
+                          <Users className="w-3 h-3" />
+                          {item.mentionedEmployees.length}
+                        </span>
+                      )}
                     </div>
                     <h3 className="text-lg font-semibold text-foreground mb-2">
                       {item.title}
                     </h3>
-                    <p className="text-muted-foreground mb-3">{item.body}</p>
+                    <NewsBodyWithMentions body={item.body} />
                     <div className="flex flex-wrap items-center gap-2">
                       {item.tags.map((tag) => (
                         <span key={tag} className="chip">
@@ -208,14 +220,16 @@ export function NewsModule() {
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">
-              Текст
+              Текст{" "}
+              <span className="text-xs text-muted-foreground font-normal">
+                (используйте @ для упоминания сотрудников)
+              </span>
             </label>
-            <textarea
+            <MentionInput
               value={form.body}
-              onChange={(e) => setForm({ ...form, body: e.target.value })}
-              className="input-base w-full min-h-[120px] resize-y"
-              placeholder="Введите текст публикации"
-              required
+              onChange={(value) => setForm({ ...form, body: value })}
+              placeholder="Введите текст публикации..."
+              className="min-h-[120px]"
             />
           </div>
 
