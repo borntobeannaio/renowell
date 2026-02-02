@@ -233,7 +233,7 @@ Deno.serve(async (req) => {
     }
 
     // Build full link URL - use custom domain from environment or default
-    const baseUrl = Deno.env.get("APP_URL") || "https://renowell.ru";
+    const baseUrl = Deno.env.get("APP_URL") || "https://renowell.silkagro.ru";
     
     // Handle chat links specially - they use #chat:id format which should open in-app
     let fullLink: string | null = null;
