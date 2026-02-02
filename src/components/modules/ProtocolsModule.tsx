@@ -1,10 +1,19 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, ChevronDown, ChevronUp, Download, Pencil, Copy, FolderOpen, User, Calendar, CheckCircle2, Trash2, Loader2, Building, Users, Briefcase, Target } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp, Download, Pencil, Copy, FolderOpen, User, Calendar, CheckCircle2, Trash2, Loader2, Building, Users, Briefcase, Target, MessageCircle } from "lucide-react";
 import { useProtocols, useProtocolItems, useDeleteProtocol, DbProtocol, DbProtocolItem } from "@/hooks/useProtocols";
 import { useProjects } from "@/hooks/useProjects";
 import { useProtocolPermissions } from "@/hooks/useProtocolPermissions";
 import { proxySelect } from "@/lib/dbProxy";
+
+interface ItemComment {
+  id: string;
+  item_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+  author_name?: string;
+}
 import { generateProtocolPdf } from "@/utils/protocolPdf";
 import { formatDisplayDate } from "@/utils/dateFormat";
 import { toast } from "sonner";
@@ -155,6 +164,57 @@ function ProtocolCard({
 }: ProtocolCardProps) {
   const { data: items = [] } = useProtocolItems(isExpanded ? protocol.id : null);
   const [isExporting, setIsExporting] = useState(false);
+  const [itemComments, setItemComments] = useState<Record<string, ItemComment[]>>({});
+
+  // Load comments when expanded
+  useEffect(() => {
+    if (isExpanded && items.length > 0) {
+      const loadComments = async () => {
+        const itemIds = items.filter(i => !i.id.startsWith("temp-")).map(i => i.id);
+        if (itemIds.length === 0) return;
+
+        const { data: commentsData, error } = await proxySelect<ItemComment>('protocol_item_comments', {
+          filters: [{ column: 'item_id', operator: 'in', value: itemIds }],
+          order: [{ column: 'created_at', ascending: true }],
+        });
+
+        if (error || !commentsData || commentsData.length === 0) {
+          setItemComments({});
+          return;
+        }
+
+        // Fetch author names
+        const authorIds = [...new Set(commentsData.map(c => c.author_id))];
+        let authorMap = new Map<string, string>();
+        
+        if (authorIds.length > 0) {
+          const { data: profiles } = await proxySelect<{
+            id: string;
+            first_name: string | null;
+            last_name: string | null;
+          }>('profiles', {
+            filters: [{ column: 'id', operator: 'in', value: authorIds }],
+          });
+          
+          authorMap = new Map(
+            (profiles || []).map(p => [p.id, `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Пользователь'])
+          );
+        }
+
+        // Group by item_id
+        const grouped: Record<string, ItemComment[]> = {};
+        commentsData.forEach(c => {
+          if (!grouped[c.item_id]) grouped[c.item_id] = [];
+          grouped[c.item_id].push({
+            ...c,
+            author_name: authorMap.get(c.author_id) || 'Пользователь'
+          });
+        });
+        setItemComments(grouped);
+      };
+      loadComments();
+    }
+  }, [isExpanded, items]);
 
   const handleExportPdf = async () => {
     setIsExporting(true);
@@ -470,7 +530,11 @@ function ProtocolCard({
                       ) : (
                         <div className="ml-6 space-y-2">
                           {sectionItems.map((item) => (
-                            <ProtocolItemView key={item.id} item={item} />
+                            <ProtocolItemView 
+                              key={item.id} 
+                              item={item} 
+                              comments={itemComments[item.id] || []}
+                            />
                           ))}
                         </div>
                       )}
@@ -501,9 +565,10 @@ function ProtocolCard({
 
 interface ProtocolItemViewProps {
   item: DbProtocolItem;
+  comments?: ItemComment[];
 }
 
-function ProtocolItemView({ item }: ProtocolItemViewProps) {
+function ProtocolItemView({ item, comments = [] }: ProtocolItemViewProps) {
   return (
     <div className="p-3 bg-secondary/50 rounded-lg">
       <p className="text-foreground">{item.item_text}</p>
@@ -527,6 +592,22 @@ function ProtocolItemView({ item }: ProtocolItemViewProps) {
           </span>
         )}
       </div>
+      
+      {/* Comments section */}
+      {comments.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <MessageCircle className="w-3.5 h-3.5" />
+            <span>Комментарии ({comments.length})</span>
+          </div>
+          {comments.map(comment => (
+            <div key={comment.id} className="text-sm pl-5">
+              <span className="font-medium text-foreground">{comment.author_name}</span>
+              <span className="text-muted-foreground">: {comment.content}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
