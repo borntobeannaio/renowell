@@ -48,6 +48,7 @@ export function useProtocols() {
     },
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -66,6 +67,7 @@ export function useProtocolItems(protocolId: string | null) {
     enabled: !!protocolId,
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    refetchOnWindowFocus: true,
   });
 }
 
