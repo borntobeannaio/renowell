@@ -15,8 +15,9 @@ interface PhotoFolder {
 interface YandexPhoto {
   id: string;
   name: string;
-  preview: string | null;
-  downloadUrl: string | null;
+  path: string;
+  mimeType?: string;
+  size?: number;
 }
 
 // Predefined folders with Yandex Disk links
@@ -47,10 +48,14 @@ const PHOTO_FOLDERS: PhotoFolder[] = [
   },
 ];
 
-// Get proxied image URL through edge function
-function getProxiedImageUrl(originalUrl: string): string {
-  if (!originalUrl) return '';
-  return `${SUPABASE_URL}/functions/v1/yandex-disk-proxy?url=${encodeURIComponent(originalUrl)}`;
+// Build stable proxy URL for preview (thumbnails)
+function getPreviewSrc(publicUrl: string, path: string): string {
+  return `${SUPABASE_URL}/functions/v1/yandex-disk-proxy?publicUrl=${encodeURIComponent(publicUrl)}&path=${encodeURIComponent(path)}&mode=preview`;
+}
+
+// Build stable proxy URL for full size (lightbox)
+function getFullSrc(publicUrl: string, path: string): string {
+  return `${SUPABASE_URL}/functions/v1/yandex-disk-proxy?publicUrl=${encodeURIComponent(publicUrl)}&path=${encodeURIComponent(path)}&mode=download`;
 }
 
 // Fetch photos from Yandex Disk via proxy edge function
@@ -73,6 +78,7 @@ async function fetchYandexPhotos(publicUrl: string): Promise<YandexPhoto[]> {
 export function PhotoGallery() {
   const [selectedFolder, setSelectedFolder] = useState<PhotoFolder | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [failedPreviews, setFailedPreviews] = useState<Set<string>>(new Set());
 
   const { data: photos = [], isLoading, error } = useQuery({
     queryKey: ['yandex-photos', selectedFolder?.id],
@@ -80,6 +86,11 @@ export function PhotoGallery() {
     enabled: !!selectedFolder,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
+
+  // Handle preview load error - fallback to download mode
+  const handlePreviewError = (photoId: string) => {
+    setFailedPreviews(prev => new Set(prev).add(photoId));
+  };
 
   // Folder view
   if (!selectedFolder) {
@@ -103,15 +114,23 @@ export function PhotoGallery() {
     );
   }
 
-  // Prepare photos for display with proxied URLs
-  const displayPhotos = photos.map(photo => ({
-    id: photo.id,
-    // Use download URL for full size, fall back to preview
-    url: getProxiedImageUrl(photo.downloadUrl || photo.preview || ''),
-    // Use preview for thumbnails
-    preview: getProxiedImageUrl(photo.preview || photo.downloadUrl || ''),
-    title: photo.name,
-  }));
+  // Prepare photos for display with stable proxy URLs
+  const displayPhotos = photos.map(photo => {
+    const publicUrl = selectedFolder.yandexDiskUrl;
+    const useDownloadForPreview = failedPreviews.has(photo.id);
+    
+    return {
+      id: photo.id,
+      // For lightbox - always use full download
+      url: getFullSrc(publicUrl, photo.path),
+      // For thumbnails - use preview, fallback to download if failed
+      preview: useDownloadForPreview 
+        ? getFullSrc(publicUrl, photo.path)
+        : getPreviewSrc(publicUrl, photo.path),
+      title: photo.name,
+      path: photo.path,
+    };
+  });
 
   // Photos view inside folder
   return (
@@ -119,7 +138,10 @@ export function PhotoGallery() {
       {/* Header with back button */}
       <div className="flex items-center gap-3">
         <button
-          onClick={() => setSelectedFolder(null)}
+          onClick={() => {
+            setSelectedFolder(null);
+            setFailedPreviews(new Set());
+          }}
           className="p-2 rounded-lg hover:bg-accent transition-colors"
           title="Назад к папкам"
         >
@@ -168,6 +190,7 @@ export function PhotoGallery() {
                 alt={photo.title}
                 className="w-full h-full object-cover"
                 loading="lazy"
+                onError={() => handlePreviewError(photo.id)}
               />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
             </button>
