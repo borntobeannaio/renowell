@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Plus, Loader2, Save, Download, Cloud, ChevronsUpDown, Archive, RotateCcw } from "lucide-react";
+import { ArrowLeft, Plus, Loader2, Save, Download, Cloud, ChevronsUpDown, Archive, RotateCcw, History } from "lucide-react";
 import {
   DndContext,
   DragEndEvent,
@@ -21,6 +21,8 @@ import { ProtocolItemData, ProtocolItemEditor } from "@/components/protocols/Pro
 import { GoalItemData, GoalItemEditor } from "@/components/protocols/GoalItemEditor";
 import { SectionTypeModal } from "@/components/protocols/SectionTypeModal";
 import { SortableProtocolSection } from "@/components/protocols/SortableProtocolSection";
+import { DraftHistoryPanel } from "@/components/protocols/DraftHistoryPanel";
+import { Modal } from "@/components/ui/Modal";
 import {
   useProtocols,
   useProtocolItems,
@@ -45,6 +47,7 @@ import { useCreateTask, useUpdateTask } from "@/hooks/useTasks";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useAuth } from "@/hooks/useAuth";
 import { useProtocolPermissions } from "@/hooks/useProtocolPermissions";
+import { DraftSnapshot } from "@/hooks/useDraftSnapshots";
 import { generateProtocolPdf } from "@/utils/protocolPdf";
 import { proxySelect } from "@/lib/dbProxy";
 import { toast } from "sonner";
@@ -162,6 +165,7 @@ export default function ProtocolEditor() {
   const [copyApplied, setCopyApplied] = useState(false);
   const [editInitialized, setEditInitialized] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [allSectionsCollapsed, setAllSectionsCollapsed] = useState(false);
   const [draftRestorePrompted, setDraftRestorePrompted] = useState(false);
@@ -1920,6 +1924,14 @@ export default function ProtocolEditor() {
                       <span className="hidden sm:inline">Сохранить</span>
                     </button>
                   )}
+                  <button
+                    onClick={() => setShowHistoryPanel(true)}
+                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                    title="История версий черновика"
+                  >
+                    <History className="w-3 h-3" />
+                    <span className="hidden sm:inline">История</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -2184,6 +2196,29 @@ export default function ProtocolEditor() {
         projects={projects}
         usedProjectIds={usedProjectIds}
       />
+
+      <Modal
+        isOpen={showHistoryPanel}
+        onClose={() => setShowHistoryPanel(false)}
+        title="История версий черновика"
+        size="lg"
+      >
+        <DraftHistoryPanel
+          formType="protocol"
+          entityId={draftEntityId}
+          onRestore={(data: DraftSnapshot['draft_data']) => {
+            if (data.form) {
+              setForm(prev => ({ ...prev, ...data.form }));
+            }
+            if (data.sectionGroups) {
+              setSectionGroups(data.sectionGroups as SectionGroup[]);
+            }
+            setShowHistoryPanel(false);
+            markAsChanged();
+          }}
+          onClose={() => setShowHistoryPanel(false)}
+        />
+      </Modal>
     </div>
   );
 }
