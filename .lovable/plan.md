@@ -1,285 +1,172 @@
 
-# План: Система версионирования черновиков
+# План: Исправление отображения данных в списке протоколов
 
-## Архитектура решения
+## Обнаруженные проблемы
+
+1. **Неактуальные данные**: Редактор открывается в отдельной вкладке, и изменения не синхронизируются с исходной вкладкой списка
+2. **Комментарии не отображаются**: Компонент просмотра пункта протокола не загружает и не показывает комментарии
+
+---
+
+## Решение
+
+### Часть 1: Обновление данных при возврате к списку
+
+Добавим автоматическое обновление кэша при получении фокуса окна:
 
 ```text
-[Автосохранение] → upsert → form_drafts
-                             ↓ (BEFORE UPDATE триггер)
-                    INSERT → form_draft_snapshots (история)
-                             ↓ (AFTER INSERT триггер)
-                    Автоочистка старых снепшотов
++------------------+     открытие      +------------------+
+|  Список          |  =============>  |  Редактор        |
+|  протоколов      |                   |  (новая вкладка) |
+|  (stale data)    |                   |  mutate + save   |
++--------+---------+                   +------------------+
+         |                                      |
+         |  <-- при focus -->                   |
+         v                                      v
++------------------+                   
+|  invalidateQueries                   
+|  refetch all     |                   
++------------------+                   
 ```
 
-## Этап 1: База данных
+**Изменения:**
+- В `useProtocols()` и `useProtocolItems()` включить `refetchOnWindowFocus: true`
+- Это переопределит глобальную настройку `refetchOnWindowFocus: false` для этих критических запросов
+- При возврате к вкладке со списком данные автоматически обновятся
 
-### 1.1 Создать таблицу `form_draft_snapshots`
+### Часть 2: Отображение комментариев в списке
 
-```sql
-CREATE TABLE public.form_draft_snapshots (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  draft_id UUID NOT NULL REFERENCES public.form_drafts(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL,
-  form_type TEXT NOT NULL,
-  entity_id TEXT NOT NULL,
-  draft_data JSONB NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+Добавим загрузку и показ комментариев в компоненте `ProtocolItemView`:
 
--- Индексы для быстрого поиска
-CREATE INDEX idx_snapshots_draft_id ON form_draft_snapshots(draft_id);
-CREATE INDEX idx_snapshots_user_entity ON form_draft_snapshots(user_id, form_type, entity_id);
-CREATE INDEX idx_snapshots_created_at ON form_draft_snapshots(created_at DESC);
-```
+**Изменения:**
+1. Использовать `useProtocolItemComments(itemId)` для загрузки комментариев для каждого пункта при раскрытии протокола
+2. Добавить отображение комментариев в `ProtocolItemView`
 
-### 1.2 Триггер автоматического создания снепшотов
+---
 
-```sql
-CREATE OR REPLACE FUNCTION save_draft_snapshot()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- Создать снепшот только если данные изменились
-  IF OLD.draft_data IS DISTINCT FROM NEW.draft_data THEN
-    INSERT INTO public.form_draft_snapshots 
-      (draft_id, user_id, form_type, entity_id, draft_data)
-    VALUES 
-      (NEW.id, NEW.user_id, NEW.form_type, NEW.entity_id, OLD.draft_data);
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+## Технические детали
 
-CREATE TRIGGER form_draft_snapshot_trigger
-BEFORE UPDATE ON public.form_drafts
-FOR EACH ROW
-EXECUTE FUNCTION save_draft_snapshot();
-```
+### Файл 1: `src/hooks/useProtocols.ts`
 
-### 1.3 Функция очистки старых снепшотов
-
-```sql
-CREATE OR REPLACE FUNCTION cleanup_old_snapshots()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- Удалить снепшоты старше 7 дней для этого черновика
-  DELETE FROM public.form_draft_snapshots
-  WHERE draft_id = NEW.draft_id
-    AND created_at < NOW() - INTERVAL '7 days';
-  
-  -- Оставить только последние 50 снепшотов на черновик
-  DELETE FROM public.form_draft_snapshots
-  WHERE id IN (
-    SELECT id FROM public.form_draft_snapshots
-    WHERE draft_id = NEW.draft_id
-    ORDER BY created_at DESC
-    OFFSET 50
-  );
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE TRIGGER cleanup_snapshots_trigger
-AFTER INSERT ON public.form_draft_snapshots
-FOR EACH ROW
-EXECUTE FUNCTION cleanup_old_snapshots();
-```
-
-### 1.4 RLS политики
-
-```sql
-ALTER TABLE public.form_draft_snapshots ENABLE ROW LEVEL SECURITY;
-
--- Пользователи могут видеть только свои снепшоты
-CREATE POLICY "Users can view own snapshots"
-  ON public.form_draft_snapshots FOR SELECT
-  USING (user_id = auth.uid());
-
--- Вставка через триггер (SECURITY DEFINER)
-CREATE POLICY "System can insert snapshots"
-  ON public.form_draft_snapshots FOR INSERT
-  WITH CHECK (true);
-
--- Пользователи могут удалять свои снепшоты
-CREATE POLICY "Users can delete own snapshots"
-  ON public.form_draft_snapshots FOR DELETE
-  USING (user_id = auth.uid());
-```
-
-## Этап 2: Новый хук `useDraftSnapshots.ts`
+Добавить `refetchOnWindowFocus: true` в хуки:
 
 ```typescript
-// src/hooks/useDraftSnapshots.ts
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { proxySelect, proxyUpdate } from '@/lib/dbProxy';
-import { useAuth } from './useAuth';
-
-export interface DraftSnapshot {
-  id: string;
-  draft_id: string;
-  draft_data: unknown;
-  created_at: string;
-}
-
-// Получить список снепшотов для черновика
-export function useDraftSnapshots(
-  formType: string,
-  entityId: string
-) {
-  const { user } = useAuth();
-
+export function useProtocols() {
   return useQuery({
-    queryKey: ['draft-snapshots', user?.id, formType, entityId],
-    queryFn: async () => {
-      if (!user) return [];
-
-      const { data, error } = await proxySelect<DraftSnapshot>(
-        'form_draft_snapshots',
-        {
-          select: 'id, draft_id, draft_data, created_at',
-          filters: [
-            { column: 'user_id', operator: 'eq', value: user.id },
-            { column: 'form_type', operator: 'eq', value: formType },
-            { column: 'entity_id', operator: 'eq', value: entityId },
-          ],
-          order: [{ column: 'created_at', ascending: false }],
-          limit: 50,
-        }
-      );
-
-      if (error) throw new Error(error.message);
-      return data || [];
-    },
-    enabled: !!user,
-    staleTime: 30_000,
+    queryKey: ["protocols"],
+    queryFn: async () => { ... },
+    retry: 2,
+    retryDelay: ...,
+    refetchOnWindowFocus: true,  // <-- добавить
   });
 }
 
-// Восстановить черновик из снепшота
-export function useRestoreSnapshot() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
+export function useProtocolItems(protocolId: string | null) {
+  return useQuery({
+    queryKey: ["protocol_items", protocolId],
+    queryFn: async () => { ... },
+    enabled: !!protocolId,
+    retry: 2,
+    retryDelay: ...,
+    refetchOnWindowFocus: true,  // <-- добавить
+  });
+}
+```
 
-  return useMutation({
-    mutationFn: async ({ 
-      formType, 
-      entityId, 
-      snapshotData 
-    }: { 
-      formType: string; 
-      entityId: string; 
-      snapshotData: unknown;
-    }) => {
-      if (!user) throw new Error('Not authenticated');
+### Файл 2: `src/hooks/useProtocolSections.ts`
 
-      const { error } = await proxyUpdate(
-        'form_drafts',
-        {
-          draft_data: snapshotData,
-          updated_at: new Date().toISOString(),
-        },
-        [
-          { column: 'user_id', operator: 'eq', value: user.id },
-          { column: 'form_type', operator: 'eq', value: formType },
-          { column: 'entity_id', operator: 'eq', value: entityId },
-        ]
-      );
+Добавить `refetchOnWindowFocus: true`:
 
-      if (error) throw new Error(error.message);
-      return snapshotData;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ 
-        queryKey: ['draft-snapshots', user?.id, variables.formType, variables.entityId] 
+```typescript
+export function useProtocolSections(protocolId: string | null) {
+  return useQuery({
+    queryKey: ["protocol_sections", protocolId],
+    queryFn: async () => { ... },
+    enabled: !!protocolId,
+    retry: 2,
+    retryDelay: ...,
+    refetchOnWindowFocus: true,  // <-- добавить
+  });
+}
+```
+
+### Файл 3: `src/components/modules/ProtocolsModule.tsx`
+
+1. **Обновить `ProtocolCard`** - загружать комментарии при раскрытии:
+
+```typescript
+import { useProtocolItemComments } from "@/hooks/useProtocolItemComments";
+
+// Внутри ProtocolCard, после items:
+const [itemComments, setItemComments] = useState<Record<string, Array<{...}>>>({});
+
+// При раскрытии загружать комментарии для всех items
+useEffect(() => {
+  if (isExpanded && items.length > 0) {
+    const loadComments = async () => {
+      const itemIds = items.filter(i => !i.id.startsWith("temp-")).map(i => i.id);
+      if (itemIds.length === 0) return;
+      
+      const { data: comments } = await proxySelect('protocol_item_comments', {
+        filters: [{ column: 'item_id', operator: 'in', value: itemIds }],
+        order: [{ column: 'created_at', ascending: true }],
       });
-    },
-  });
+      
+      // Группировать по item_id
+      const grouped = {};
+      comments?.forEach(c => {
+        if (!grouped[c.item_id]) grouped[c.item_id] = [];
+        grouped[c.item_id].push(c);
+      });
+      setItemComments(grouped);
+    };
+    loadComments();
+  }
+}, [isExpanded, items]);
+```
+
+2. **Обновить `ProtocolItemView`** - показывать комментарии:
+
+```typescript
+function ProtocolItemView({ item, comments = [] }: ProtocolItemViewProps & { comments?: Array<...> }) {
+  return (
+    <div className="p-3 bg-secondary/50 rounded-lg">
+      <p className="text-foreground">{item.item_text}</p>
+      {/* ... существующие поля ... */}
+      
+      {/* Комментарии */}
+      {comments.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
+          <span className="text-xs text-muted-foreground">
+            Комментарии ({comments.length}):
+          </span>
+          {comments.map(comment => (
+            <div key={comment.id} className="text-sm text-muted-foreground">
+              <span className="font-medium">{comment.author_name}</span>: {comment.content}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 ```
 
-## Этап 3: Компонент `DraftHistoryPanel.tsx`
+---
 
-```typescript
-// src/components/protocols/DraftHistoryPanel.tsx
-interface DraftHistoryPanelProps {
-  formType: string;
-  entityId: string;
-  onRestore: (data: unknown) => void;
-  onClose: () => void;
-}
+## Порядок выполнения
 
-// Содержит:
-// - Список снепшотов с датой/временем
-// - Превью данных (кол-во секций, пунктов, заголовок)
-// - Кнопка "Восстановить" для каждого снепшота
-// - Подтверждение перед восстановлением
-```
+1. Обновить `useProtocols.ts` - добавить `refetchOnWindowFocus: true`
+2. Обновить `useProtocolSections.ts` - добавить `refetchOnWindowFocus: true`  
+3. Обновить `ProtocolsModule.tsx`:
+   - Добавить загрузку комментариев в `ProtocolCard`
+   - Загрузить профили авторов для имён
+   - Обновить `ProtocolItemView` для показа комментариев
 
-Функционал компонента:
-- Показывает список снепшотов в хронологическом порядке
-- Каждый снепшот отображает:
-  - Время создания (относительное: "5 мин назад", "2 часа назад")
-  - Превью: заголовок протокола и кол-во секций/пунктов
-- Кнопка "Восстановить" с подтверждением
-- Анимация загрузки и пустое состояние
-
-## Этап 4: Интеграция в `ProtocolEditor.tsx`
-
-### 4.1 Добавить кнопку "История" в шапку
-
-Рядом с индикатором автосохранения добавить кнопку:
-```typescript
-<Button 
-  variant="ghost" 
-  size="sm"
-  onClick={() => setShowHistoryPanel(true)}
->
-  <History className="w-4 h-4 mr-2" />
-  История
-</Button>
-```
-
-### 4.2 Модальное окно с историей
-
-```typescript
-{showHistoryPanel && (
-  <Modal onClose={() => setShowHistoryPanel(false)}>
-    <DraftHistoryPanel
-      formType="protocol"
-      entityId={draftEntityId}
-      onRestore={(data) => {
-        setForm(data.form);
-        setSectionGroups(data.sectionGroups);
-        setShowHistoryPanel(false);
-        toast.success('Версия восстановлена');
-      }}
-      onClose={() => setShowHistoryPanel(false)}
-    />
-  </Modal>
-)}
-```
-
-## Файлы для создания/изменения
-
-| Файл | Действие |
-|------|----------|
-| Миграция БД | Создать таблицу, триггеры, RLS |
-| `src/hooks/useDraftSnapshots.ts` | **Создать** |
-| `src/components/protocols/DraftHistoryPanel.tsx` | **Создать** |
-| `src/pages/ProtocolEditor.tsx` | Добавить кнопку и модальное окно |
-
-## Оценка данных
-
-- Снепшот: ~5KB
-- При автосохранении каждые 3 сек за час работы: теоретически ~1200 снепшотов
-- С дедупликацией (триггер сохраняет только при изменениях): ~50-100 снепшотов реально
-- С лимитом 50 снепшотов и очисткой 7 дней: макс ~250KB на черновик
-- Каскадное удаление при удалении черновика
+---
 
 ## Ожидаемый результат
 
-- Каждое реальное изменение данных черновика автоматически сохраняется в историю
-- Пользователь может открыть историю и выбрать любую предыдущую версию
-- При восстановлении текущие данные заменяются на выбранную версию
-- Старые снепшоты автоматически удаляются (>7 дней или >50 шт)
-- Триггеры работают на уровне БД — не влияют на производительность фронтенда
+- При возврате к вкладке со списком протоколов данные автоматически обновятся
+- Комментарии к пунктам будут видны при раскрытии протокола в списке
+- Задержка обновления составит ~200-500мс (сетевой запрос)
