@@ -363,6 +363,44 @@ export type Database = {
           },
         ]
       }
+      form_draft_snapshots: {
+        Row: {
+          created_at: string
+          draft_data: Json
+          draft_id: string
+          entity_id: string
+          form_type: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          draft_data: Json
+          draft_id: string
+          entity_id: string
+          form_type: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          draft_data?: Json
+          draft_id?: string
+          entity_id?: string
+          form_type?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_draft_snapshots_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "form_drafts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_drafts: {
         Row: {
           created_at: string
