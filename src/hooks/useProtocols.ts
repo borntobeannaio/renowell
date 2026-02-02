@@ -81,6 +81,7 @@ export function useCreateProtocol() {
       meeting_type?: string | null;
       attendees?: string[];
     }) => {
+      // Use extended retries and timeout for protocol creation
       const { data, error } = await proxyInsert<DbProtocol>(
         "protocols",
         {
@@ -91,7 +92,8 @@ export function useCreateProtocol() {
           meeting_type: protocol.meeting_type || null,
           attendees: protocol.attendees || [],
         },
-        "*"
+        "*",
+        { retries: 3, timeout: 30000 } // 3 retries, 30 second timeout
       );
 
       if (error) throw new Error(error.message);
