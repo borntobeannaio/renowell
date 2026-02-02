@@ -185,7 +185,7 @@ export function useCreateConversation() {
           type: 'chat_created',
           title: 'Вас добавили в чат',
           body: title,
-          link: `/chat/${conversation.id}`,
+          link: `#chat:${conversation.id}`,
         }));
         
         await proxyInsert('notifications', chatNotifications);
@@ -258,7 +258,7 @@ export function useSendMessage() {
             type: 'chat_message',
             title: `Сообщение от ${senderName}`,
             body: preview,
-            link: `/chat/${conversationId}`,
+            link: `#chat:${conversationId}`,
           });
         }
       }
