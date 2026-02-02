@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { CallProvider } from "@/components/call/CallProvider";
@@ -27,6 +27,11 @@ const queryClient = new QueryClient({
 // Временный флаг для режима обслуживания
 const MAINTENANCE_MODE = false;
 
+function RootRedirect() {
+  const location = useLocation();
+  return <Navigate to={`/brandhub${location.search || ""}`} replace />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
@@ -43,7 +48,7 @@ const App = () => (
                   path="/"
                   element={
                     <ProtectedRoute>
-                      <Navigate to="/brandhub" replace />
+                      <RootRedirect />
                     </ProtectedRoute>
                   }
                 />
