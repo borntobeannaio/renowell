@@ -31,8 +31,10 @@ export function FloatingChat() {
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [groupTitle, setGroupTitle] = useState("");
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
 
   // Attachment upload hook
   const { uploadFiles, isUploading, uploadProgress } = useChatAttachments();
@@ -123,6 +125,44 @@ export function FloatingChat() {
 
   const handleRemoveAttachment = (index: number) => {
     setPendingAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Drag and drop handlers
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only enable drag for general chat with active conversation
+    if (activeTab === "general" && selectedConversationId) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Check if we're leaving the drop zone entirely
+    if (dropZoneRef.current && !dropZoneRef.current.contains(e.relatedTarget as Node)) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (activeTab !== "general" || !selectedConversationId) return;
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    const uploaded = await uploadFiles(files);
+    setPendingAttachments((prev) => [...prev, ...uploaded]);
   };
 
   const handleSendAiMessage = async () => {
@@ -498,7 +538,26 @@ export function FloatingChat() {
 
       {/* Chat panel */}
       {isOpen && (
-        <div className={`${panelClasses} bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4`}>
+        <div 
+          ref={dropZoneRef}
+          className={`${panelClasses} bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 ${
+            isDragging ? "ring-2 ring-primary ring-offset-2" : ""
+          }`}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {/* Drag overlay */}
+          {isDragging && (
+            <div className="absolute inset-0 z-50 bg-primary/10 backdrop-blur-sm flex items-center justify-center pointer-events-none">
+              <div className="bg-card border-2 border-dashed border-primary rounded-xl px-6 py-4 text-center">
+                <Paperclip className="w-8 h-8 mx-auto mb-2 text-primary" />
+                <p className="text-sm font-medium text-foreground">Перетащите файлы сюда</p>
+                <p className="text-xs text-muted-foreground">Изображения, документы, PDF</p>
+              </div>
+            </div>
+          )}
           {/* Header with tabs */}
           <div className="bg-card border-b border-border">
             <div className="flex items-center justify-between p-3">
