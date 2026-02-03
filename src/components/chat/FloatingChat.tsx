@@ -165,6 +165,39 @@ export function FloatingChat() {
     setPendingAttachments((prev) => [...prev, ...uploaded]);
   };
 
+  // Paste handler for clipboard images
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    // Only handle paste in general chat with active conversation
+    if (activeTab !== "general" || !selectedConversationId) return;
+
+    const clipboardItems = e.clipboardData.items;
+    const files: File[] = [];
+
+    for (let i = 0; i < clipboardItems.length; i++) {
+      const item = clipboardItems[i];
+      
+      // Check if it's an image
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) {
+          // Create a more meaningful filename for pasted images
+          const extension = item.type.split("/")[1] || "png";
+          const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+          const renamedFile = new File([file], `pasted-image-${timestamp}.${extension}`, {
+            type: file.type,
+          });
+          files.push(renamedFile);
+        }
+      }
+    }
+
+    if (files.length > 0) {
+      e.preventDefault(); // Prevent default paste behavior for images
+      const uploaded = await uploadFiles(files);
+      setPendingAttachments((prev) => [...prev, ...uploaded]);
+    }
+  };
+
   const handleSendAiMessage = async () => {
     if (!message.trim() || isAiLoading || !user) return;
 
@@ -707,6 +740,7 @@ export function FloatingChat() {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
                   placeholder="Напишите сообщение..."
                   className="flex-1 bg-secondary text-foreground rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
                   rows={1}
