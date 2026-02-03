@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.telegram-image-proxy]
 verify_jwt = false
+
+[functions.yandex-s3-upload]
+verify_jwt = false

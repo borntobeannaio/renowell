@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, KeyboardEvent } from "react";
-import { MessageCircle, X, Send, Users, Bot, ChevronLeft, Loader2, Maximize2, Minimize2, Plus, Trash2, Phone, Video } from "lucide-react";
+import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from "react";
+import { MessageCircle, X, Send, Users, Bot, ChevronLeft, Loader2, Maximize2, Minimize2, Plus, Trash2, Phone, Video, Paperclip } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useConversations, useConversationMessages, useCreateConversation, useSendMessage, useAIMessages, useSaveAIMessage, useClearAIHistory } from "@/hooks/useChat";
 import { useCreateCall } from "@/hooks/useCalls";
@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useChatContext } from "@/context/ChatContext";
 import { useUnreadCounts, useMarkConversationRead, useChatNotificationSound, useTotalUnreadCount } from "@/hooks/useChatUnread";
+import { useChatAttachments, ChatAttachment } from "@/hooks/useChatAttachments";
+import { ChatAttachmentPreview, ChatMessageAttachments } from "@/components/chat/ChatAttachmentPreview";
 
 type ChatTab = "general" | "ai";
 
@@ -28,7 +30,12 @@ export function FloatingChat() {
   const [newChatType, setNewChatType] = useState<"direct" | "group">("direct");
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [groupTitle, setGroupTitle] = useState("");
+  const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Attachment upload hook
+  const { uploadFiles, isUploading, uploadProgress } = useChatAttachments();
 
   // Database hooks
   const { data: conversations = [] } = useConversations();
@@ -86,7 +93,7 @@ export function FloatingChat() {
   };
 
   const handleSendMessage = () => {
-    if (!message.trim()) return;
+    if (!message.trim() && pendingAttachments.length === 0) return;
 
     if (activeTab === "ai") {
       handleSendAiMessage();
@@ -94,9 +101,28 @@ export function FloatingChat() {
       sendMessage.mutate({
         conversationId: selectedConversationId,
         content: message.trim(),
+        attachments: pendingAttachments.length > 0 ? pendingAttachments : undefined,
       });
       setMessage("");
+      setPendingAttachments([]);
     }
+  };
+
+  const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const uploaded = await uploadFiles(Array.from(files));
+    setPendingAttachments((prev) => [...prev, ...uploaded]);
+    
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setPendingAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSendAiMessage = async () => {
@@ -425,7 +451,12 @@ export function FloatingChat() {
                     {msg.sender.first_name} {msg.sender.last_name}
                   </p>
                 )}
-                <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                {msg.content && (
+                  <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                )}
+                {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
+                  <ChatMessageAttachments attachments={msg.attachments as any} />
+                )}
                 <p className={`text-xs mt-1 ${isOwn ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
                   {formatTime(msg.created_at)}
                 </p>
@@ -573,8 +604,46 @@ export function FloatingChat() {
 
           {/* Input */}
           {(activeTab === "ai" || selectedConversationId) && (
-            <div className="p-3 border-t border-border">
+            <div className="p-3 border-t border-border space-y-2">
+              {/* Pending attachments preview */}
+              {pendingAttachments.length > 0 && (
+                <ChatAttachmentPreview
+                  attachments={pendingAttachments}
+                  onRemove={handleRemoveAttachment}
+                  isPreview
+                />
+              )}
+
+              {/* Upload progress */}
+              {isUploading && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>Загрузка... {uploadProgress}%</span>
+                </div>
+              )}
+
               <div className="flex gap-2">
+                {/* Attach button - only for regular chats, not AI */}
+                {activeTab === "general" && selectedConversationId && (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                      className="px-3 py-2 bg-secondary text-secondary-foreground rounded-xl hover:bg-secondary/80 transition-colors disabled:opacity-50"
+                      title="Прикрепить файл"
+                    >
+                      <Paperclip className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
@@ -582,11 +651,11 @@ export function FloatingChat() {
                   placeholder="Напишите сообщение..."
                   className="flex-1 bg-secondary text-foreground rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
                   rows={1}
-                  disabled={isAiLoading}
+                  disabled={isAiLoading || isUploading}
                 />
                 <button
                   onClick={handleSendMessage}
-                  disabled={!message.trim() || isAiLoading}
+                  disabled={(!message.trim() && pendingAttachments.length === 0) || isAiLoading || isUploading}
                   className="px-3 py-2 bg-primary text-primary-foreground rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
                   <Send className="w-4 h-4" />
