@@ -11,11 +11,19 @@ export interface ChatConversation {
   updated_at: string;
 }
 
+export interface ChatAttachmentData {
+  url: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
 export interface ChatMessage {
   id: string;
   conversation_id: string;
   sender_id: string;
   content: string;
+  attachments?: ChatAttachmentData[] | null;
   created_at: string;
   sender?: {
     first_name: string | null;
@@ -208,9 +216,11 @@ export function useSendMessage() {
     mutationFn: async ({
       conversationId,
       content,
+      attachments,
     }: {
       conversationId: string;
       content: string;
+      attachments?: ChatAttachmentData[];
     }) => {
       if (!user) throw new Error("Not authenticated");
 
@@ -229,6 +239,7 @@ export function useSendMessage() {
         conversation_id: conversationId,
         sender_id: profile.id,
         content,
+        attachments: attachments && attachments.length > 0 ? attachments : null,
       }, '*');
 
       if (error) throw new Error(error.message);
