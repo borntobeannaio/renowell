@@ -118,25 +118,28 @@ serve(async (req) => {
 
     const userId = authData.user.id;
 
-    // Create profile
+    // Wait a bit for trigger to create profile
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Get profile created by trigger and update it with additional data
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .insert({
-        user_id: userId,
+      .update({
         first_name: firstName,
         last_name: lastName,
         position,
         birthday: birthday || null,
       })
+      .eq("user_id", userId)
       .select("id")
       .single();
 
-    if (profileError) {
-      console.error("Error creating profile:", profileError);
+    if (profileError || !profile) {
+      console.error("Error updating profile:", profileError);
       // Try to clean up auth user
       await supabase.auth.admin.deleteUser(userId);
       return new Response(
-        JSON.stringify({ error: "Failed to create profile: " + profileError.message }),
+        JSON.stringify({ error: "Failed to update profile: " + (profileError?.message || "Profile not found") }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
