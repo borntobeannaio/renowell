@@ -85,7 +85,11 @@ export default function Profile() {
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!user?.id || !profile?.id) throw new Error("No user");
-      const { error } = await proxyUpdate(
+      
+      console.log('[Profile] Updating profile:', profile.id);
+      console.log('[Profile] Data:', { firstName, lastName, position, birthday, description });
+      
+      const { error: profileError } = await proxyUpdate(
         "profiles",
         {
           first_name: firstName.trim() || null,
@@ -97,11 +101,17 @@ export default function Profile() {
         },
         [{ column: "id", operator: "eq", value: profile.id }]
       );
-      if (error) throw new Error(error.message);
+      
+      if (profileError) {
+        console.error('[Profile] Profile update error:', profileError);
+        throw new Error(profileError.message);
+      }
+      
+      console.log('[Profile] Profile updated, syncing employee...');
 
-      // Sync to linked employee
+      // Sync to linked employee (don't fail if employee update fails)
       const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
-      await proxyUpdate(
+      const { error: employeeError } = await proxyUpdate(
         "employees",
         {
           full_name: fullName || "Пользователь",
@@ -111,14 +121,22 @@ export default function Profile() {
         },
         [{ column: "profile_id", operator: "eq", value: profile.id }]
       );
+      
+      if (employeeError) {
+        console.warn('[Profile] Employee sync warning:', employeeError);
+        // Don't throw — profile already saved
+      } else {
+        console.log('[Profile] Employee synced successfully');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       toast.success("Профиль сохранён");
     },
-    onError: () => {
-      toast.error("Ошибка сохранения профиля");
+    onError: (error: Error) => {
+      console.error('[Profile] Save error:', error);
+      toast.error(`Ошибка сохранения: ${error.message}`);
     },
   });
 
@@ -138,7 +156,9 @@ export default function Profile() {
       return;
     }
 
+    console.log('[Avatar] Starting upload:', file.name, 'size:', file.size, 'type:', file.type);
     setIsUploading(true);
+    
     try {
       const fileExt = file.name.split(".").pop();
       const fileName = `${user.id}/avatar.${fileExt}`;
@@ -146,20 +166,33 @@ export default function Profile() {
       // Delete old avatar if exists (via storage proxy)
       if (avatarUrl) {
         const oldPath = avatarUrl.split("/").slice(-2).join("/").split("?")[0];
+        console.log('[Avatar] Deleting old avatar:', oldPath);
         await storageProxyDelete("avatars", [oldPath]);
       }
 
       // Upload new avatar via storage proxy
-      const { error: uploadError } = await proxyUpload("avatars", fileName, file, { upsert: true });
+      console.log('[Avatar] Uploading to:', fileName);
+      const { data: uploadData, error: uploadError } = await proxyUpload("avatars", fileName, file, { upsert: true });
 
-      if (uploadError) throw new Error(uploadError.message);
+      if (uploadError) {
+        console.error('[Avatar] Upload error:', uploadError);
+        toast.error(`Ошибка загрузки: ${uploadError.message}`);
+        return;
+      }
+      
+      console.log('[Avatar] Upload success:', uploadData);
 
       // Get public URL via storage proxy
       const { data: urlData, error: urlError } = await proxyGetPublicUrl("avatars", fileName);
 
-      if (urlError) throw new Error(urlError.message);
+      if (urlError) {
+        console.error('[Avatar] URL error:', urlError);
+        toast.error(`Ошибка получения URL: ${urlError.message}`);
+        return;
+      }
 
       const newAvatarUrl = `${urlData?.publicUrl}?t=${Date.now()}`;
+      console.log('[Avatar] New URL:', newAvatarUrl);
       setAvatarUrl(newAvatarUrl);
 
       // Update profile with new avatar URL via db proxy
@@ -169,23 +202,31 @@ export default function Profile() {
         [{ column: "id", operator: "eq", value: profile?.id }]
       );
 
-      if (updateError) throw new Error(updateError.message);
+      if (updateError) {
+        console.error('[Avatar] Profile update error:', updateError);
+        toast.error(`Ошибка обновления профиля: ${updateError.message}`);
+        return;
+      }
 
       // Sync avatar to linked employee via db proxy
       if (profile?.id) {
-        await proxyUpdate(
+        const { error: empError } = await proxyUpdate(
           "employees",
           { avatar_url: newAvatarUrl },
           [{ column: "profile_id", operator: "eq", value: profile.id }]
         );
+        if (empError) {
+          console.warn('[Avatar] Employee sync warning:', empError);
+        }
       }
 
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       toast.success("Аватар обновлён");
+      console.log('[Avatar] Complete!');
     } catch (error) {
-      console.error("Avatar upload error:", error);
-      toast.error("Ошибка загрузки аватара");
+      console.error("[Avatar] Unexpected error:", error);
+      toast.error(`Ошибка загрузки аватара: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
     } finally {
       setIsUploading(false);
     }
@@ -210,8 +251,21 @@ export default function Profile() {
       return;
     }
 
+    console.log('[Password] Starting password change for:', user?.email);
     setIsChangingPassword(true);
+    
     try {
+      // Check current session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.error('[Password] No active session');
+        toast.error("Сессия истекла. Пожалуйста, войдите заново.");
+        setIsChangingPassword(false);
+        return;
+      }
+      
+      console.log('[Password] Session valid, verifying current password...');
+
       // First, verify current password by re-authenticating
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: user?.email || "",
@@ -219,9 +273,13 @@ export default function Profile() {
       });
 
       if (signInError) {
+        console.error('[Password] Current password verification failed:', signInError);
         toast.error("Неверный текущий пароль");
+        setIsChangingPassword(false);
         return;
       }
+
+      console.log('[Password] Current password verified, updating...');
 
       // Update password
       const { error: updateError } = await supabase.auth.updateUser({
@@ -229,17 +287,20 @@ export default function Profile() {
       });
 
       if (updateError) {
+        console.error('[Password] Update failed:', updateError);
         toast.error("Ошибка смены пароля: " + updateError.message);
+        setIsChangingPassword(false);
         return;
       }
 
+      console.log('[Password] Password changed successfully');
       toast.success("Пароль успешно изменён");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (error) {
-      console.error("Password change error:", error);
-      toast.error("Ошибка смены пароля");
+      console.error("[Password] Unexpected error:", error);
+      toast.error(`Ошибка смены пароля: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
     } finally {
       setIsChangingPassword(false);
     }
