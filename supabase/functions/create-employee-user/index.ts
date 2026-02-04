@@ -58,7 +58,7 @@ serve(async (req) => {
     }
 
     // Check if caller is HR admin
-    const hrAdmins = ["sonya369@gmail.com"];
+    const hrAdmins = ["sonya369@gmail.com", "astashkina495@gmail.com"];
     if (!callerUser.email || !hrAdmins.includes(callerUser.email.toLowerCase())) {
       return new Response(
         JSON.stringify({ error: "Forbidden - only HR admins can create employees" }),

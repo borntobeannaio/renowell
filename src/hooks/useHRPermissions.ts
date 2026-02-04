@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 // Список email-адресов с правами на управление сотрудниками
 const HR_ADMINS = [
   "sonya369@gmail.com",
+  "astashkina495@gmail.com",
 ];
 
 export function useHRPermissions() {
