@@ -83,42 +83,78 @@ export function useConversationMessages(conversationId: string | null) {
 // Hook for finding existing direct conversation between two users
 export function useFindDirectConversation() {
   return async (profileId: string, otherProfileId: string): Promise<string | null> => {
-    // Get all direct conversations where current user is a participant
-    const { data: myConversations, error: myError } = await proxySelect<{ conversation_id: string }>('chat_participants', {
-      select: 'conversation_id',
-      filters: [{ column: 'user_id', operator: 'eq', value: profileId }],
-    });
+    console.log('[findDirectConversation] Searching for existing chat between', profileId, 'and', otherProfileId);
+    
+    try {
+      // Step 1: Get all conversations where current user is a participant
+      const { data: myConversations, error: myError } = await proxySelect<{ conversation_id: string }>('chat_participants', {
+        select: 'conversation_id',
+        filters: [{ column: 'user_id', operator: 'eq', value: profileId }],
+        limit: 1000,
+      });
 
-    if (myError || !myConversations?.length) return null;
+      if (myError) {
+        console.error('[findDirectConversation] Error fetching my conversations:', myError);
+        return null;
+      }
+      
+      if (!myConversations?.length) {
+        console.log('[findDirectConversation] User has no conversations');
+        return null;
+      }
 
-    const conversationIds = myConversations.map(c => c.conversation_id);
+      const conversationIds = myConversations.map(c => c.conversation_id);
+      console.log('[findDirectConversation] Found', conversationIds.length, 'conversations for current user');
 
-    // Check which of these are direct conversations
-    const { data: directConversations, error: convError } = await proxySelect<{ id: string }>('chat_conversations', {
-      select: 'id',
-      filters: [
-        { column: 'id', operator: 'in', value: conversationIds },
-        { column: 'type', operator: 'eq', value: 'direct' },
-      ],
-    });
+      // Step 2: Filter only direct conversations
+      const { data: directConversations, error: convError } = await proxySelect<{ id: string }>('chat_conversations', {
+        select: 'id',
+        filters: [
+          { column: 'id', operator: 'in', value: conversationIds },
+          { column: 'type', operator: 'eq', value: 'direct' },
+        ],
+        limit: 1000,
+      });
 
-    if (convError || !directConversations?.length) return null;
+      if (convError) {
+        console.error('[findDirectConversation] Error fetching direct conversations:', convError);
+        return null;
+      }
+      
+      if (!directConversations?.length) {
+        console.log('[findDirectConversation] No direct conversations found');
+        return null;
+      }
 
-    const directConvIds = directConversations.map(c => c.id);
+      const directConvIds = directConversations.map(c => c.id);
+      console.log('[findDirectConversation] Found', directConvIds.length, 'direct conversations');
 
-    // Check if the other user is also a participant in any of these direct conversations
-    const { data: otherParticipations, error: otherError } = await proxySelect<{ conversation_id: string }>('chat_participants', {
-      select: 'conversation_id',
-      filters: [
-        { column: 'user_id', operator: 'eq', value: otherProfileId },
-        { column: 'conversation_id', operator: 'in', value: directConvIds },
-      ],
-    });
+      // Step 3: Check if the other user is also a participant
+      const { data: otherParticipations, error: otherError } = await proxySelect<{ conversation_id: string }>('chat_participants', {
+        select: 'conversation_id',
+        filters: [
+          { column: 'user_id', operator: 'eq', value: otherProfileId },
+          { column: 'conversation_id', operator: 'in', value: directConvIds },
+        ],
+        limit: 1000,
+      });
 
-    if (otherError || !otherParticipations?.length) return null;
+      if (otherError) {
+        console.error('[findDirectConversation] Error checking other user participation:', otherError);
+        return null;
+      }
+      
+      if (!otherParticipations?.length) {
+        console.log('[findDirectConversation] Other user is not in any direct conversation with current user');
+        return null;
+      }
 
-    // Return the first existing direct conversation between these two users
-    return otherParticipations[0].conversation_id;
+      console.log('[findDirectConversation] Found existing conversation:', otherParticipations[0].conversation_id);
+      return otherParticipations[0].conversation_id;
+    } catch (error) {
+      console.error('[findDirectConversation] Unexpected error:', error);
+      return null;
+    }
   };
 }
 
@@ -153,7 +189,53 @@ export function useCreateConversation() {
 
       // For direct chats, check if conversation already exists
       if (type === "direct" && participantIds.length === 1) {
-        const existingConvId = await findDirectConversation(profile.id, participantIds[0]);
+        const otherProfileId = participantIds[0];
+        
+        // First attempt - use the findDirectConversation function
+        let existingConvId = await findDirectConversation(profile.id, otherProfileId);
+        
+        // If not found, do a direct database check as backup
+        if (!existingConvId) {
+          console.log('[createConversation] First search found nothing, doing backup check...');
+          
+          // Direct query: find conversation where both users are participants
+          const { data: myParticipations } = await proxySelect<{ conversation_id: string }>('chat_participants', {
+            select: 'conversation_id',
+            filters: [{ column: 'user_id', operator: 'eq', value: profile.id }],
+            limit: 1000,
+          });
+          
+          if (myParticipations?.length) {
+            const myConvIds = myParticipations.map(p => p.conversation_id);
+            
+            const { data: sharedParticipations } = await proxySelect<{ conversation_id: string }>('chat_participants', {
+              select: 'conversation_id',
+              filters: [
+                { column: 'user_id', operator: 'eq', value: otherProfileId },
+                { column: 'conversation_id', operator: 'in', value: myConvIds },
+              ],
+              limit: 1000,
+            });
+            
+            if (sharedParticipations?.length) {
+              // Check if any of these are direct chats
+              const { data: directChats } = await proxySelect<{ id: string }>('chat_conversations', {
+                select: 'id',
+                filters: [
+                  { column: 'id', operator: 'in', value: sharedParticipations.map(p => p.conversation_id) },
+                  { column: 'type', operator: 'eq', value: 'direct' },
+                ],
+                limit: 1,
+              });
+              
+              if (directChats?.[0]) {
+                existingConvId = directChats[0].id;
+                console.log('[createConversation] Backup check found existing conversation:', existingConvId);
+              }
+            }
+          }
+        }
+        
         if (existingConvId) {
           // Return existing conversation info
           const { data: existingConv } = await proxySelect<ChatConversation>('chat_conversations', {
@@ -161,9 +243,12 @@ export function useCreateConversation() {
             limit: 1,
           });
           if (existingConv?.[0]) {
+            console.log('[createConversation] Returning existing conversation:', existingConv[0].id);
             return existingConv[0];
           }
         }
+        
+        console.log('[createConversation] No existing conversation found, will create new one');
       }
 
       // Create new conversation

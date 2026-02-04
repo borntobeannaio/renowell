@@ -202,6 +202,35 @@ export type Database = {
           },
         ]
       }
+      chat_direct_pairs: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          participant_pair: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          participant_pair: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          participant_pair?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_direct_pairs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_messages: {
         Row: {
           attachments: Json | null
@@ -1010,6 +1039,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_direct_chat_pair: { Args: { conv_id: string }; Returns: string }
       get_user_profile_id: { Args: never; Returns: string }
       is_call_participant: { Args: { c_id: string }; Returns: boolean }
       is_conversation_participant: {
