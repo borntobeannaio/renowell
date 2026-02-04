@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { proxySelect } from "@/lib/dbProxy";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/button";
 import { formatDisplayDate } from "@/utils/dateFormat";
+import { useHRPermissions } from "@/hooks/useHRPermissions";
+import { AddEmployeeModal } from "@/components/modules/hr/AddEmployeeModal";
 import {
   Users,
   Calendar,
@@ -12,6 +15,7 @@ import {
   Phone,
   Cake,
   User,
+  UserPlus,
 } from "lucide-react";
 
 interface DbEmployee {
@@ -64,6 +68,9 @@ export function HRModule() {
 
 function EmployeesTab() {
   const [selectedEmployee, setSelectedEmployee] = useState<DbEmployee | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const { canAddEmployee } = useHRPermissions();
+  const queryClient = useQueryClient();
 
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ['employees'],
@@ -76,6 +83,10 @@ function EmployeesTab() {
       return data ?? [];
     },
   });
+
+  const handleEmployeeCreated = () => {
+    queryClient.invalidateQueries({ queryKey: ['employees'] });
+  };
 
   const openEmployeeCard = (emp: DbEmployee) => {
     setSelectedEmployee(emp);
@@ -91,6 +102,15 @@ function EmployeesTab() {
 
   return (
     <>
+      {canAddEmployee && (
+        <div className="flex justify-end mb-4">
+          <Button onClick={() => setShowAddModal(true)}>
+            <UserPlus className="w-4 h-4 mr-2" />
+            Добавить сотрудника
+          </Button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {employees.map((emp) => (
           <button
@@ -198,6 +218,12 @@ function EmployeesTab() {
           </div>
         )}
       </Modal>
+
+      <AddEmployeeModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={handleEmployeeCreated}
+      />
     </>
   );
 }
