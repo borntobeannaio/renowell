@@ -355,6 +355,7 @@ export function useSendMessage() {
             title: `Сообщение от ${senderName}`,
             body: preview,
             link: `#chat:${conversationId}`,
+            attachments: attachments && attachments.length > 0 ? attachments : null,
           });
         }
       }
