@@ -28,16 +28,32 @@ interface PushSubscription {
   };
 }
 
+interface ChatAttachment {
+  url: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
 // Notification type icons for Telegram
 const typeEmojis: Record<string, string> = {
   task_assigned: "📋",
   deadline_week: "📅",
   deadline_day: "⏰",
   mention: "💬",
+  chat_message: "💬",
+  chat_created: "👥",
 };
 
 function escapeMarkdown(text: string): string {
   return text.replace(/[_*\[\]()~`>#+=|{}.!\\-]/g, "\\$&");
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 async function sendTelegramMessage(
@@ -86,6 +102,134 @@ async function sendTelegramMessage(
     console.error("Error sending Telegram message:", error);
     return false;
   }
+}
+
+async function sendTelegramPhoto(
+  chatId: string,
+  photoUrl: string,
+  caption: string | null
+): Promise<boolean> {
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.error("TELEGRAM_BOT_TOKEN not configured");
+    return false;
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          photo: photoUrl,
+          caption: caption || undefined,
+          parse_mode: "HTML",
+        }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!result.ok) {
+      console.error("Telegram sendPhoto error:", result);
+      return false;
+    }
+
+    console.log("Telegram photo sent successfully to:", chatId);
+    return true;
+  } catch (error) {
+    console.error("Error sending Telegram photo:", error);
+    return false;
+  }
+}
+
+async function sendTelegramDocument(
+  chatId: string,
+  documentUrl: string,
+  fileName: string,
+  caption: string | null
+): Promise<boolean> {
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.error("TELEGRAM_BOT_TOKEN not configured");
+    return false;
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          document: documentUrl,
+          caption: caption || undefined,
+          parse_mode: "HTML",
+        }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!result.ok) {
+      console.error("Telegram sendDocument error:", result);
+      return false;
+    }
+
+    console.log("Telegram document sent successfully to:", chatId);
+    return true;
+  } catch (error) {
+    console.error("Error sending Telegram document:", error);
+    return false;
+  }
+}
+
+async function sendTelegramNotification(
+  chatId: string,
+  title: string,
+  body: string,
+  link: string | null,
+  attachments: ChatAttachment[] | null
+): Promise<boolean> {
+  // If no attachments, send regular text message
+  if (!attachments || attachments.length === 0) {
+    return await sendTelegramMessage(chatId, title, body, link);
+  }
+
+  // Build HTML caption for media messages
+  const emoji = typeEmojis[title] || "🔔";
+  let caption = `${emoji} <b>${escapeHtml(title)}</b>\n\n${escapeHtml(body)}`;
+  if (link) {
+    caption += `\n\n<a href="${link}">Открыть →</a>`;
+  }
+
+  // Telegram caption limit is 1024 characters
+  if (caption.length > 1024) {
+    caption = caption.substring(0, 1020) + "...";
+  }
+
+  // Send first attachment with caption
+  const first = attachments[0];
+  let success = false;
+
+  if (first.contentType.startsWith("image/")) {
+    success = await sendTelegramPhoto(chatId, first.url, caption);
+  } else {
+    success = await sendTelegramDocument(chatId, first.url, first.fileName, caption);
+  }
+
+  // Send remaining attachments without caption
+  for (let i = 1; i < attachments.length; i++) {
+    const att = attachments[i];
+    if (att.contentType.startsWith("image/")) {
+      await sendTelegramPhoto(chatId, att.url, null);
+    } else {
+      await sendTelegramDocument(chatId, att.url, att.fileName, null);
+    }
+  }
+
+  return success;
 }
 
 async function sendEmail(
@@ -142,15 +286,12 @@ async function sendEmail(
 }
 
 // Web Push implementation - temporarily disabled due to Deno compatibility issues
-// Web Push requires RFC 8291 encryption which needs complex crypto operations
-// TODO: Implement using a Deno-compatible Web Push library when available
 async function sendPushNotification(
   subscription: PushSubscription,
   title: string,
   body: string,
   link: string | null
 ): Promise<boolean> {
-  // Log the attempt for debugging
   console.log("Push notification requested (currently disabled):", {
     endpoint: subscription.endpoint,
     title,
@@ -158,9 +299,6 @@ async function sendPushNotification(
     link,
   });
   
-  // Web Push requires proper encryption (RFC 8291) which is complex to implement
-  // The standard web-push library is not compatible with Deno runtime
-  // For now, users should use Telegram or email notifications
   console.warn(
     "Web Push notifications are temporarily disabled. " +
     "Please use Telegram or email notifications instead."
@@ -190,10 +328,10 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch the notification
+    // Fetch the notification with attachments
     const { data: notification, error: notifError } = await supabase
       .from("notifications")
-      .select("id, recipient_id, type, title, body, link")
+      .select("id, recipient_id, type, title, body, link, attachments")
       .eq("id", notification_id)
       .single();
 
@@ -252,17 +390,21 @@ Deno.serve(async (req) => {
       push: false,
     };
 
-    // Send Telegram notification
+    // Parse attachments
+    const attachments = notification.attachments as ChatAttachment[] | null;
+
+    // Send Telegram notification with attachments support
     if (profile.notify_telegram && profile.telegram_chat_id) {
-      results.telegram = await sendTelegramMessage(
+      results.telegram = await sendTelegramNotification(
         profile.telegram_chat_id,
         notification.title,
         notification.body,
-        fullLink
+        fullLink,
+        attachments
       );
     }
 
-    // Send Email notification
+    // Send Email notification (without attachments - just link to chat)
     if (profile.notify_email && employeeEmail) {
       results.email = await sendEmail(
         employeeEmail,

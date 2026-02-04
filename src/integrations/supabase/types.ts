@@ -504,6 +504,7 @@ export type Database = {
       }
       notifications: {
         Row: {
+          attachments: Json | null
           body: string
           created_at: string
           id: string
@@ -515,6 +516,7 @@ export type Database = {
           type: string
         }
         Insert: {
+          attachments?: Json | null
           body: string
           created_at?: string
           id?: string
@@ -526,6 +528,7 @@ export type Database = {
           type: string
         }
         Update: {
+          attachments?: Json | null
           body?: string
           created_at?: string
           id?: string
