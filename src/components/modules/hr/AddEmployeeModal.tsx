@@ -30,7 +30,6 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
     position: "",
     email: "",
     phone: "",
-    department: "",
     birthday: "",
   });
 
@@ -58,7 +57,6 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
             position: formData.position,
             email: formData.email,
             phone: formData.phone || undefined,
-            department: formData.department || undefined,
             birthday: formData.birthday || undefined,
           }),
         }
@@ -86,7 +84,6 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
         position: "",
         email: "",
         phone: "",
-        department: "",
         birthday: "",
       });
     } catch (error) {
@@ -229,15 +226,6 @@ Email: ${createdEmployee.email}
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="department">Отдел</Label>
-          <Input
-            id="department"
-            value={formData.department}
-            onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-            placeholder="Отдел продаж"
-          />
-        </div>
 
         <div className="space-y-2">
           <Label htmlFor="birthday">Дата рождения</Label>
