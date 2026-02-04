@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { formatDisplayDate } from "@/utils/dateFormat";
 import { useHRPermissions } from "@/hooks/useHRPermissions";
 import { AddEmployeeModal } from "@/components/modules/hr/AddEmployeeModal";
+import { EditEmployeeModal } from "@/components/modules/hr/EditEmployeeModal";
 import {
   Users,
   Calendar,
@@ -16,6 +17,7 @@ import {
   Cake,
   User,
   UserPlus,
+  Pencil,
 } from "lucide-react";
 
 interface DbEmployee {
@@ -27,6 +29,7 @@ interface DbEmployee {
   department: string | null;
   avatar_url: string | null;
   birthday: string | null;
+  profile_id: string | null;
 }
 
 type HRTab = "employees" | "vacations" | "docs";
@@ -69,7 +72,8 @@ export function HRModule() {
 function EmployeesTab() {
   const [selectedEmployee, setSelectedEmployee] = useState<DbEmployee | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const { canAddEmployee } = useHRPermissions();
+  const [editingEmployee, setEditingEmployee] = useState<DbEmployee | null>(null);
+  const { canAddEmployee, canEditEmployee } = useHRPermissions();
   const queryClient = useQueryClient();
 
   const { data: employees = [], isLoading } = useQuery({
@@ -88,8 +92,18 @@ function EmployeesTab() {
     queryClient.invalidateQueries({ queryKey: ['employees'] });
   };
 
+  const handleEmployeeUpdated = () => {
+    queryClient.invalidateQueries({ queryKey: ['employees'] });
+    setSelectedEmployee(null);
+  };
+
   const openEmployeeCard = (emp: DbEmployee) => {
     setSelectedEmployee(emp);
+  };
+
+  const handleEditClick = (e: React.MouseEvent, emp: DbEmployee) => {
+    e.stopPropagation();
+    setEditingEmployee(emp);
   };
 
   if (isLoading) {
@@ -174,7 +188,7 @@ function EmployeesTab() {
                   <User className="w-10 h-10 text-primary" />
                 </div>
               )}
-              <div>
+              <div className="flex-1">
                 <h3 className="text-xl font-semibold text-foreground">
                   {selectedEmployee.full_name}
                 </h3>
@@ -183,6 +197,19 @@ function EmployeesTab() {
                   <span className="chip mt-2">{selectedEmployee.department}</span>
                 )}
               </div>
+              {canEditEmployee && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedEmployee(null);
+                    setEditingEmployee(selectedEmployee);
+                  }}
+                >
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Редактировать
+                </Button>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -223,6 +250,13 @@ function EmployeesTab() {
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSuccess={handleEmployeeCreated}
+      />
+
+      <EditEmployeeModal
+        isOpen={!!editingEmployee}
+        onClose={() => setEditingEmployee(null)}
+        employee={editingEmployee}
+        onSuccess={handleEmployeeUpdated}
       />
     </>
   );
