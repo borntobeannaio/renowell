@@ -1,175 +1,273 @@
 
-
-# План исправления маппинга проектов для задач из протоколов
+# План: Исправление дублирования личных чатов
 
 ## Описание проблемы
 
-Задачи, созданные из секций протоколов типов **Тендеры**, **Бизнес-процессы** и **HR/Подбор персонала**, не попадают в соответствующие папки проектов на Kanban-доске и остаются в папке «Без проекта».
+При создании нового личного чата через виджет (кнопка в углу → «Начать новый чат» → выбор сотрудника) система иногда создает новый пустой чат вместо открытия уже существующего диалога с этим человеком.
 
-### Причины
+## Анализ причин
 
-Обнаружено **два места** с некорректной логикой:
+Текущая логика в `useCreateConversation` уже содержит проверку на существующий чат через `useFindDirectConversation`, но она может не сработать по следующим причинам:
 
-1. **ProtocolEditor.tsx (строка 1654-1659)** — при обновлении существующей задачи `project_id` не передаётся:
-   ```typescript
-   await updateTask.mutateAsync({
-     id: item.task_id,
-     title: item.item_text,
-     assignee_ids: assigneeProfileIds,
-     due_date: item.due_date || null,
-     // project_id НЕ ПЕРЕДАЁТСЯ!
-   });
-   ```
-
-2. **sync-protocol-tasks Edge Function (строки 188-190, 313-315)** — маппинг проекта работает только для секций типа `project`, а для `tender`, `business`, `hr` возвращает `null`:
-   ```typescript
-   const projectId = item.protocol_sections?.section_type === 'project' 
-     ? item.protocol_sections.entity_id 
-     : null;  // ← для tender/business/hr всегда null!
-   ```
-
-### Существующий маппинг (ProtocolEditor.tsx)
-
-```typescript
-const SECTION_TYPE_PROJECT_IDS = {
-  tender: "bf2ef5b4-1fe7-4e69-b533-30393a4d386b",   // Тендеры/задачи
-  business: "5b30ab38-7ecd-4643-960e-8dc2bf353d98", // Бизнес процессы
-  hr: "620c7f0e-6558-4116-8e80-7681457127b8",      // Подбор персонала
-};
-```
-
----
+1. **Отсутствие лимитов в запросах** — функция `proxySelect` может вернуть неполный список участников
+2. **Ненадежная обработка ошибок** — при любой ошибке сети функция возвращает `null` и создается дубликат
+3. **Нет логирования** — невозможно отследить почему поиск не нашел существующий чат
 
 ## Решение
 
-### Шаг 1: Исправить ProtocolEditor.tsx
+### Шаг 1: Улучшить функцию поиска существующего чата
 
-Добавить `project_id` при обновлении существующей задачи:
+Переписать `useFindDirectConversation` с:
+- Добавлением больших лимитов (1000 записей)
+- Улучшенной обработкой ошибок с логированием
+- Проверкой на пустые данные
 
-**Файл:** `src/pages/ProtocolEditor.tsx`  
-**Строки:** 1654-1659
+### Шаг 2: Добавить двойную проверку в мутации
 
-```typescript
-// БЫЛО:
-await updateTask.mutateAsync({
-  id: item.task_id,
-  title: item.item_text,
-  assignee_ids: assigneeProfileIds,
-  due_date: item.due_date || null,
-});
+В `useCreateConversation` добавить:
+- Повторный запрос к БД напрямую перед созданием
+- Проверку с использованием одного SQL-запроса вместо трех последовательных
 
-// СТАНЕТ:
-await updateTask.mutateAsync({
-  id: item.task_id,
-  title: item.item_text,
-  assignee_ids: assigneeProfileIds,
-  project_id: projectId,  // ← добавляем
-  due_date: item.due_date || null,
-});
-```
+### Шаг 3: Добавить уникальный индекс в базу данных
+
+Создать составной уникальный индекс для предотвращения дубликатов на уровне БД:
+- Индекс на паре участников для direct-чатов
+- Триггер для проверки перед вставкой
 
 ---
 
-### Шаг 2: Исправить sync-protocol-tasks Edge Function
+## Технические детали
 
-Добавить маппинг типов секций на системные проекты.
+### Файл: `src/hooks/useChat.ts`
 
-**Файл:** `supabase/functions/sync-protocol-tasks/index.ts`
-
-**2.1. Добавить константу маппинга (в начало файла после интерфейсов):**
+**Изменение 1**: Переписать `useFindDirectConversation` (строки 83-123)
 
 ```typescript
-const SECTION_TYPE_PROJECT_IDS: Partial<Record<string, string>> = {
-  tender: "bf2ef5b4-1fe7-4e69-b533-30393a4d386b",   // Тендеры/задачи
-  business: "5b30ab38-7ecd-4643-960e-8dc2bf353d98", // Бизнес процессы
-  hr: "620c7f0e-6558-4116-8e80-7681457127b8",      // Подбор персонала
-};
+export function useFindDirectConversation() {
+  return async (profileId: string, otherProfileId: string): Promise<string | null> => {
+    console.log('[findDirectConversation] Searching for existing chat between', profileId, 'and', otherProfileId);
+    
+    try {
+      // Step 1: Get all conversations where current user is a participant
+      const { data: myConversations, error: myError } = await proxySelect<{ conversation_id: string }>('chat_participants', {
+        select: 'conversation_id',
+        filters: [{ column: 'user_id', operator: 'eq', value: profileId }],
+        limit: 1000, // Увеличенный лимит
+      });
 
-function getProjectIdForSection(sectionType: string | null, entityId: string | null): string | null {
-  if (sectionType === "project") {
-    return entityId;
-  }
-  return sectionType ? SECTION_TYPE_PROJECT_IDS[sectionType] || null : null;
+      if (myError) {
+        console.error('[findDirectConversation] Error fetching my conversations:', myError);
+        return null;
+      }
+      
+      if (!myConversations?.length) {
+        console.log('[findDirectConversation] User has no conversations');
+        return null;
+      }
+
+      const conversationIds = myConversations.map(c => c.conversation_id);
+      console.log('[findDirectConversation] Found', conversationIds.length, 'conversations for current user');
+
+      // Step 2: Filter only direct conversations
+      const { data: directConversations, error: convError } = await proxySelect<{ id: string }>('chat_conversations', {
+        select: 'id',
+        filters: [
+          { column: 'id', operator: 'in', value: conversationIds },
+          { column: 'type', operator: 'eq', value: 'direct' },
+        ],
+        limit: 1000,
+      });
+
+      if (convError) {
+        console.error('[findDirectConversation] Error fetching direct conversations:', convError);
+        return null;
+      }
+      
+      if (!directConversations?.length) {
+        console.log('[findDirectConversation] No direct conversations found');
+        return null;
+      }
+
+      const directConvIds = directConversations.map(c => c.id);
+      console.log('[findDirectConversation] Found', directConvIds.length, 'direct conversations');
+
+      // Step 3: Check if the other user is also a participant
+      const { data: otherParticipations, error: otherError } = await proxySelect<{ conversation_id: string }>('chat_participants', {
+        select: 'conversation_id',
+        filters: [
+          { column: 'user_id', operator: 'eq', value: otherProfileId },
+          { column: 'conversation_id', operator: 'in', value: directConvIds },
+        ],
+        limit: 1000,
+      });
+
+      if (otherError) {
+        console.error('[findDirectConversation] Error checking other user participation:', otherError);
+        return null;
+      }
+      
+      if (!otherParticipations?.length) {
+        console.log('[findDirectConversation] Other user is not in any direct conversation with current user');
+        return null;
+      }
+
+      console.log('[findDirectConversation] Found existing conversation:', otherParticipations[0].conversation_id);
+      return otherParticipations[0].conversation_id;
+    } catch (error) {
+      console.error('[findDirectConversation] Unexpected error:', error);
+      return null;
+    }
+  };
 }
 ```
 
-**2.2. Заменить логику в Step 2 (строка ~188):**
+**Изменение 2**: Добавить вторую проверку в `useCreateConversation` (строки 154-167)
 
 ```typescript
-// БЫЛО:
-const projectId = latestItem.protocol_sections?.section_type === 'project' 
-  ? latestItem.protocol_sections.entity_id 
-  : null;
-
-// СТАНЕТ:
-const projectId = getProjectIdForSection(
-  latestItem.protocol_sections?.section_type || null,
-  latestItem.protocol_sections?.entity_id || null
-);
+// For direct chats, check if conversation already exists
+if (type === "direct" && participantIds.length === 1) {
+  const otherProfileId = participantIds[0];
+  
+  // First attempt - use the findDirectConversation function
+  let existingConvId = await findDirectConversation(profile.id, otherProfileId);
+  
+  // If not found, do a direct database check as backup
+  if (!existingConvId) {
+    console.log('[createConversation] First search found nothing, doing backup check...');
+    
+    // Direct query: find conversation where both users are participants
+    const { data: myParticipations } = await proxySelect<{ conversation_id: string }>('chat_participants', {
+      select: 'conversation_id',
+      filters: [{ column: 'user_id', operator: 'eq', value: profile.id }],
+      limit: 1000,
+    });
+    
+    if (myParticipations?.length) {
+      const myConvIds = myParticipations.map(p => p.conversation_id);
+      
+      const { data: sharedParticipations } = await proxySelect<{ conversation_id: string }>('chat_participants', {
+        select: 'conversation_id',
+        filters: [
+          { column: 'user_id', operator: 'eq', value: otherProfileId },
+          { column: 'conversation_id', operator: 'in', value: myConvIds },
+        ],
+        limit: 1000,
+      });
+      
+      if (sharedParticipations?.length) {
+        // Check if any of these are direct chats
+        const { data: directChats } = await proxySelect<{ id: string }>('chat_conversations', {
+          select: 'id',
+          filters: [
+            { column: 'id', operator: 'in', value: sharedParticipations.map(p => p.conversation_id) },
+            { column: 'type', operator: 'eq', value: 'direct' },
+          ],
+          limit: 1,
+        });
+        
+        if (directChats?.[0]) {
+          existingConvId = directChats[0].id;
+          console.log('[createConversation] Backup check found existing conversation:', existingConvId);
+        }
+      }
+    }
+  }
+  
+  if (existingConvId) {
+    // Return existing conversation info
+    const { data: existingConv } = await proxySelect<ChatConversation>('chat_conversations', {
+      filters: [{ column: 'id', operator: 'eq', value: existingConvId }],
+      limit: 1,
+    });
+    if (existingConv?.[0]) {
+      console.log('[createConversation] Returning existing conversation:', existingConv[0].id);
+      return existingConv[0];
+    }
+  }
+  
+  console.log('[createConversation] No existing conversation found, will create new one');
+}
 ```
 
-**2.3. Заменить логику в Step 4 (строка ~313):**
+### База данных: Добавить уникальный индекс
 
-```typescript
-// БЫЛО:
-const projectId = item.protocol_sections?.section_type === 'project' 
-  ? item.protocol_sections.entity_id 
-  : null;
-
-// СТАНЕТ:
-const projectId = getProjectIdForSection(
-  item.protocol_sections?.section_type || null,
-  item.protocol_sections?.entity_id || null
-);
-```
-
----
-
-### Шаг 3: Миграция существующих данных
-
-После обновления кода нужно запустить миграцию для исправления уже существующих задач с `project_id = NULL`.
-
-**SQL-запрос для исправления:**
+Создать миграцию для предотвращения дубликатов на уровне БД:
 
 ```sql
--- Обновить задачи из секций типа tender
-UPDATE tasks t
-SET project_id = 'bf2ef5b4-1fe7-4e69-b533-30393a4d386b'
-FROM protocol_items pi
-JOIN protocol_sections ps ON pi.section_id = ps.id
-WHERE pi.task_id = t.id
-  AND ps.section_type = 'tender'
-  AND t.project_id IS NULL;
+-- Создать функцию для получения канонической пары участников direct-чата
+CREATE OR REPLACE FUNCTION get_direct_chat_pair(conv_id uuid)
+RETURNS text AS $$
+DECLARE
+  participants text[];
+BEGIN
+  SELECT array_agg(user_id::text ORDER BY user_id)
+  INTO participants
+  FROM chat_participants
+  WHERE conversation_id = conv_id;
+  
+  RETURN array_to_string(participants, ',');
+END;
+$$ LANGUAGE plpgsql;
 
--- Обновить задачи из секций типа business
-UPDATE tasks t
-SET project_id = '5b30ab38-7ecd-4643-960e-8dc2bf353d98'
-FROM protocol_items pi
-JOIN protocol_sections ps ON pi.section_id = ps.id
-WHERE pi.task_id = t.id
-  AND ps.section_type = 'business'
-  AND t.project_id IS NULL;
+-- Создать таблицу для отслеживания уникальных пар direct-чатов
+CREATE TABLE IF NOT EXISTS chat_direct_pairs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id uuid NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
+  participant_pair text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(participant_pair)
+);
 
--- Обновить задачи из секций типа hr
-UPDATE tasks t
-SET project_id = '620c7f0e-6558-4116-8e80-7681457127b8'
-FROM protocol_items pi
-JOIN protocol_sections ps ON pi.section_id = ps.id
-WHERE pi.task_id = t.id
-  AND ps.section_type = 'hr'
-  AND t.project_id IS NULL;
+-- Триггер для автоматического добавления пары при создании direct-чата
+CREATE OR REPLACE FUNCTION ensure_unique_direct_chat()
+RETURNS TRIGGER AS $$
+DECLARE
+  conv_type text;
+  pair_text text;
+  participant_count int;
+BEGIN
+  -- Получить тип чата
+  SELECT type INTO conv_type FROM chat_conversations WHERE id = NEW.conversation_id;
+  
+  -- Только для direct чатов
+  IF conv_type = 'direct' THEN
+    -- Подсчитать участников
+    SELECT count(*) INTO participant_count 
+    FROM chat_participants 
+    WHERE conversation_id = NEW.conversation_id;
+    
+    -- Если это второй участник (завершение создания direct-чата)
+    IF participant_count = 2 THEN
+      pair_text := get_direct_chat_pair(NEW.conversation_id);
+      
+      -- Попробовать вставить пару (если уже есть - ошибка)
+      INSERT INTO chat_direct_pairs (conversation_id, participant_pair)
+      VALUES (NEW.conversation_id, pair_text)
+      ON CONFLICT (participant_pair) DO NOTHING;
+    END IF;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_ensure_unique_direct_chat
+AFTER INSERT ON chat_participants
+FOR EACH ROW
+EXECUTE FUNCTION ensure_unique_direct_chat();
+
+-- Включить RLS
+ALTER TABLE chat_direct_pairs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow read for authenticated" ON chat_direct_pairs
+FOR SELECT TO authenticated USING (true);
 ```
 
 ---
 
-## Результат
+## Порядок реализации
 
-После внесения изменений:
-
-- Новые задачи из протоколов будут автоматически попадать в правильные папки
-- Существующие задачи (после миграции) появятся в соответствующих проектах:
-  - Тендерные пункты → папка «Тендеры/задачи»
-  - Бизнес-процессы → папка «Бизнес процессы»
-  - HR-задачи → папка «Подбор персонала»
-- При редактировании протокола и сохранении — `project_id` задачи будет корректно обновляться
-
+1. Обновить `useFindDirectConversation` с логированием и увеличенными лимитами
+2. Добавить двойную проверку в `useCreateConversation`
+3. Создать миграцию БД для уникального индекса
+4. Протестировать создание чата с существующим собеседником
