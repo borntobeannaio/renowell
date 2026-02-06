@@ -1,77 +1,97 @@
 
 
-# Исправление загрузки и отображения изображений без VPN
+# Отдельная Yandex Cloud Function для загрузки файлов (multipart)
 
-## Проблема
+## Идея
 
-Пользователи без VPN не могут:
-1. **Загружать файлы в чат** -- вызов edge-функции `yandex-s3-upload` идёт напрямую на Supabase, который заблокирован
-2. **Видеть аватары в профилях** -- URL аватаров ведёт напрямую на Supabase Storage, который тоже заблокирован
-3. **Загружать аватары** -- прокси-слой `storageProxy.ts` не использует Yandex Cloud прокси как fallback (баг в логике retry)
-
-## Что будет исправлено
-
-### 1. Загрузка файлов в чат (`useChatAttachments.ts`)
-
-Перенаправить вызов `yandex-s3-upload` через Yandex Cloud прокси вместо прямого обращения к Supabase:
+Вместо отправки base64 через JSON-прокси (который режет тело запроса), создать **отдельную Yandex Cloud Function** для загрузки файлов. Она будет принимать файлы как `multipart/form-data` и загружать напрямую в Yandex S3 -- точно так же, как на другом сайте.
 
 ```text
-Сейчас:   Браузер --> Supabase Edge Function (заблокировано)
-Будет:    Браузер --> Yandex Cloud Function --> Supabase Edge Function
+Сейчас (не работает):
+  Браузер --> Yandex Proxy (JSON с base64) --> Supabase Edge Function --> Yandex S3
+  (зависает из-за лимита на тело запроса)
+
+Будет:
+  Браузер --> Yandex Cloud Function (multipart/form-data) --> Yandex S3
+  (напрямую, без Supabase, без base64, без лимитов)
 ```
 
-Добавить `_proxyTarget: "yandex-s3-upload"` в запрос через уже существующий Yandex Cloud прокси.
+## Что нужно сделать
 
-### 2. Исправление retry-логики `storageProxy.ts`
+### 1. Создать новую Yandex Cloud Function (вручную в консоли Яндекса)
 
-Сейчас функция `callStorageProxy` (через Yandex) определена, но не используется. Исправим порядок:
-1. Сначала попытка через Yandex Cloud прокси
-2. Если не удалось -- fallback на прямой вызов Supabase
+Код на Node.js 18, аналогичный тому, что уже используется на другом сайте. Принимает `multipart/form-data` с полями:
+- `file` -- сам файл
+- `folder` -- папка в S3 (по умолчанию `chat-files`)
 
-### 3. Проксирование отображения аватаров
+Секреты S3 (access key, secret key, bucket name) уже есть -- те же, что используются в edge-функции `yandex-s3-upload`.
 
-Аватары хранятся в Supabase Storage с URL вида `https://...supabase.co/storage/v1/...`. Для отображения без VPN нужно проксировать эти URL.
+### 2. Обновить `src/hooks/useChatAttachments.ts`
 
-Создадим простую edge-функцию `avatar-proxy`, которая будет:
-- Принимать путь к файлу в storage
-- Скачивать его на сервере через Supabase SDK
-- Отдавать бинарные данные клиенту
+Заменить текущую логику (base64 через JSON) на отправку `FormData` напрямую в новую Yandex Cloud Function:
 
-В коде приложения: при отображении аватаров подставлять проксированный URL через Yandex Cloud Function.
+```text
+const formData = new FormData();
+formData.append('file', file);
+formData.append('folder', 'chat-files');
 
-### 4. Обновление Yandex Cloud прокси
+fetch(YANDEX_UPLOAD_FUNCTION_URL, {
+  method: 'POST',
+  body: formData,  // браузер сам выставит Content-Type: multipart/form-data
+});
+```
 
-Добавить поддержку нового target `yandex-s3-upload` в документацию (Yandex Cloud Function уже поддерживает произвольные `_proxyTarget`).
-
----
+Преимущества:
+- Нет base64 (+33% overhead) -- файл идёт в бинарном виде
+- Нет лимита на размер (Yandex Cloud Function поддерживает до 10 МБ в multipart)
+- Не проходит через Supabase -- VPN не нужен
+- Проверенное решение -- уже работает на другом сайте
 
 ## Технические детали
 
-### Файлы для изменения
+### Файлы для изменения в проекте Lovable
 
 | Файл | Действие | Описание |
 |------|----------|----------|
-| `src/hooks/useChatAttachments.ts` | Изменить | Направить загрузку через Yandex Cloud прокси |
-| `src/lib/storageProxy.ts` | Изменить | Исправить retry: сначала Yandex прокси, потом direct |
-| `supabase/functions/avatar-proxy/index.ts` | Создать | Проксирование аватаров из Supabase Storage |
-| `src/lib/avatarProxy.ts` | Создать | Утилита для построения проксированных URL аватаров |
-| `src/pages/Profile.tsx` | Изменить | Использовать проксированные URL для отображения |
-| `src/components/modules/HRModule.tsx` | Изменить | Использовать проксированные URL для аватаров сотрудников |
-| `supabase/config.toml` | Обновится автоматически | Добавить конфигурацию `avatar-proxy` |
+| `src/hooks/useChatAttachments.ts` | Изменить | Отправка через FormData в новую функцию |
 
-### Логика проксирования аватаров
+### Yandex Cloud Function (создаётся в консоли Яндекса вручную)
+
+Код функции -- адаптированная версия того, что уже работает на другом сайте:
 
 ```text
-Сейчас:  <img src="https://...supabase.co/storage/v1/object/public/avatars/user123/avatar.jpg" />
-         (заблокировано без VPN)
-
-Будет:   <img src="https://functions.yandexcloud.net/d4e.../avatar-proxy?path=user123/avatar.jpg" />
-         Yandex Cloud --> avatar-proxy edge function --> Supabase Storage --> бинарные данные
+Настройки:
+- Runtime: Node.js 18
+- Таймаут: 30 сек
+- Память: 128 МБ
+- Публичный доступ: Да
+- Переменные окружения:
+  S3_ACCESS_KEY, S3_SECRET_KEY, S3_BUCKET (или захардкодить как на другом сайте)
 ```
 
-### Утилита `avatarProxy.ts`
+Код будет содержать:
+- `parseMultipart()` -- парсинг multipart body
+- `signRequest()` -- AWS v4 подпись
+- `uploadToS3()` -- PUT в Yandex S3
+- Handler -- обработка запроса
 
-Функция `getAvatarUrl(rawUrl)`:
-- Если URL содержит `supabase.co/storage` -- преобразовать в проксированный через Yandex Cloud
-- Иначе -- вернуть как есть
+### Логика в `useChatAttachments.ts`
+
+```text
+1. Создаём FormData с файлом и папкой
+2. POST в YANDEX_UPLOAD_FUNCTION_URL (новая функция)
+3. Получаем { success: true, url: "https://storage.yandexcloud.net/...", key: "..." }
+4. Возвращаем url как ссылку на файл
+```
+
+### Что потребуется от вас
+
+1. Создать новую Yandex Cloud Function в консоли Яндекса (я дам готовый код)
+2. Вставить в неё код с вашими S3-ключами (или теми же, что на другом сайте, если бакет тот же)
+3. Сообщить мне URL новой функции (вида `https://functions.yandexcloud.net/d4e...`)
+4. Я обновлю `useChatAttachments.ts` с новым URL
+
+### Fallback
+
+Если новая функция недоступна -- fallback на прямой вызов Supabase Edge Function `yandex-s3-upload` (для пользователей с VPN).
 
