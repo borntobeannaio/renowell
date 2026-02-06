@@ -522,7 +522,7 @@ export function FloatingChat() {
               <div className="flex flex-col max-w-[85%]">
                 <div className="flex items-start gap-1">
                   {isOwn && (
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity self-center">
+                    <div className="md:opacity-0 md:group-hover:opacity-100 transition-opacity self-center">
                       <ReactionPicker onSelect={(emoji) => toggleReaction.mutate({ messageId: msg.id, emoji })} />
                     </div>
                   )}
@@ -549,7 +549,7 @@ export function FloatingChat() {
                     </p>
                   </div>
                   {!isOwn && (
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity self-center">
+                    <div className="md:opacity-0 md:group-hover:opacity-100 transition-opacity self-center">
                       <ReactionPicker onSelect={(emoji) => toggleReaction.mutate({ messageId: msg.id, emoji })} />
                     </div>
                   )}
