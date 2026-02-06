@@ -113,3 +113,34 @@ export function useTelegramImageUrl(fileId: string | null): string | null {
 
   return url;
 }
+
+/**
+ * Fetch a Yandex Disk photo as a blob URL via proxy.
+ */
+export async function fetchYandexPhotoBlob(publicUrl: string, path: string): Promise<string | null> {
+  const cacheKey = `yd:${publicUrl}:${path}`;
+  const cached = blobCache.get(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const result = await proxyEdgeFunction<{ base64: string; contentType: string }>(
+      "yandex-disk-proxy",
+      { action: "get-preview", publicUrl, path }
+    );
+
+    if (!result?.base64) return null;
+
+    const binary = atob(result.base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: result.contentType || "image/jpeg" });
+    const blobUrl = URL.createObjectURL(blob);
+    blobCache.set(cacheKey, blobUrl);
+    return blobUrl;
+  } catch (err) {
+    console.error("[mediaProxy] Failed to fetch Yandex photo:", err);
+    return null;
+  }
+}
