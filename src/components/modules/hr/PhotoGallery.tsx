@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Folder, ArrowLeft, Image, Loader2 } from "lucide-react";
 import { Lightbox } from "@/components/ui/Lightbox";
-import { proxyEdgeFunction } from "@/lib/mediaProxy";
+import { proxyEdgeFunction, fetchYandexPhotoBlob } from "@/lib/mediaProxy";
+import { ProxiedYandexPhoto } from "./ProxiedYandexPhoto";
 
 interface PhotoFolder {
   id: string;
@@ -77,6 +78,7 @@ export function PhotoGallery() {
   const [subPath, setSubPath] = useState<string | undefined>(undefined);
   const [pathHistory, setPathHistory] = useState<{ path?: string; name: string }[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [lightboxUrls, setLightboxUrls] = useState<Map<string, string>>(new Map());
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['yandex-contents', selectedFolder?.id, subPath],
@@ -128,14 +130,12 @@ export function PhotoGallery() {
     );
   }
 
-  // Use direct Yandex CDN preview URLs from listing
+  // Build display list from photos (use path for proxied loading)
   const displayPhotos = photos.map(photo => ({
     id: photo.id,
-    url: photo.previewUrl || "",
-    preview: photo.previewUrl || "",
     title: photo.name,
     path: photo.path,
-  })).filter(p => !!p.url);
+  }));
 
   const currentFolderName = subPath 
     ? subPath.split('/').filter(Boolean).pop() || selectedFolder.name
@@ -198,19 +198,26 @@ export function PhotoGallery() {
       {!isLoading && !error && displayPhotos.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {displayPhotos.map((photo, index) => (
-            <button
+            <ProxiedYandexPhoto
               key={photo.id}
-              onClick={() => setLightboxIndex(index)}
-              className="aspect-square rounded-lg overflow-hidden bg-secondary hover:opacity-90 transition-opacity relative group"
-            >
-              <img
-                src={photo.preview}
-                alt={photo.title}
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-            </button>
+              publicUrl={selectedFolder.yandexDiskUrl}
+              path={photo.path}
+              alt={photo.title}
+              onClick={() => {
+                // Fetch blob for lightbox if not cached
+                const cached = lightboxUrls.get(photo.path);
+                if (cached) {
+                  setLightboxIndex(index);
+                } else {
+                  fetchYandexPhotoBlob(selectedFolder.yandexDiskUrl, photo.path).then(url => {
+                    if (url) {
+                      setLightboxUrls(prev => new Map(prev).set(photo.path, url));
+                    }
+                    setLightboxIndex(index);
+                  });
+                }
+              }}
+            />
           ))}
         </div>
       )}
@@ -232,7 +239,11 @@ export function PhotoGallery() {
 
       {lightboxIndex !== null && displayPhotos.length > 0 && (
         <Lightbox
-          photos={displayPhotos.map(p => ({ id: p.id, url: p.url, title: p.title }))}
+          photos={displayPhotos.map(p => ({ 
+            id: p.id, 
+            url: lightboxUrls.get(p.path) || "", 
+            title: p.title 
+          }))}
           currentIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onPrev={() => setLightboxIndex((i) => Math.max(0, (i || 0) - 1))}

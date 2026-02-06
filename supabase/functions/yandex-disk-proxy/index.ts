@@ -189,6 +189,71 @@ serve(async (req) => {
         );
       }
 
+      if (action === 'get-preview') {
+        // Get preview image as base64 for proxying through blocked networks
+        const path = subPath;
+        if (!path) {
+          return new Response(
+            JSON.stringify({ error: 'Missing path' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Get fresh preview URL from Yandex API
+        const resourceApiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(publicUrl)}&path=${encodeURIComponent(path)}&preview_size=L&preview_crop=false`;
+        const resourceResponse = await fetch(resourceApiUrl, { headers: browserHeaders });
+
+        if (!resourceResponse.ok) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to get resource info' }),
+            { status: resourceResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const resourceData = await resourceResponse.json();
+        let imageUrl = resourceData.preview;
+
+        if (!imageUrl) {
+          // Fallback to download URL
+          const dlUrl = `https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=${encodeURIComponent(publicUrl)}&path=${encodeURIComponent(path)}`;
+          const dlResp = await fetch(dlUrl, { headers: browserHeaders });
+          if (dlResp.ok) {
+            const dlData = await dlResp.json();
+            imageUrl = dlData.href;
+          }
+        }
+
+        if (!imageUrl) {
+          return new Response(
+            JSON.stringify({ error: 'No image URL available' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Fetch image and return as base64
+        const imgResp = await fetch(imageUrl, { headers: browserHeaders });
+        if (!imgResp.ok) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to fetch image' }),
+            { status: imgResp.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const buffer = await imgResp.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const base64 = btoa(binary);
+        const contentType = imgResp.headers.get('Content-Type') || 'image/jpeg';
+
+        return new Response(
+          JSON.stringify({ base64, contentType }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       if (action === 'download') {
         // Get download URL for a specific file (legacy, but kept for compatibility)
         const downloadApiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=${encodeURIComponent(publicUrl)}&path=${encodeURIComponent(subPath || '/')}`;
