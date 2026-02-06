@@ -576,7 +576,7 @@ export function FloatingChat() {
 
   const panelClasses = isFullscreen
     ? "fixed inset-4 md:inset-8 z-50"
-    : "fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 w-[340px] h-[480px]";
+    : "fixed inset-0 z-50 md:inset-auto md:bottom-6 md:right-6 md:w-[340px] md:h-[480px]";
 
   return (
     <>
@@ -599,7 +599,7 @@ export function FloatingChat() {
       {isOpen && (
         <div 
           ref={dropZoneRef}
-          className={`${panelClasses} bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 ${
+          className={`${panelClasses} bg-card border border-border rounded-none md:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 ${
             isDragging ? "ring-2 ring-primary ring-offset-2" : ""
           }`}
           onDragEnter={handleDragEnter}
