@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { proxyUpload, proxyDelete as storageProxyDelete, proxyGetPublicUrl } from "@/lib/storageProxy";
 import { proxySelect, proxyUpdate } from "@/lib/dbProxy";
+import { useProxiedAvatarUrl } from "@/lib/avatarProxy";
 import { supabase } from "@/integrations/supabase/client";
 import renowellLogo from "@/assets/renowell-logo-text.png";
 
@@ -306,6 +307,7 @@ export default function Profile() {
     }
   };
 
+  const proxiedAvatarUrl = useProxiedAvatarUrl(avatarUrl);
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || "U";
   const fullName = [firstName, lastName].filter(Boolean).join(" ") || "Пользователь";
 
@@ -344,9 +346,9 @@ export default function Profile() {
           {/* Avatar & Name */}
           <div className="flex items-center gap-4">
             <div className="relative">
-              {avatarUrl ? (
+              {proxiedAvatarUrl ? (
                 <img
-                  src={avatarUrl}
+                  src={proxiedAvatarUrl}
                   alt={fullName}
                   className="w-24 h-24 rounded-full object-cover shadow-lg"
                 />

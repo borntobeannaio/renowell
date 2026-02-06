@@ -2,7 +2,9 @@ import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { proxySelect } from "@/lib/dbProxy";
+
 import { Modal } from "@/components/ui/Modal";
+import { ProxiedAvatar } from "@/components/ui/ProxiedAvatar";
 import { Button } from "@/components/ui/button";
 import { formatDisplayDate } from "@/utils/dateFormat";
 import { useHRPermissions } from "@/hooks/useHRPermissions";
@@ -133,17 +135,7 @@ function EmployeesTab() {
             className="card-base p-4 text-left hover:border-primary/30 transition-colors"
           >
             <div className="flex items-center gap-3">
-              {emp.avatar_url ? (
-                <img
-                  src={emp.avatar_url}
-                  alt={emp.full_name}
-                  className="w-12 h-12 rounded-full bg-secondary object-cover"
-                />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="w-6 h-6 text-primary" />
-                </div>
-              )}
+              <ProxiedAvatar url={emp.avatar_url} alt={emp.full_name} size="sm" />
               <div className="flex-1 min-w-0">
                 <h4 className="font-medium text-foreground truncate">
                   {emp.full_name}
@@ -177,17 +169,7 @@ function EmployeesTab() {
         {selectedEmployee && (
           <div className="space-y-6">
             <div className="flex items-center gap-4">
-              {selectedEmployee.avatar_url ? (
-                <img
-                  src={selectedEmployee.avatar_url}
-                  alt={selectedEmployee.full_name}
-                  className="w-20 h-20 rounded-full bg-secondary object-cover"
-                />
-              ) : (
-                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="w-10 h-10 text-primary" />
-                </div>
-              )}
+              <ProxiedAvatar url={selectedEmployee.avatar_url} alt={selectedEmployee.full_name} size="md" />
               <div className="flex-1">
                 <h3 className="text-xl font-semibold text-foreground">
                   {selectedEmployee.full_name}

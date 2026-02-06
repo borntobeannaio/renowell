@@ -121,16 +121,21 @@ export async function storageProxy<T = unknown>(request: StorageRequest): Promis
 
   for (let attempt = 0; attempt <= RETRIES; attempt++) {
     try {
-      // Try direct edge function call (more reliable for large files)
-      return await callStorageProxyDirect<T>(request);
-    } catch (err) {
-      lastError = err;
-      if (attempt < RETRIES) {
-        await sleep(500 * (attempt + 1));
-        continue;
+      // Try Yandex Cloud proxy first (bypasses Supabase block)
+      return await callStorageProxy<T>(request);
+    } catch {
+      try {
+        // Fallback to direct Supabase edge function
+        return await callStorageProxyDirect<T>(request);
+      } catch (err) {
+        lastError = err;
+        if (attempt < RETRIES) {
+          await sleep(500 * (attempt + 1));
+          continue;
+        }
+        const e = lastError as { message?: string };
+        return { data: null, error: { message: e?.message || "Ошибка прокси-запроса" } };
       }
-      const e = lastError as { message?: string };
-      return { data: null, error: { message: e?.message || "Ошибка прокси-запроса" } };
     }
   }
 

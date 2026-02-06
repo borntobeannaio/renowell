@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.yandex-s3-upload]
 verify_jwt = false
+
+[functions.avatar-proxy]
+verify_jwt = false
