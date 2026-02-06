@@ -113,7 +113,9 @@ https://functions.yandexcloud.net/d4e...abc
 
 ## 5. Поддерживаемые операции
 
-### База данных (db-proxy)
+Прокси поддерживает **любые** edge-функции через `_proxyTarget`. По умолчанию запросы идут в `db-proxy`.
+
+### База данных (db-proxy) — по умолчанию
 - `select` — выборка данных
 - `insert` — вставка записей
 - `update` — обновление записей
@@ -122,13 +124,25 @@ https://functions.yandexcloud.net/d4e...abc
 - `ping` — проверка связи
 
 ### Хранилище файлов (storage-proxy)
-Для использования storage-proxy добавьте `_proxyTarget: "storage-proxy"` в запрос:
+`_proxyTarget: "storage-proxy"`
 
 - `upload` — загрузка файла (base64)
-- `download` — скачивание файла
+- `download` — скачивание файла (возвращает base64)
 - `delete` — удаление файлов
 - `getPublicUrl` — получение публичной ссылки
 - `list` — список файлов в папке
+
+### Загрузка файлов в чат (yandex-s3-upload)
+`_proxyTarget: "yandex-s3-upload"`
+
+- Загрузка файлов в Yandex Object Storage (S3)
+- Принимает: `fileName`, `fileBase64`, `contentType`
+
+### Проксирование аватаров (avatar-proxy)
+`_proxyTarget: "avatar-proxy"`
+
+- Скачивание изображений из Supabase Storage через серверную сторону
+- Принимает (query params в теле): `bucket`, `path`
 
 ## 6. Примеры использования
 
@@ -146,7 +160,7 @@ fetch(YANDEX_PROXY_URL, {
 });
 ```
 
-### Загрузка файла
+### Загрузка файла в Storage
 ```javascript
 fetch(YANDEX_PROXY_URL, {
   method: 'POST',
@@ -159,6 +173,20 @@ fetch(YANDEX_PROXY_URL, {
     fileBase64: '...base64 encoded file...',
     contentType: 'image/jpeg',
     upsert: true
+  })
+});
+```
+
+### Загрузка файла в чат (Yandex S3)
+```javascript
+fetch(YANDEX_PROXY_URL, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    _proxyTarget: 'yandex-s3-upload',
+    fileName: 'photo.jpg',
+    fileBase64: '...base64 encoded file...',
+    contentType: 'image/jpeg'
   })
 });
 ```
