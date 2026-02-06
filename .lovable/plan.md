@@ -1,63 +1,96 @@
 
+# Реакции на сообщения в чате
 
-# Поддержка файлов до 50 МБ с учётом настроек функции
+## Что будет сделано
 
-## Что уже сделано
+Пользователи смогут ставить эмодзи-реакции на сообщения в чате. При нажатии на сообщение появится панель с набором реакций. Под сообщением будут отображаться поставленные реакции с количеством.
 
-Yandex Cloud Function настроена с хорошим запасом:
-- Таймаут: 250 секунд
-- Память: 2 ГБ
-- Runtime: Node.js 22
+## Набор реакций
 
-## Что нужно изменить в коде
+6 базовых эмодзи: 👍 ❤️ 😂 😮 😢 🔥
 
-### Файл: `src/hooks/useChatAttachments.ts`
+## Изменения в базе данных
 
-1. **Лимит 50 МБ** -- добавить проверку размера файла с toast-ошибкой
-2. **Сжатие изображений** -- автоматическое уменьшение фото через Canvas API (макс 1920px, JPEG 0.8) перед отправкой. Фото с телефона 5-15 МБ станут 200-500 КБ
-3. **Увеличить таймаут** -- с 30 до 120 секунд (динамически, в зависимости от размера файла), чтобы соответствовать настройкам функции
-4. **Toast при ошибке** -- показать пользователю понятное сообщение, если загрузка не удалась
+Новая таблица `chat_message_reactions`:
+
+```text
+id          uuid (PK, default gen_random_uuid())
+message_id  uuid (FK -> chat_messages.id ON DELETE CASCADE)
+user_id     uuid (FK -> profiles.id ON DELETE CASCADE)  
+emoji       text (NOT NULL)
+created_at  timestamptz (default now())
+
+UNIQUE(message_id, user_id, emoji)  -- один пользователь = одна реакция данного типа
+```
+
+RLS-политики:
+- SELECT: участники беседы (через is_conversation_participant)
+- INSERT: участники беседы, user_id = get_user_profile_id()
+- DELETE: только свои реакции (user_id = get_user_profile_id())
+
+Realtime: включить для мгновенного обновления реакций у всех участников.
+
+## Изменения в коде
+
+### 1. Новый хук `src/hooks/useChatReactions.ts`
+
+- `useMessageReactions(conversationId)` -- загрузка всех реакций для сообщений беседы
+- `useToggleReaction()` -- мутация: если реакция уже стоит -- удалить, иначе -- добавить
+- Подписка на Realtime для автообновления
+
+### 2. Новый компонент `src/components/chat/MessageReactions.tsx`
+
+- Отображение реакций под сообщением (бейджи: эмодзи + счётчик)
+- Свои реакции подсвечены
+- Клик по существующей реакции -- toggle (добавить/убрать)
+
+### 3. Новый компонент `src/components/chat/ReactionPicker.tsx`
+
+- Панель с 6 эмодзи, появляется при наведении/нажатии на сообщение
+- На десктопе -- hover, на мобильном -- long press
+
+### 4. Обновление `src/components/chat/FloatingChat.tsx`
+
+- В `renderMessages()` к каждому сообщению добавить `ReactionPicker` и `MessageReactions`
+- Интеграция с существующей структурой сообщений
 
 ## Технические детали
 
-### Проверка размера
+### Структура данных реакций
 
 ```text
-const MAX_FILE_SIZE = 50 * 1024 * 1024;
-if (file.size > MAX_FILE_SIZE) {
-  toast.error("Файл слишком большой (максимум 50 МБ)");
-  return null;
+// Группировка реакций для отображения
+interface ReactionGroup {
+  emoji: string;
+  count: number;
+  hasOwn: boolean;  // текущий пользователь поставил эту реакцию
 }
 ```
 
-### Сжатие изображений
+### Toggle логика
 
 ```text
-async function compressImage(file, maxDim = 1920, quality = 0.8): Promise<File>
-  - Загрузить в Image через createObjectURL
-  - Если обе стороны <= maxDim -- вернуть как есть
-  - Пропорционально уменьшить до maxDim
-  - canvas.toBlob('image/jpeg', quality)
-  - Вернуть новый File с оригинальным именем
+toggleReaction(messageId, emoji):
+  1. Проверить, есть ли уже такая реакция от текущего пользователя
+  2. Если есть -- proxyDelete с фильтрами (message_id, user_id, emoji)
+  3. Если нет -- proxyInsert { message_id, user_id, emoji }
+  4. Invalidate query ["chat-reactions", conversationId]
 ```
 
-### Динамический таймаут
+### Realtime подписка
 
 ```text
-// 30 сек базово + 10 сек на каждый МБ, максимум 120 сек
-const timeoutMs = Math.min(120000, 30000 + Math.ceil(fileToUpload.size / (1024 * 1024)) * 10000);
+supabase.channel('chat-reactions')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_message_reactions' })
+  .subscribe()
+  -> invalidateQueries(["chat-reactions"])
 ```
 
-### Toast при ошибке
+### UI под сообщением
 
 ```text
-import { toast } from "sonner";
-
-// В catch блоке:
-toast.error("Не удалось загрузить файл");
+[Текст сообщения]
+[Вложения]
+[👍 2] [❤️ 1] [🔥 3]    <-- реакции (свои подсвечены)
+12:45                      <-- время
 ```
-
-## Лимит Yandex Cloud Function
-
-Синхронный вызов Yandex Cloud Functions ограничен ~3.5 МБ на тело запроса. Сжатие изображений решит 90% случаев (фото). Для больших документов (PDF 10+ МБ) может потребоваться переход на presigned URL в будущем, но сначала стоит проверить, работает ли загрузка после сжатия.
-
