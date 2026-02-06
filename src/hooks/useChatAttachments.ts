@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+const EXTERNAL_PROXY_URL = "https://functions.yandexcloud.net/d4ed338dbl81ecrk8g0t";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
@@ -35,19 +36,35 @@ export function useChatAttachments() {
       const fileBase64 = await fileToBase64(file);
       setUploadProgress(30);
 
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/yandex-s3-upload`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          apikey: SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileBase64,
-          contentType: file.type,
-        }),
-      });
+      // Try Yandex Cloud proxy first (bypasses Supabase block)
+      let response: Response;
+      try {
+        response = await fetch(EXTERNAL_PROXY_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            _proxyTarget: "yandex-s3-upload",
+            fileName: file.name,
+            fileBase64,
+            contentType: file.type,
+          }),
+        });
+      } catch {
+        // Fallback to direct Supabase call
+        response = await fetch(`${SUPABASE_URL}/functions/v1/yandex-s3-upload`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            apikey: SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileBase64,
+            contentType: file.type,
+          }),
+        });
+      }
 
       setUploadProgress(80);
 
