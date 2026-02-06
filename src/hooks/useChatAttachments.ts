@@ -20,10 +20,12 @@ export function useChatAttachments() {
     setIsUploading(true);
     setUploadProgress(0);
 
+    const tag = "[ChatUpload]";
+    console.log(`${tag} Starting upload: ${file.name} (${(file.size / 1024).toFixed(1)} KB, ${file.type})`);
+
     try {
       setUploadProgress(10);
 
-      // Build FormData — file goes as binary, no base64
       const formData = new FormData();
       formData.append("file", file);
       formData.append("folder", "chat-files");
@@ -32,14 +34,22 @@ export function useChatAttachments() {
 
       let response: Response;
       try {
-        // Direct multipart upload to dedicated Yandex Cloud Function
+        console.log(`${tag} Sending to Yandex Function: ${YANDEX_UPLOAD_FUNCTION_URL}`);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
         response = await fetch(YANDEX_UPLOAD_FUNCTION_URL, {
           method: "POST",
-          body: formData, // browser sets Content-Type: multipart/form-data automatically
+          body: formData,
+          signal: controller.signal,
         });
-      } catch {
-        // Fallback: direct Supabase edge function (requires VPN in Russia)
+        clearTimeout(timeout);
+        console.log(`${tag} Yandex Function response status: ${response.status}`);
+      } catch (err: any) {
+        console.warn(`${tag} Yandex Function failed: ${err?.name} — ${err?.message}`);
+        console.log(`${tag} Trying fallback (Supabase direct)...`);
         const fileBase64 = await fileToBase64(file);
+        const controller2 = new AbortController();
+        const timeout2 = setTimeout(() => controller2.abort(), 30000);
         response = await fetch(`${SUPABASE_URL}/functions/v1/yandex-s3-upload`, {
           method: "POST",
           headers: {
@@ -47,22 +57,23 @@ export function useChatAttachments() {
             Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
             apikey: SUPABASE_ANON_KEY,
           },
-          body: JSON.stringify({
-            fileName: file.name,
-            fileBase64,
-            contentType: file.type,
-          }),
+          body: JSON.stringify({ fileName: file.name, fileBase64, contentType: file.type }),
+          signal: controller2.signal,
         });
+        clearTimeout(timeout2);
+        console.log(`${tag} Fallback response status: ${response.status}`);
       }
 
       setUploadProgress(80);
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Upload failed");
+        const errBody = await response.text();
+        console.error(`${tag} Response not ok (${response.status}): ${errBody}`);
+        throw new Error(errBody || "Upload failed");
       }
 
       const data = await response.json();
+      console.log(`${tag} Success:`, data);
       setUploadProgress(100);
 
       return {
@@ -71,8 +82,8 @@ export function useChatAttachments() {
         contentType: file.type,
         size: file.size,
       };
-    } catch (error) {
-      console.error("Upload error:", error);
+    } catch (error: any) {
+      console.error(`${tag} Upload failed:`, error?.message || error);
       return null;
     } finally {
       setIsUploading(false);
