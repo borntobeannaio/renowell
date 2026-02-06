@@ -63,8 +63,11 @@ async function compressImage(file: File, maxDim = 1920, quality = 0.8): Promise<
   });
 }
 
-function getTimeout(fileSize: number): number {
-  return Math.min(120000, 30000 + Math.ceil(fileSize / (1024 * 1024)) * 10000);
+// Primary Yandex Function gets a short timeout so we fail-over quickly on mobile
+const YANDEX_TIMEOUT_MS = 15_000;
+
+function getFallbackTimeout(fileSize: number): number {
+  return Math.min(120_000, 30_000 + Math.ceil(fileSize / (1024 * 1024)) * 10_000);
 }
 
 export function useChatAttachments() {
@@ -84,8 +87,28 @@ export function useChatAttachments() {
 
     console.log(`${tag} Starting upload: ${file.name} (${(file.size / 1024).toFixed(1)} KB, ${file.type})`);
 
+    // Simulate progress so user sees movement while waiting
+    let progressInterval: ReturnType<typeof setInterval> | null = null;
+    const startProgressSimulation = (from: number, to: number) => {
+      let current = from;
+      progressInterval = setInterval(() => {
+        current = Math.min(current + 1, to);
+        setUploadProgress(current);
+        if (current >= to && progressInterval) {
+          clearInterval(progressInterval);
+          progressInterval = null;
+        }
+      }, 500);
+    };
+    const stopProgressSimulation = () => {
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+    };
+
     try {
-      setUploadProgress(10);
+      setUploadProgress(5);
 
       // Compress images before upload
       const fileToUpload = await compressImage(file);
@@ -97,15 +120,15 @@ export function useChatAttachments() {
       formData.append("file", fileToUpload);
       formData.append("folder", "chat-files");
 
-      setUploadProgress(20);
+      setUploadProgress(15);
+      startProgressSimulation(15, 70);
 
-      const timeoutMs = getTimeout(fileToUpload.size);
       let response: Response;
 
       try {
-        console.log(`${tag} Sending to Yandex Function (timeout ${timeoutMs}ms)`);
+        console.log(`${tag} Sending to Yandex Function (timeout ${YANDEX_TIMEOUT_MS}ms)`);
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), timeoutMs);
+        const timeout = setTimeout(() => controller.abort(), YANDEX_TIMEOUT_MS);
         response = await fetch(YANDEX_UPLOAD_FUNCTION_URL, {
           method: "POST",
           body: formData,
@@ -114,11 +137,16 @@ export function useChatAttachments() {
         clearTimeout(timeout);
         console.log(`${tag} Yandex Function response status: ${response.status}`);
       } catch (err: any) {
-        console.warn(`${tag} Yandex Function failed: ${err?.name} — ${err?.message}`);
-        console.log(`${tag} Trying fallback (Supabase direct)...`);
+        console.warn(`${tag} Yandex Function failed (${err?.name}): ${err?.message}`);
+        console.log(`${tag} Trying fallback (Supabase edge function)...`);
+        stopProgressSimulation();
+        setUploadProgress(30);
+        startProgressSimulation(30, 70);
+
+        const fallbackTimeoutMs = getFallbackTimeout(fileToUpload.size);
         const fileBase64 = await fileToBase64(fileToUpload);
         const controller2 = new AbortController();
-        const timeout2 = setTimeout(() => controller2.abort(), timeoutMs);
+        const timeout2 = setTimeout(() => controller2.abort(), fallbackTimeoutMs);
         response = await fetch(`${SUPABASE_URL}/functions/v1/yandex-s3-upload`, {
           method: "POST",
           headers: {
@@ -133,6 +161,7 @@ export function useChatAttachments() {
         console.log(`${tag} Fallback response status: ${response.status}`);
       }
 
+      stopProgressSimulation();
       setUploadProgress(80);
 
       if (!response.ok) {
@@ -156,6 +185,7 @@ export function useChatAttachments() {
       toast.error("Не удалось загрузить файл");
       return null;
     } finally {
+      stopProgressSimulation();
       setIsUploading(false);
       setUploadProgress(0);
     }
