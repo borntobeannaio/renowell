@@ -1,9 +1,12 @@
 import { useState } from "react";
+import { toast } from "sonner";
 
 const YANDEX_UPLOAD_FUNCTION_URL = "https://functions.yandexcloud.net/d4e50l5mk6s2mde1871u";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
 export interface ChatAttachment {
   url: string;
@@ -12,31 +15,97 @@ export interface ChatAttachment {
   size: number;
 }
 
+async function compressImage(file: File, maxDim = 1920, quality = 0.8): Promise<File> {
+  if (!file.type.startsWith("image/") || file.type === "image/gif") {
+    return file;
+  }
+
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const { width, height } = img;
+
+      if (width <= maxDim && height <= maxDim) {
+        resolve(file);
+        return;
+      }
+
+      const scale = Math.min(maxDim / width, maxDim / height);
+      const newW = Math.round(width * scale);
+      const newH = Math.round(height * scale);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = newW;
+      canvas.height = newH;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, newW, newH);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(file);
+            return;
+          }
+          const compressed = new File([blob], file.name, { type: "image/jpeg", lastModified: Date.now() });
+          resolve(compressed);
+        },
+        "image/jpeg",
+        quality,
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(file);
+    };
+    img.src = url;
+  });
+}
+
+function getTimeout(fileSize: number): number {
+  return Math.min(120000, 30000 + Math.ceil(fileSize / (1024 * 1024)) * 10000);
+}
+
 export function useChatAttachments() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const uploadFile = async (file: File): Promise<ChatAttachment | null> => {
+    const tag = "[ChatUpload]";
+
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("Файл слишком большой (максимум 50 МБ)");
+      return null;
+    }
+
     setIsUploading(true);
     setUploadProgress(0);
 
-    const tag = "[ChatUpload]";
     console.log(`${tag} Starting upload: ${file.name} (${(file.size / 1024).toFixed(1)} KB, ${file.type})`);
 
     try {
       setUploadProgress(10);
 
+      // Compress images before upload
+      const fileToUpload = await compressImage(file);
+      if (fileToUpload !== file) {
+        console.log(`${tag} Compressed: ${(file.size / 1024).toFixed(1)} KB → ${(fileToUpload.size / 1024).toFixed(1)} KB`);
+      }
+
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", fileToUpload);
       formData.append("folder", "chat-files");
 
       setUploadProgress(20);
 
+      const timeoutMs = getTimeout(fileToUpload.size);
       let response: Response;
+
       try {
-        console.log(`${tag} Sending to Yandex Function: ${YANDEX_UPLOAD_FUNCTION_URL}`);
+        console.log(`${tag} Sending to Yandex Function (timeout ${timeoutMs}ms)`);
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 30000);
+        const timeout = setTimeout(() => controller.abort(), timeoutMs);
         response = await fetch(YANDEX_UPLOAD_FUNCTION_URL, {
           method: "POST",
           body: formData,
@@ -47,9 +116,9 @@ export function useChatAttachments() {
       } catch (err: any) {
         console.warn(`${tag} Yandex Function failed: ${err?.name} — ${err?.message}`);
         console.log(`${tag} Trying fallback (Supabase direct)...`);
-        const fileBase64 = await fileToBase64(file);
+        const fileBase64 = await fileToBase64(fileToUpload);
         const controller2 = new AbortController();
-        const timeout2 = setTimeout(() => controller2.abort(), 30000);
+        const timeout2 = setTimeout(() => controller2.abort(), timeoutMs);
         response = await fetch(`${SUPABASE_URL}/functions/v1/yandex-s3-upload`, {
           method: "POST",
           headers: {
@@ -57,7 +126,7 @@ export function useChatAttachments() {
             Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
             apikey: SUPABASE_ANON_KEY,
           },
-          body: JSON.stringify({ fileName: file.name, fileBase64, contentType: file.type }),
+          body: JSON.stringify({ fileName: fileToUpload.name, fileBase64, contentType: fileToUpload.type }),
           signal: controller2.signal,
         });
         clearTimeout(timeout2);
@@ -84,6 +153,7 @@ export function useChatAttachments() {
       };
     } catch (error: any) {
       console.error(`${tag} Upload failed:`, error?.message || error);
+      toast.error("Не удалось загрузить файл");
       return null;
     } finally {
       setIsUploading(false);
@@ -91,7 +161,6 @@ export function useChatAttachments() {
     }
   };
 
-  // Helper for fallback base64 encoding
   async function fileToBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
