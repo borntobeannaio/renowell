@@ -130,7 +130,7 @@ serve(async (req) => {
 
       if (action === 'list') {
         // Get list of files from public folder (with optional subpath)
-        let apiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(publicUrl)}&limit=100&preview_size=L&preview_crop=false`;
+        let apiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${encodeURIComponent(publicUrl)}&limit=100&preview_size=XL&preview_crop=false`;
         if (subPath) {
           apiUrl += `&path=${encodeURIComponent(subPath)}`;
         }
@@ -157,13 +157,11 @@ serve(async (req) => {
         
         const photos = items
           .filter((item: any) => {
-            if (item.type === 'dir') return false; // Handle folders separately
+            if (item.type === 'dir') return false;
             if (item.type !== 'file') return false;
-            // Check by mime_type first (more reliable)
             if (item.mime_type && imageMimeTypes.some(mt => item.mime_type.startsWith(mt.split('/')[0]))) {
               return true;
             }
-            // Fallback to extension check
             const name = item.name.toLowerCase();
             return imageExtensions.some(ext => name.endsWith(ext));
           })
@@ -173,6 +171,7 @@ serve(async (req) => {
             path: item.path || `/${item.name}`,
             mimeType: item.mime_type,
             size: item.size,
+            previewUrl: item.preview || null,
           }));
 
         // Get subfolders
