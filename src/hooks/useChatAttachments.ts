@@ -1,7 +1,6 @@
 import { useState } from "react";
 
-// TODO: Replace with actual Yandex Cloud Function URL after creation
-const YANDEX_UPLOAD_FUNCTION_URL = "https://functions.yandexcloud.net/PLACEHOLDER";
+const YANDEX_UPLOAD_FUNCTION_URL = "https://functions.yandexcloud.net/d4e50l5mk6s2mde1871u";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
