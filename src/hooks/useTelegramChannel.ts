@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { proxySelect } from "@/lib/dbProxy";
+import { proxyEdgeFunction } from "@/lib/mediaProxy";
 
 export interface TelegramPost {
   id: string;
@@ -19,29 +20,28 @@ export function useTelegramChannel() {
   return useQuery({
     queryKey: ["telegram-channel"],
     queryFn: async (): Promise<TelegramPost[]> => {
-      // First, trigger the edge function to parse and cache posts
-      const { error: invokeError } = await supabase.functions.invoke("telegram-channel");
-      
-      if (invokeError) {
-        console.error("Error invoking telegram-channel function:", invokeError);
-        // Continue to try reading from DB even if invoke fails
+      // Trigger parsing via proxy (don't fail if it errors)
+      try {
+        await proxyEdgeFunction("telegram-channel", {});
+      } catch (err) {
+        console.error("Error invoking telegram-channel function:", err);
       }
 
-      // Read posts from database
-      const { data, error } = await supabase
-        .from("telegram_posts")
-        .select("*")
-        .order("date", { ascending: false })
-        .limit(20);
+      // Read posts from database via proxy
+      const { data, error } = await proxySelect<TelegramPost>("telegram_posts", {
+        select: "*",
+        order: [{ column: "date", ascending: false }],
+        limit: 20,
+      });
 
       if (error) {
         console.error("Error fetching telegram posts from DB:", error);
-        throw error;
+        throw new Error(error.message);
       }
 
-      return (data as TelegramPost[]) || [];
+      return data || [];
     },
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
   });
 }

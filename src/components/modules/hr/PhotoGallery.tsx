@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Folder, ArrowLeft, Image, Loader2 } from "lucide-react";
 import { Lightbox } from "@/components/ui/Lightbox";
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+import { proxyEdgeFunction } from "@/lib/mediaProxy";
 
 interface PhotoFolder {
   id: string;
@@ -18,6 +17,7 @@ interface YandexPhoto {
   path: string;
   mimeType?: string;
   size?: number;
+  previewUrl?: string | null;
 }
 
 interface YandexFolder {
@@ -59,33 +59,16 @@ const PHOTO_FOLDERS: PhotoFolder[] = [
   },
 ];
 
-// Build stable proxy URL for preview (thumbnails)
-function getPreviewSrc(publicUrl: string, path: string): string {
-  return `${SUPABASE_URL}/functions/v1/yandex-disk-proxy?publicUrl=${encodeURIComponent(publicUrl)}&path=${encodeURIComponent(path)}&mode=preview`;
-}
-
-// Build stable proxy URL for full size (lightbox)
-function getFullSrc(publicUrl: string, path: string): string {
-  return `${SUPABASE_URL}/functions/v1/yandex-disk-proxy?publicUrl=${encodeURIComponent(publicUrl)}&path=${encodeURIComponent(path)}&mode=download`;
-}
-
-// Fetch photos and folders from Yandex Disk via proxy edge function
+// Fetch photos and folders from Yandex Disk via proxy
 async function fetchYandexContents(publicUrl: string, subPath?: string): Promise<FetchResult> {
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/yandex-disk-proxy`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'list', publicUrl, path: subPath }),
-  });
+  const result = await proxyEdgeFunction<{ photos: YandexPhoto[]; folders: YandexFolder[] }>(
+    "yandex-disk-proxy",
+    { action: "list", publicUrl, path: subPath }
+  );
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to fetch contents');
-  }
-
-  const data = await response.json();
   return {
-    photos: data.photos || [],
-    folders: data.folders || [],
+    photos: result?.photos || [],
+    folders: result?.folders || [],
   };
 }
 
@@ -94,22 +77,16 @@ export function PhotoGallery() {
   const [subPath, setSubPath] = useState<string | undefined>(undefined);
   const [pathHistory, setPathHistory] = useState<{ path?: string; name: string }[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [failedPreviews, setFailedPreviews] = useState<Set<string>>(new Set());
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['yandex-contents', selectedFolder?.id, subPath],
     queryFn: () => fetchYandexContents(selectedFolder!.yandexDiskUrl, subPath),
     enabled: !!selectedFolder,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 
   const photos = data?.photos || [];
   const folders = data?.folders || [];
-
-  // Handle preview load error - fallback to download mode
-  const handlePreviewError = (photoId: string) => {
-    setFailedPreviews(prev => new Set(prev).add(photoId));
-  };
 
   // Navigate into subfolder
   const navigateToSubfolder = (folder: YandexFolder) => {
@@ -126,7 +103,6 @@ export function PhotoGallery() {
     } else {
       setSelectedFolder(null);
       setSubPath(undefined);
-      setFailedPreviews(new Set());
     }
   };
 
@@ -152,33 +128,21 @@ export function PhotoGallery() {
     );
   }
 
-  // Prepare photos for display with stable proxy URLs
-  const displayPhotos = photos.map(photo => {
-    const publicUrl = selectedFolder.yandexDiskUrl;
-    const useDownloadForPreview = failedPreviews.has(photo.id);
-    
-    return {
-      id: photo.id,
-      // For lightbox - always use full download
-      url: getFullSrc(publicUrl, photo.path),
-      // For thumbnails - use preview, fallback to download if failed
-      preview: useDownloadForPreview 
-        ? getFullSrc(publicUrl, photo.path)
-        : getPreviewSrc(publicUrl, photo.path),
-      title: photo.name,
-      path: photo.path,
-    };
-  });
+  // Use direct Yandex CDN preview URLs from listing
+  const displayPhotos = photos.map(photo => ({
+    id: photo.id,
+    url: photo.previewUrl || "",
+    preview: photo.previewUrl || "",
+    title: photo.name,
+    path: photo.path,
+  })).filter(p => !!p.url);
 
-  // Get current folder name for display
   const currentFolderName = subPath 
     ? subPath.split('/').filter(Boolean).pop() || selectedFolder.name
     : selectedFolder.name;
 
-  // Photos and subfolders view
   return (
     <div className="space-y-4">
-      {/* Header with back button and breadcrumb */}
       <div className="flex items-center gap-3">
         <button
           onClick={goBack}
@@ -193,7 +157,6 @@ export function PhotoGallery() {
         </div>
       </div>
 
-      {/* Loading state */}
       {isLoading && (
         <div className="flex flex-col items-center justify-center py-12 gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -201,7 +164,6 @@ export function PhotoGallery() {
         </div>
       )}
 
-      {/* Error state */}
       {error && (
         <div className="text-center py-12">
           <p className="text-destructive mb-2">Не удалось загрузить содержимое</p>
@@ -216,7 +178,6 @@ export function PhotoGallery() {
         </div>
       )}
 
-      {/* Subfolders grid */}
       {!isLoading && !error && folders.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {folders.map((folder) => (
@@ -234,7 +195,6 @@ export function PhotoGallery() {
         </div>
       )}
 
-      {/* Photos grid */}
       {!isLoading && !error && displayPhotos.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {displayPhotos.map((photo, index) => (
@@ -248,7 +208,6 @@ export function PhotoGallery() {
                 alt={photo.title}
                 className="w-full h-full object-cover"
                 loading="lazy"
-                onError={() => handlePreviewError(photo.id)}
               />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
             </button>
@@ -256,7 +215,6 @@ export function PhotoGallery() {
         </div>
       )}
 
-      {/* Empty state */}
       {!isLoading && !error && displayPhotos.length === 0 && folders.length === 0 && (
         <div className="text-center py-12">
           <Image className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
@@ -272,7 +230,6 @@ export function PhotoGallery() {
         </div>
       )}
 
-      {/* Lightbox */}
       {lightboxIndex !== null && displayPhotos.length > 0 && (
         <Lightbox
           photos={displayPhotos.map(p => ({ id: p.id, url: p.url, title: p.title }))}
