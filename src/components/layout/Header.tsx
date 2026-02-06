@@ -2,17 +2,30 @@ import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/hooks/useAuth";
-import { Search, X, LogOut } from "lucide-react";
+import { useCurrentProfile } from "@/hooks/useCurrentProfile";
+import { useProxiedAvatarUrl } from "@/lib/avatarProxy";
+import { Search, X, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function Header() {
   const location = useLocation();
   const navigate = useNavigate();
   const { searchQuery, setSearchQuery, setCurrentSection } = useApp();
   const { user, signOut } = useAuth();
+  const { data: profile } = useCurrentProfile();
+  const avatarUrl = useProxiedAvatarUrl(profile?.avatar_url ?? null);
   const [localQuery, setLocalQuery] = useState(searchQuery);
+
+  const initials = `${(profile?.first_name || "").charAt(0)}${(profile?.last_name || "").charAt(0)}`.toUpperCase() || "U";
 
   const handleSearch = () => {
     if (localQuery.trim()) {
@@ -89,15 +102,44 @@ export function Header() {
           <ThemeToggle />
           
           {user && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={signOut}
-              className="h-9 md:h-10 px-2 md:px-3 text-muted-foreground hover:text-foreground hover:bg-destructive/10 rounded-xl transition-all duration-300"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden md:inline ml-2">Выйти</span>
-            </Button>
+            <>
+              {/* Desktop: simple logout button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={signOut}
+                className="hidden md:flex h-10 px-3 text-muted-foreground hover:text-foreground hover:bg-destructive/10 rounded-xl transition-all duration-300"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="ml-2">Выйти</span>
+              </Button>
+
+              {/* Mobile: avatar dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild className="md:hidden">
+                  <button className="h-9 w-9 rounded-full overflow-hidden border-2 border-border hover:border-primary/50 transition-colors flex-shrink-0">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Профиль" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                        {initials}
+                      </div>
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => navigate("/profile")} className="gap-2">
+                    <User className="w-4 h-4" />
+                    Профиль
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={signOut} className="gap-2 text-destructive focus:text-destructive">
+                    <LogOut className="w-4 h-4" />
+                    Выйти
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
           )}
         </div>
       </div>
