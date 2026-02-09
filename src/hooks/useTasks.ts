@@ -51,7 +51,7 @@ export function useTasks(options?: { assigneeId?: string | null }) {
     queryFn: async () => {
       const { data, error } = await proxySelect<DbTask>("tasks", {
         order: [{ column: "created_at", ascending: false }],
-        filters: assigneeId ? [{ column: "assignee_id", operator: "eq", value: assigneeId }] : undefined,
+        filters: assigneeId ? [{ column: "assignee_ids", operator: "cs", value: [assigneeId] }] : undefined,
       });
       if (error) throw new Error(error.message);
       return data || [];
