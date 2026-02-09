@@ -147,11 +147,8 @@ async function handleRebuild(supabase: any, protocolId: string) {
     const sectionType = section?.section_type || null;
     const entityId = section?.entity_id || null;
 
-    // Build title (tender items get company prefix)
-    let title = item.item_text;
-    if (sectionType === 'tender' && section?.entity_name) {
-      title = `[${section.entity_name}] ${item.item_text}`;
-    }
+    // Use item_text as title directly (tender items already have [company] prefix)
+    const title = item.item_text;
 
     // Resolve responsible → profile IDs
     const responsible = item.responsible || section?.default_responsible;
