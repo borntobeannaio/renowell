@@ -524,8 +524,16 @@ function ProtocolCard({
                             </thead>
                             <tbody>
                               {sectionItems.map((item) => (
-                                <tr key={item.id} className="border-b border-border/50">
-                                  <td className="py-2 px-3 text-foreground">{item.item_text}</td>
+                                <tr key={item.id} className={`border-b border-border/50 ${item.completed ? 'opacity-60' : ''}`}>
+                                  <td className="py-2 px-3 text-foreground">
+                                    <span className={item.completed ? 'line-through' : ''}>{item.item_text}</span>
+                                    {item.completed && (
+                                      <span className="ml-2 inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                                        <CheckCircle2 className="w-3 h-3" />
+                                        Готово
+                                      </span>
+                                    )}
+                                  </td>
                                   <td className="py-2 px-3 text-muted-foreground">{item.responsible || '—'}</td>
                                   <td className="py-2 px-3 text-muted-foreground">
                                     {item.due_date ? formatDisplayDate(item.due_date) : '—'}
@@ -578,8 +586,16 @@ interface ProtocolItemViewProps {
 
 function ProtocolItemView({ item, comments = [] }: ProtocolItemViewProps) {
   return (
-    <div className="p-3 bg-secondary/50 rounded-lg">
-      <p className="text-foreground">{item.item_text}</p>
+    <div className={`p-3 bg-secondary/50 rounded-lg ${item.completed ? 'opacity-60' : ''}`}>
+      <p className={`text-foreground ${item.completed ? 'line-through' : ''}`}>
+        {item.item_text}
+        {item.completed && (
+          <span className="ml-2 inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 no-underline">
+            <CheckCircle2 className="w-3 h-3" />
+            Готово
+          </span>
+        )}
+      </p>
       <div className="flex flex-wrap items-center gap-3 mt-2 text-sm">
         {item.responsible && (
           <div className="flex items-center gap-1 text-muted-foreground">
