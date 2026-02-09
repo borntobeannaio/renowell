@@ -83,6 +83,9 @@ serve(async (req) => {
               case 'ilike': query = query.ilike(column, value); break;
               case 'in': query = query.in(column, value); break;
               case 'is': query = query.is(column, value); break;
+              case 'cs': query = query.contains(column, value); break;
+              case 'cd': query = query.containedBy(column, value); break;
+              case 'ov': query = query.overlaps(column, value); break;
             }
           }
         }

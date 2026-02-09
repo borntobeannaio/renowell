@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface Filter {
   column: string;
-  operator: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "like" | "ilike" | "in" | "is";
+  operator: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "like" | "ilike" | "in" | "is" | "cs" | "cd" | "ov";
   value: unknown;
 }
 
