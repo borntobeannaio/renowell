@@ -5,7 +5,6 @@ import {
   FileText,
   CheckSquare,
   Users,
-  BookOpen,
   Calendar,
 } from "lucide-react";
 
@@ -14,6 +13,7 @@ const navItems: { id: NavigationSection; path: string; label: string; icon: Reac
   { id: "protocols", path: "/protocols", label: "Протоколы", icon: FileText },
   { id: "tasks", path: "/tasks", label: "Задачи", icon: CheckSquare },
   { id: "hr", path: "/hr", label: "HR", icon: Users },
+  { id: "calendar", path: "/calendar", label: "Календарь", icon: Calendar },
 ];
 
 export function MobileNav() {
