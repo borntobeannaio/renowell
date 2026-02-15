@@ -108,7 +108,7 @@ export function EmployeeMultiSelect({
           autoFocus={!usePortal}
         />
       </div>
-      <div className="overflow-y-auto max-h-48">
+      <div className="overflow-y-auto min-h-0 flex-1">
         {filteredEmployees.length === 0 ? (
           <div className="p-3 text-sm text-muted-foreground text-center">
             Не найдено
