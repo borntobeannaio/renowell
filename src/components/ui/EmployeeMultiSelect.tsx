@@ -94,7 +94,7 @@ export function EmployeeMultiSelect({
     <div
       data-employee-dropdown
       style={usePortal ? dropdownStyle : undefined}
-      className={`bg-popover border border-border rounded-lg shadow-xl max-h-60 overflow-hidden ${
+      className={`bg-popover border border-border rounded-lg shadow-xl max-h-60 flex flex-col ${
         usePortal ? "" : "absolute z-50 mt-1 w-full"
       }`}
     >
