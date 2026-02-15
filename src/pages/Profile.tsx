@@ -30,6 +30,7 @@ interface ProfileData {
   avatar_url: string | null;
   birthday: string | null;
   description: string | null;
+  ics_url: string | null;
 }
 
 export default function Profile() {
@@ -44,6 +45,7 @@ export default function Profile() {
   const [birthday, setBirthday] = useState<Date | undefined>();
   const [description, setDescription] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [icsUrl, setIcsUrl] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
   // Password change state
@@ -77,6 +79,7 @@ export default function Profile() {
       setPosition(profile.position || "");
       setDescription(profile.description || "");
       setAvatarUrl(profile.avatar_url);
+      setIcsUrl(profile.ics_url || "");
       if (profile.birthday) {
         setBirthday(parseISO(profile.birthday));
       }
@@ -99,6 +102,7 @@ export default function Profile() {
           birthday: birthday ? format(birthday, "yyyy-MM-dd") : null,
           description: description.trim() || null,
           avatar_url: avatarUrl,
+          ics_url: icsUrl.trim() || null,
         },
         [{ column: "id", operator: "eq", value: profile.id }]
       );
@@ -463,6 +467,23 @@ export default function Profile() {
                 placeholder="Расскажите немного о себе..."
                 rows={4}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="icsUrl" className="flex items-center gap-1.5">
+                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                Ссылка на календарь (ICS)
+              </Label>
+              <Input
+                id="icsUrl"
+                type="url"
+                value={icsUrl}
+                onChange={(e) => setIcsUrl(e.target.value)}
+                placeholder="https://outlook.office365.com/owa/calendar/..."
+              />
+              <p className="text-xs text-muted-foreground">
+                Вставьте ссылку на ICS-календарь из Outlook или Google Calendar. События будут синхронизироваться автоматически каждые 15 минут.
+              </p>
             </div>
 
             <Button

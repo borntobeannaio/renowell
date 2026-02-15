@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.send-calendar-invite]
 verify_jwt = false
+
+[functions.sync-ics-calendar]
+verify_jwt = false
