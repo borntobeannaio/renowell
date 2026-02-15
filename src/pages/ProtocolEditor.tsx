@@ -377,7 +377,7 @@ export default function ProtocolEditor() {
               ...createItemFromDb(item, section.section_type),
               id: generateTempId(),
               create_task: false,
-              task_id: null,
+              task_id: item.task_id ?? null,
             }));
           
           // For tender sections, parse [Company] prefix and build companyGroups
@@ -1441,6 +1441,8 @@ export default function ProtocolEditor() {
               kpi: isGoal ? goalItem.kpi : null,
               status: isGoal ? goalItem.status : null,
               status_date: isGoal ? goalItem.status_date : null,
+              completed: item.completed || false,
+              completed_at: item.completed_at || null,
             });
 
             idMapping[item.id] = createdItem.id;

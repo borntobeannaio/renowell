@@ -140,6 +140,7 @@ export function ProtocolItemComments({ itemId, taskId, profiles, protocolTitle, 
         mentionedProfileIds,
         protocolTitle,
         authorName,
+        taskId,
       });
       setNewComment("");
     } catch (error) {
