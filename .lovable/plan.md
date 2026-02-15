@@ -1,56 +1,42 @@
 
 
-## Полная интеграция внешнего ICS-календаря
+## Исправление трёх багов при копировании и синхронизации протоколов
 
-### Что будет сделано
+### Баг 1: Статус «Сделано» не копируется
 
-Пользователь вставляет ссылку на ICS-календарь (Outlook, Google) в профиле. Система автоматически скачивает и парсит ICS-файл, записывает события в общий календарь. Синхронизация запускается по крону каждые 15 минут.
+**Причина:** В `ProtocolEditor.tsx` (строки 376-381) при копировании протокола для каждого пункта явно ставится `create_task: false, task_id: null`, но при этом `completed` и `completed_at` не переносятся -- они берутся из `createItemFromDb`, однако затем перезаписываются spread-оператором. На самом деле проблема в том, что `completed` из `createItemFromDb` передаётся корректно, но при создании протокола (`handleCreate`, строки 1433-1444) поля `completed` и `completed_at` **не передаются** в `createProtocolItem.mutateAsync`.
 
-### Изменения
+**Исправление:**
+- В `handleCreate` добавить поля `completed` и `completed_at` при создании каждого пункта (аналогично тому, как это сделано в `handleSaveChanges` / `processSingleItem`)
 
-#### 1. База данных
+### Баг 2: Задачи дублируются при сохранении скопированного протокола
 
-- Добавить колонку `ics_url text` в таблицу `profiles`
-- Добавить колонку `source text DEFAULT 'internal'` в таблицу `calendar_events` (значения: `internal` / `external`)
-- Добавить колонку `external_uid text` в таблицу `calendar_events` -- для идентификации внешних событий и предотвращения дублирования
-- Уникальный индекс на `(creator_id, external_uid)` для защиты от дублей
+**Причина:** При копировании (строки 378-380) выставляется `task_id: null`, чтобы не привязываться к задачам исходного протокола. Но логика в `handleCreate` (строки 1448-1476) при `task_id === null` создаёт **новую задачу** для каждого пункта. Это правильно для нового протокола, но при копировании задачи уже существуют и привязаны к исходному протоколу.
 
-#### 2. Поле ICS-ссылки в профиле (`src/pages/Profile.tsx`)
+Исходный замысел (из memory) -- при копировании **сохранять ссылку на существующую задачу** (`task_id`), чтобы несколько протоколов могли указывать на одну и ту же задачу.
 
-- Новое поле ввода "Ссылка на календарь (ICS)" между блоком "О себе" и кнопкой "Сохранить"
-- Подсказка: "Вставьте ссылку на ICS-календарь из Outlook или Google Calendar"
-- Сохраняется вместе с остальными данными профиля
+**Исправление:**
+- В copy mode (строки 376-381) **не обнулять** `task_id` -- оставить оригинальный `task_id` из исходного пункта. Убрать `task_id: null` из маппинга при копировании. Это восстановит задуманное поведение: скопированный пункт ссылается на ту же задачу, что и оригинал.
 
-#### 3. Edge-функция `sync-ics-calendar`
+### Баг 3: Комментарии к пунктам протокола не дублируются в задачу
 
-- Получает все профили с заполненным `ics_url`
-- Скачивает ICS-файл по ссылке
-- Парсит события (VEVENT): title, start, end, location, description, UID
-- Записывает/обновляет события в `calendar_events` с `source = 'external'`
-- Использует `external_uid` для upsert -- при повторном запуске обновляет существующие, добавляет новые, не дублирует
-- Удаляет события, которых больше нет в ICS-файле (если они были ранее импортированы)
+**Причина:** При создании комментария к пункту протокола (через `ProtocolItemComments` → `useCreateProtocolItemComment`) комментарий записывается только в таблицу `protocol_item_comments`. В таблицу `task_comments` ничего не пишется. Хотя в UI комментарии из обоих источников объединяются (merged view), при открытии задачи на Kanban-доске комментарии из протокола не видны.
 
-#### 4. Крон-задача
-
-- Запуск `sync-ics-calendar` каждые 15 минут через `pg_cron` + `pg_net`
-- Автоматическая синхронизация без участия пользователя
-
-#### 5. UI календаря -- отображение внешних событий
-
-- Внешние события отображаются с пометкой (иконка или бейдж "Outlook")
-- Внешние события нельзя удалить из интерфейса (только внутренние)
-- Обновить `useCalendarEvents` и `CalendarModule` для отображения `source`
+**Исправление:**
+- В хуке `useCreateProtocolItemComment` при создании комментария к пункту, у которого есть `task_id`, одновременно создавать дубль комментария в таблице `task_comments` с тем же `author_id` и `content`.
+- Для этого нужно передавать `task_id` в мутацию `useCreateProtocolItemComment`.
 
 ### Технические детали
 
-Файлы:
+**Файлы:**
 
-- Новая миграция: `ALTER TABLE profiles ADD COLUMN ics_url text; ALTER TABLE calendar_events ADD COLUMN source text DEFAULT 'internal'; ALTER TABLE calendar_events ADD COLUMN external_uid text; CREATE UNIQUE INDEX ...`
-- `supabase/functions/sync-ics-calendar/index.ts` -- парсинг ICS + upsert событий
-- `supabase/config.toml` -- добавить `[functions.sync-ics-calendar] verify_jwt = false`
-- `src/pages/Profile.tsx` -- поле ICS-ссылки
-- `src/hooks/useCurrentProfile.ts` -- обновить интерфейс `Profile`
-- `src/hooks/useCalendarEvents.ts` -- обновить интерфейс `CalendarEvent`
-- `src/components/modules/CalendarModule.tsx` -- пометка внешних событий, скрыть удаление для них
-- SQL-вставка через insert tool: крон-задача `pg_cron` для запуска каждые 15 минут
+1. **`src/pages/ProtocolEditor.tsx`**
+   - Copy mode init (строки 376-381): убрать `task_id: null`, оставить `task_id: item.task_id`
+   - `handleCreate` (строки 1379-1390 и 1433-1444): добавить `completed: item.completed || false` и `completed_at: item.completed_at || null` в вызов `createProtocolItem.mutateAsync`
+
+2. **`src/hooks/useProtocolItemComments.ts`**
+   - В `useCreateProtocolItemComment`: добавить параметр `taskId` в мутацию. Если `taskId` передан, после создания комментария в `protocol_item_comments` вставить копию в `task_comments` с теми же данными.
+
+3. **`src/components/protocols/ProtocolItemComments.tsx`**
+   - При вызове `createComment.mutateAsync` передавать `taskId` из пропсов, чтобы хук мог создать дубль в `task_comments`.
 
