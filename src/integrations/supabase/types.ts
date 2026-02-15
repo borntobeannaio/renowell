@@ -71,6 +71,56 @@ export type Database = {
         }
         Relationships: []
       }
+      calendar_events: {
+        Row: {
+          created_at: string
+          creator_id: string
+          description: string | null
+          end_time: string
+          id: string
+          is_online: boolean
+          location: string | null
+          participant_ids: string[]
+          start_time: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          creator_id: string
+          description?: string | null
+          end_time: string
+          id?: string
+          is_online?: boolean
+          location?: string | null
+          participant_ids?: string[]
+          start_time: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          creator_id?: string
+          description?: string | null
+          end_time?: string
+          id?: string
+          is_online?: boolean
+          location?: string | null
+          participant_ids?: string[]
+          start_time?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_participants: {
         Row: {
           call_id: string

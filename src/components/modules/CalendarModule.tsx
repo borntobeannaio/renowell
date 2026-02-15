@@ -1,692 +1,290 @@
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Calendar as CalendarIcon, 
-  Clock, 
-  Users, 
+import {
+  Calendar as CalendarIcon,
+  Clock,
   MapPin,
-  ChevronLeft,
-  ChevronRight,
   Video,
-  LayoutGrid,
-  CalendarDays
+  Plus,
+  Trash2,
 } from "lucide-react";
-import { 
-  format, 
-  isSameDay, 
-  startOfMonth, 
-  endOfMonth, 
-  eachDayOfInterval, 
-  addMonths, 
-  subMonths,
-  startOfWeek,
-  endOfWeek,
-  addWeeks,
-  subWeeks,
-  isToday
-} from "date-fns";
+import { format, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
 import { ru } from "date-fns/locale";
-import { formatDisplayDate } from "@/utils/dateFormat";
-
-// Типы календарей для цветовой дифференциации
-type CalendarType = "team" | "personal" | "project" | "external";
-type ViewMode = "month" | "week";
-
-interface CalendarEvent {
-  id: string;
-  title: string;
-  date: Date;
-  startTime: string;
-  endTime: string;
-  calendarType: CalendarType;
-  participants: { id: string; name: string; initials: string }[];
-  location?: string;
-  isOnline?: boolean;
-  description?: string;
-}
-
-// Цветовая схема для разных типов календарей
-const calendarColors: Record<CalendarType, { bg: string; text: string; dot: string; border: string; label: string }> = {
-  team: { 
-    bg: "bg-blue-500/10 dark:bg-blue-400/20", 
-    text: "text-blue-700 dark:text-blue-300", 
-    dot: "bg-blue-500",
-    border: "border-l-blue-500",
-    label: "Командные" 
-  },
-  personal: { 
-    bg: "bg-green-500/10 dark:bg-green-400/20", 
-    text: "text-green-700 dark:text-green-300", 
-    dot: "bg-green-500",
-    border: "border-l-green-500",
-    label: "Личные" 
-  },
-  project: { 
-    bg: "bg-purple-500/10 dark:bg-purple-400/20", 
-    text: "text-purple-700 dark:text-purple-300", 
-    dot: "bg-purple-500",
-    border: "border-l-purple-500",
-    label: "Проектные" 
-  },
-  external: { 
-    bg: "bg-orange-500/10 dark:bg-orange-400/20", 
-    text: "text-orange-700 dark:text-orange-300", 
-    dot: "bg-orange-500",
-    border: "border-l-orange-500",
-    label: "Внешние" 
-  },
-};
-
-// Моковые данные встреч
-const mockEvents: CalendarEvent[] = [
-  {
-    id: "1",
-    title: "Еженедельный статус проекта",
-    date: new Date(),
-    startTime: "10:00",
-    endTime: "11:00",
-    calendarType: "team",
-    participants: [
-      { id: "1", name: "Иван Петров", initials: "ИП" },
-      { id: "2", name: "Мария Сидорова", initials: "МС" },
-      { id: "3", name: "Алексей Козлов", initials: "АК" },
-    ],
-    location: "Переговорная А",
-    isOnline: false,
-  },
-  {
-    id: "2",
-    title: "1-on-1 с руководителем",
-    date: new Date(),
-    startTime: "14:00",
-    endTime: "14:30",
-    calendarType: "personal",
-    participants: [
-      { id: "1", name: "Иван Петров", initials: "ИП" },
-      { id: "4", name: "Елена Новикова", initials: "ЕН" },
-    ],
-    isOnline: true,
-  },
-  {
-    id: "3",
-    title: "Демо спринта",
-    date: new Date(Date.now() + 86400000),
-    startTime: "15:00",
-    endTime: "16:30",
-    calendarType: "project",
-    participants: [
-      { id: "1", name: "Иван Петров", initials: "ИП" },
-      { id: "2", name: "Мария Сидорова", initials: "МС" },
-      { id: "3", name: "Алексей Козлов", initials: "АК" },
-      { id: "5", name: "Дмитрий Волков", initials: "ДВ" },
-      { id: "6", name: "Анна Белова", initials: "АБ" },
-    ],
-    location: "Zoom",
-    isOnline: true,
-  },
-  {
-    id: "4",
-    title: "Встреча с клиентом",
-    date: new Date(Date.now() + 86400000 * 2),
-    startTime: "11:00",
-    endTime: "12:00",
-    calendarType: "external",
-    participants: [
-      { id: "1", name: "Иван Петров", initials: "ИП" },
-      { id: "7", name: "Клиент", initials: "КЛ" },
-    ],
-    location: "Офис клиента",
-    isOnline: false,
-  },
-  {
-    id: "5",
-    title: "Планирование квартала",
-    date: new Date(Date.now() + 86400000 * 3),
-    startTime: "09:00",
-    endTime: "12:00",
-    calendarType: "team",
-    participants: [
-      { id: "1", name: "Иван Петров", initials: "ИП" },
-      { id: "2", name: "Мария Сидорова", initials: "МС" },
-      { id: "4", name: "Елена Новикова", initials: "ЕН" },
-    ],
-    location: "Большая переговорная",
-    isOnline: false,
-  },
-  {
-    id: "6",
-    title: "Ретроспектива",
-    date: new Date(Date.now() + 86400000 * 4),
-    startTime: "16:00",
-    endTime: "17:00",
-    calendarType: "project",
-    participants: [
-      { id: "1", name: "Иван Петров", initials: "ИП" },
-      { id: "2", name: "Мария Сидорова", initials: "МС" },
-      { id: "3", name: "Алексей Козлов", initials: "АК" },
-    ],
-    isOnline: true,
-  },
-  {
-    id: "7",
-    title: "Обед с коллегой",
-    date: new Date(Date.now() + 86400000 * 5),
-    startTime: "13:00",
-    endTime: "14:00",
-    calendarType: "personal",
-    participants: [
-      { id: "1", name: "Иван Петров", initials: "ИП" },
-      { id: "5", name: "Дмитрий Волков", initials: "ДВ" },
-    ],
-    location: "Кафе рядом с офисом",
-    isOnline: false,
-  },
-  {
-    id: "8",
-    title: "Технический обзор",
-    date: new Date(),
-    startTime: "16:00",
-    endTime: "17:00",
-    calendarType: "project",
-    participants: [
-      { id: "3", name: "Алексей Козлов", initials: "АК" },
-      { id: "5", name: "Дмитрий Волков", initials: "ДВ" },
-    ],
-    isOnline: true,
-  },
-];
-
-// Фильтры календарей
-const calendarFilters: { type: CalendarType; label: string }[] = [
-  { type: "team", label: "Командные" },
-  { type: "personal", label: "Личные" },
-  { type: "project", label: "Проектные" },
-  { type: "external", label: "Внешние" },
-];
-
-// Часы для временной шкалы
-const timeSlots = Array.from({ length: 12 }, (_, i) => {
-  const hour = i + 8; // с 8:00 до 19:00
-  return `${hour.toString().padStart(2, '0')}:00`;
-});
-
-// Вспомогательная функция для расчёта позиции события
-const getEventPosition = (startTime: string, endTime: string) => {
-  const [startHour, startMin] = startTime.split(':').map(Number);
-  const [endHour, endMin] = endTime.split(':').map(Number);
-  
-  const startOffset = (startHour - 8) * 60 + startMin;
-  const endOffset = (endHour - 8) * 60 + endMin;
-  const duration = endOffset - startOffset;
-  
-  return {
-    top: (startOffset / 60) * 64, // 64px per hour
-    height: Math.max((duration / 60) * 64, 24), // minimum 24px
-  };
-};
+import { useCalendarEvents } from "@/hooks/useCalendarEvents";
+import { useCurrentProfile } from "@/hooks/useCurrentProfile";
+import { useEmployees } from "@/hooks/useEmployees";
+import { CreateEventModal } from "@/components/modules/calendar/CreateEventModal";
 
 export function CalendarModule() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
-  const [currentWeek, setCurrentWeek] = useState<Date>(new Date());
-  const [activeFilters, setActiveFilters] = useState<CalendarType[]>(["team", "personal", "project", "external"]);
-  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const filteredEvents = useMemo(() => {
-    return mockEvents.filter(event => activeFilters.includes(event.calendarType));
-  }, [activeFilters]);
+  const { events, isLoading, createEvent, deleteEvent } = useCalendarEvents();
+  const { data: currentProfile } = useCurrentProfile();
+  const profileId = currentProfile?.id;
+  const { data: employees = [] } = useEmployees();
 
-  const eventsForSelectedDate = useMemo(() => {
-    return filteredEvents
-      .filter(event => isSameDay(event.date, selectedDate))
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [filteredEvents, selectedDate]);
+  // Build profile id -> name map
+  const profileNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    employees.forEach((e) => {
+      if (e.profile_id) map[e.profile_id] = e.full_name;
+    });
+    return map;
+  }, [employees]);
 
+  // Events for selected day
+  const dayEvents = useMemo(() => {
+    return events
+      .filter((e) => isSameDay(new Date(e.start_time), selectedDate))
+      .sort((a, b) => a.start_time.localeCompare(b.start_time));
+  }, [events, selectedDate]);
+
+  // Days with events for dots
   const daysWithEvents = useMemo(() => {
     const start = startOfMonth(currentMonth);
     const end = endOfMonth(currentMonth);
     const days = eachDayOfInterval({ start, end });
-    
-    return days.reduce((acc, day) => {
-      const dayEvents = filteredEvents.filter(event => isSameDay(event.date, day));
-      if (dayEvents.length > 0) {
-        acc[day.toISOString()] = dayEvents.map(e => e.calendarType);
+    const set = new Set<string>();
+    days.forEach((day) => {
+      if (events.some((e) => isSameDay(new Date(e.start_time), day))) {
+        set.add(day.toDateString());
       }
-      return acc;
-    }, {} as Record<string, CalendarType[]>);
-  }, [filteredEvents, currentMonth]);
+    });
+    return set;
+  }, [events, currentMonth]);
 
-  // Дни текущей недели
-  const weekDays = useMemo(() => {
-    const start = startOfWeek(currentWeek, { weekStartsOn: 1 });
-    const end = endOfWeek(currentWeek, { weekStartsOn: 1 });
-    return eachDayOfInterval({ start, end });
-  }, [currentWeek]);
+  // Upcoming events (for empty day state)
+  const upcoming = useMemo(() => {
+    const now = new Date();
+    return events
+      .filter((e) => new Date(e.start_time) >= now)
+      .sort((a, b) => a.start_time.localeCompare(b.start_time))
+      .slice(0, 5);
+  }, [events]);
 
-  // События по дням недели
-  const eventsByWeekDay = useMemo(() => {
-    return weekDays.reduce((acc, day) => {
-      acc[day.toISOString()] = filteredEvents
-        .filter(event => isSameDay(event.date, day))
-        .sort((a, b) => a.startTime.localeCompare(b.startTime));
-      return acc;
-    }, {} as Record<string, CalendarEvent[]>);
-  }, [weekDays, filteredEvents]);
-
-  const toggleFilter = (type: CalendarType) => {
-    setActiveFilters(prev => 
-      prev.includes(type) 
-        ? prev.filter(t => t !== type)
-        : [...prev, type]
+  const handleCreate = (data: {
+    title: string;
+    description?: string;
+    start_time: string;
+    end_time: string;
+    location?: string;
+    is_online: boolean;
+    participant_ids: string[];
+  }) => {
+    if (!profileId) return;
+    createEvent.mutate(
+      { ...data, creator_id: profileId },
+      { onSuccess: () => setShowCreateModal(false) }
     );
   };
 
-  const goToPreviousMonth = () => setCurrentMonth(prev => subMonths(prev, 1));
-  const goToNextMonth = () => setCurrentMonth(prev => addMonths(prev, 1));
-  const goToPreviousWeek = () => setCurrentWeek(prev => subWeeks(prev, 1));
-  const goToNextWeek = () => setCurrentWeek(prev => addWeeks(prev, 1));
-  
-  const goToToday = () => {
-    setCurrentMonth(new Date());
-    setCurrentWeek(new Date());
-    setSelectedDate(new Date());
+  const formatTime = (iso: string) => format(new Date(iso), "HH:mm");
+
+  const getInitials = (name: string) => {
+    const parts = name.split(" ");
+    return (parts[0]?.[0] || "") + (parts[1]?.[0] || "");
   };
 
   return (
     <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg md:text-2xl font-bold text-foreground flex items-center gap-2">
-              <CalendarIcon className="w-5 h-5 md:w-6 md:h-6 text-primary" />
-              Календарь
-            </h1>
-            <p className="text-xs md:text-sm text-muted-foreground mt-0.5">Встречи и события</p>
-          </div>
-          <Button variant="outline" size="sm" onClick={goToToday} className="h-8 md:h-9 px-2 md:px-4 text-xs md:text-sm">
-            Сегодня
-          </Button>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg md:text-2xl font-bold text-foreground flex items-center gap-2">
+            <CalendarIcon className="w-5 h-5 md:w-6 md:h-6 text-primary" />
+            Календарь
+          </h1>
+          <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
+            Встречи и события
+          </p>
         </div>
-        
-        <div className="flex items-center gap-2">
-          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)} className="w-full sm:w-auto">
-            <TabsList className="w-full sm:w-auto grid grid-cols-2 sm:inline-flex h-9">
-              <TabsTrigger value="month" className="gap-1.5 text-xs md:text-sm px-2 md:px-3">
-                <LayoutGrid className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                Месяц
-              </TabsTrigger>
-              <TabsTrigger value="week" className="gap-1.5 text-xs md:text-sm px-2 md:px-3">
-                <CalendarDays className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                Неделя
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
+        <Button onClick={() => setShowCreateModal(true)} size="sm" className="gap-1.5">
+          <Plus className="w-4 h-4" />
+          <span className="hidden sm:inline">Новая встреча</span>
+        </Button>
       </div>
 
-      {/* Фильтры календарей */}
-      <Card>
-        <CardContent className="py-3 md:py-4 px-3 md:px-6">
-          <div className="flex flex-wrap gap-1.5 md:gap-2">
-            {calendarFilters.map(({ type, label }) => {
-              const colors = calendarColors[type];
-              const isActive = activeFilters.includes(type);
-              return (
-                <Button
-                  key={type}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => toggleFilter(type)}
-                  className={`gap-1.5 h-8 px-2 md:px-3 text-xs md:text-sm ${isActive ? colors.bg : "opacity-50"}`}
-                >
-                  <span className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full ${colors.dot}`} />
-                  <span className={isActive ? colors.text : "text-muted-foreground"}>
-                    {label}
-                  </span>
-                </Button>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {viewMode === "month" ? (
-        // Месячный вид
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Календарь */}
-          <Card className="lg:col-span-1">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <Button variant="ghost" size="icon" onClick={goToPreviousMonth}>
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <CardTitle className="text-base font-medium">
-                  {format(currentMonth, "LLLL yyyy", { locale: ru })}
-                </CardTitle>
-                <Button variant="ghost" size="icon" onClick={goToNextMonth}>
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(date) => date && setSelectedDate(date)}
-                month={currentMonth}
-                onMonthChange={setCurrentMonth}
-                locale={ru}
-                className="pointer-events-auto"
-                modifiers={{
-                  hasEvents: (date) => {
-                    const key = date.toISOString().split('T')[0];
-                    return Object.keys(daysWithEvents).some(k => k.startsWith(key));
-                  }
-                }}
-                modifiersStyles={{
-                  hasEvents: {
-                    fontWeight: 'bold',
-                  }
-                }}
-                components={{
-                  DayContent: ({ date }) => {
-                    const key = date.toISOString();
-                    const eventTypes = daysWithEvents[key];
-                    return (
-                      <div className="relative flex flex-col items-center">
-                        <span>{date.getDate()}</span>
-                        {eventTypes && eventTypes.length > 0 && (
-                          <div className="absolute -bottom-1 flex gap-0.5">
-                            {[...new Set(eventTypes)].slice(0, 3).map((type, i) => (
-                              <span 
-                                key={i} 
-                                className={`w-1 h-1 rounded-full ${calendarColors[type].dot}`}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-                }}
-              />
-            </CardContent>
-          </Card>
-
-          {/* События выбранного дня */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span>События на {formatDisplayDate(selectedDate.toISOString())}</span>
-                <Badge variant="secondary" className="ml-2">
-                  {eventsForSelectedDate.length}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[400px] pr-4">
-                {eventsForSelectedDate.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <CalendarIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Нет событий на этот день</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {eventsForSelectedDate.map((event) => {
-                      const colors = calendarColors[event.calendarType];
-                      return (
-                        <div
-                          key={event.id}
-                          className={`p-4 rounded-xl border ${colors.bg} border-border/50 hover:shadow-md transition-all duration-200`}
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
-                                <span className={`text-xs font-medium ${colors.text}`}>
-                                  {calendarColors[event.calendarType].label}
-                                </span>
-                              </div>
-                              <h3 className="font-semibold text-foreground mb-2">
-                                {event.title}
-                              </h3>
-                              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                                <div className="flex items-center gap-1">
-                                  <Clock className="w-4 h-4" />
-                                  <span>{event.startTime} — {event.endTime}</span>
-                                </div>
-                                {event.location && (
-                                  <div className="flex items-center gap-1">
-                                    {event.isOnline ? (
-                                      <Video className="w-4 h-4" />
-                                    ) : (
-                                      <MapPin className="w-4 h-4" />
-                                    )}
-                                    <span>{event.location}</span>
-                                  </div>
-                                )}
-                                {event.isOnline && !event.location && (
-                                  <div className="flex items-center gap-1">
-                                    <Video className="w-4 h-4" />
-                                    <span>Онлайн</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {/* Участники */}
-                          <div className="mt-4 pt-4 border-t border-border/50">
-                            <div className="flex items-center gap-2">
-                              <Users className="w-4 h-4 text-muted-foreground" />
-                              <span className="text-sm text-muted-foreground">
-                                Участники:
-                              </span>
-                              <div className="flex -space-x-2">
-                                {event.participants.slice(0, 5).map((participant) => (
-                                  <Avatar 
-                                    key={participant.id} 
-                                    className="w-7 h-7 border-2 border-background"
-                                  >
-                                    <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                                      {participant.initials}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                ))}
-                                {event.participants.length > 5 && (
-                                  <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-medium border-2 border-background">
-                                    +{event.participants.length - 5}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-      ) : (
-        // Недельный вид
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <Button variant="ghost" size="icon" onClick={goToPreviousWeek}>
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <CardTitle className="text-base font-medium">
-                {format(weekDays[0], "d MMM", { locale: ru })} — {format(weekDays[6], "d MMM yyyy", { locale: ru })}
-              </CardTitle>
-              <Button variant="ghost" size="icon" onClick={goToNextWeek}>
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[600px]">
-              <div className="min-w-[800px]">
-                {/* Заголовки дней */}
-                <div className="grid grid-cols-8 border-b border-border sticky top-0 bg-background z-10">
-                  <div className="p-3 text-center text-sm font-medium text-muted-foreground border-r border-border">
-                    Время
-                  </div>
-                  {weekDays.map((day) => (
-                    <div 
-                      key={day.toISOString()} 
-                      className={`p-3 text-center border-r border-border last:border-r-0 ${
-                        isToday(day) ? 'bg-primary/5' : ''
-                      }`}
-                    >
-                      <div className="text-xs text-muted-foreground uppercase">
-                        {format(day, "EEE", { locale: ru })}
-                      </div>
-                      <div className={`text-lg font-semibold ${
-                        isToday(day) ? 'text-primary' : 'text-foreground'
-                      }`}>
-                        {format(day, "d")}
-                      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+        {/* Calendar grid */}
+        <Card className="lg:col-span-1">
+          <CardContent className="pt-4">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => date && setSelectedDate(date)}
+              month={currentMonth}
+              onMonthChange={setCurrentMonth}
+              locale={ru}
+              className="pointer-events-auto"
+              components={{
+                DayContent: ({ date }) => {
+                  const hasEvent = daysWithEvents.has(date.toDateString());
+                  return (
+                    <div className="relative flex flex-col items-center">
+                      <span>{date.getDate()}</span>
+                      {hasEvent && (
+                        <span className="absolute -bottom-1 w-1.5 h-1.5 rounded-full bg-primary" />
+                      )}
                     </div>
-                  ))}
-                </div>
-
-                {/* Временная шкала и события */}
-                <div className="grid grid-cols-8">
-                  {/* Временная шкала */}
-                  <div className="border-r border-border">
-                    {timeSlots.map((time) => (
-                      <div 
-                        key={time} 
-                        className="h-16 border-b border-border/50 px-2 py-1 text-xs text-muted-foreground"
-                      >
-                        {time}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Колонки дней */}
-                  {weekDays.map((day) => {
-                    const dayEvents = eventsByWeekDay[day.toISOString()] || [];
-                    return (
-                      <div 
-                        key={day.toISOString()} 
-                        className={`relative border-r border-border last:border-r-0 ${
-                          isToday(day) ? 'bg-primary/5' : ''
-                        }`}
-                      >
-                        {/* Линии часов */}
-                        {timeSlots.map((time) => (
-                          <div 
-                            key={time} 
-                            className="h-16 border-b border-border/50"
-                          />
-                        ))}
-
-                        {/* События */}
-                        {dayEvents.map((event) => {
-                          const { top, height } = getEventPosition(event.startTime, event.endTime);
-                          const colors = calendarColors[event.calendarType];
-                          return (
-                            <div
-                              key={event.id}
-                              className={`absolute left-1 right-1 rounded-md px-2 py-1 text-xs overflow-hidden cursor-pointer hover:shadow-md transition-shadow border-l-2 ${colors.bg} ${colors.border}`}
-                              style={{ top: `${top}px`, height: `${height}px` }}
-                              onClick={() => {
-                                setSelectedDate(day);
-                                setViewMode("month");
-                              }}
-                            >
-                              <div className={`font-medium truncate ${colors.text}`}>
-                                {event.title}
-                              </div>
-                              <div className="text-muted-foreground truncate">
-                                {event.startTime} — {event.endTime}
-                              </div>
-                              {height > 48 && (
-                                <div className="flex -space-x-1 mt-1">
-                                  {event.participants.slice(0, 3).map((p) => (
-                                    <Avatar key={p.id} className="w-4 h-4 border border-background">
-                                      <AvatarFallback className="text-[6px] bg-primary/10 text-primary">
-                                        {p.initials}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </ScrollArea>
+                  );
+                },
+              }}
+            />
           </CardContent>
         </Card>
-      )}
 
-      {/* Ближайшие события */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Ближайшие события</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredEvents
-              .filter(event => event.date >= new Date())
-              .sort((a, b) => a.date.getTime() - b.date.getTime())
-              .slice(0, 6)
-              .map((event) => {
-                const colors = calendarColors[event.calendarType];
-                return (
-                  <div
-                    key={event.id}
-                    className={`p-4 rounded-xl border ${colors.bg} border-border/50 hover:shadow-md transition-all duration-200 cursor-pointer`}
-                    onClick={() => {
-                      setSelectedDate(event.date);
-                      setCurrentWeek(event.date);
-                    }}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
-                      <span className="text-xs text-muted-foreground">
-                        {formatDisplayDate(event.date.toISOString())}
-                      </span>
-                    </div>
-                    <h4 className="font-medium text-foreground line-clamp-1 mb-1">
-                      {event.title}
-                    </h4>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Clock className="w-3 h-3" />
-                      <span>{event.startTime}</span>
-                      <span className="text-muted-foreground/50">•</span>
-                      <div className="flex -space-x-1">
-                        {event.participants.slice(0, 3).map((p) => (
-                          <Avatar key={p.id} className="w-5 h-5 border border-background">
-                            <AvatarFallback className="text-[8px] bg-primary/10 text-primary">
-                              {p.initials}
-                            </AvatarFallback>
-                          </Avatar>
-                        ))}
-                      </div>
+        {/* Day events */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              {format(selectedDate, "d MMMM, EEEE", { locale: ru })}
+              {dayEvents.length > 0 && (
+                <Badge variant="secondary">{dayEvents.length}</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">
+                Загрузка...
+              </p>
+            ) : dayEvents.length === 0 ? (
+              <div className="text-center py-8">
+                <CalendarIcon className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground mb-6">Пока пусто</p>
+
+                {/* Show upcoming if this day is empty */}
+                {upcoming.length > 0 && (
+                  <div className="text-left">
+                    <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">
+                      Ближайшие встречи
+                    </p>
+                    <div className="space-y-2">
+                      {upcoming.map((e) => (
+                        <button
+                          key={e.id}
+                          onClick={() => {
+                            setSelectedDate(new Date(e.start_time));
+                            setCurrentMonth(new Date(e.start_time));
+                          }}
+                          className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-secondary/60 transition-colors text-left"
+                        >
+                          <div className="text-xs text-muted-foreground w-20 flex-shrink-0">
+                            {format(new Date(e.start_time), "d MMM", { locale: ru })}
+                            <br />
+                            {formatTime(e.start_time)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">
+                              {e.title}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {e.is_online
+                                ? "Онлайн"
+                                : e.location || "Место не указано"}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
                     </div>
                   </div>
-                );
-              })}
-          </div>
-        </CardContent>
-      </Card>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {dayEvents.map((event) => (
+                  <div
+                    key={event.id}
+                    className="p-4 rounded-xl border border-border/50 bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-foreground mb-1">
+                          {event.title}
+                        </h3>
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" />
+                            {formatTime(event.start_time)} —{" "}
+                            {formatTime(event.end_time)}
+                          </span>
+                          {event.is_online ? (
+                            <span className="flex items-center gap-1">
+                              <Video className="w-3.5 h-3.5" />
+                              Онлайн
+                            </span>
+                          ) : event.location ? (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3.5 h-3.5" />
+                              {event.location}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                      {event.creator_id === profileId && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => deleteEvent.mutate(event.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Participants */}
+                    {event.participant_ids?.length > 0 && (
+                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/30">
+                        <div className="flex -space-x-2">
+                          {event.participant_ids.slice(0, 5).map((pid) => {
+                            const name = profileNameMap[pid] || "?";
+                            return (
+                              <Avatar
+                                key={pid}
+                                className="w-7 h-7 border-2 border-background"
+                              >
+                                <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                                  {getInitials(name)}
+                                </AvatarFallback>
+                              </Avatar>
+                            );
+                          })}
+                          {event.participant_ids.length > 5 && (
+                            <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-medium border-2 border-background">
+                              +{event.participant_ids.length - 5}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {event.participant_ids.length}{" "}
+                          {event.participant_ids.length === 1
+                            ? "участник"
+                            : "участников"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <CreateEventModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSubmit={handleCreate}
+        defaultDate={selectedDate}
+        isSubmitting={createEvent.isPending}
+      />
     </div>
   );
 }

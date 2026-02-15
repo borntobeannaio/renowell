@@ -21,6 +21,7 @@ const navItems: { id: NavigationSection; path: string; label: string; icon: Reac
   { id: "protocols", path: "/protocols", label: "Протоколы", icon: FileText },
   { id: "tasks", path: "/tasks", label: "Задачи", icon: CheckSquare },
   { id: "hr", path: "/hr", label: "HR и Офис", icon: Users },
+  { id: "calendar", path: "/calendar", label: "Календарь", icon: Calendar },
   { id: "knowledge", path: "/knowledge", label: "База знаний", icon: BookOpen },
   { id: "about" as NavigationSection, path: "/about", label: "О платформе", icon: Info },
 ];
