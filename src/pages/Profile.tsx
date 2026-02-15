@@ -476,8 +476,9 @@ export default function Profile() {
               </Label>
               <Input
                 id="icsUrl"
+                name="ics_calendar_link_url"
                 type="url"
-                autoComplete="off"
+                autoComplete="one-time-code"
                 value={icsUrl}
                 onChange={(e) => setIcsUrl(e.target.value)}
                 placeholder="https://outlook.office365.com/owa/calendar/..."
