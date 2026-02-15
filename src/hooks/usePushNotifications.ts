@@ -37,7 +37,7 @@ export function usePushNotifications() {
     // Check existing subscription
     navigator.serviceWorker.ready.then((reg) => {
       setRegistration(reg);
-      reg.pushManager.getSubscription().then((sub) => {
+      (reg as any).pushManager.getSubscription().then((sub: any) => {
         setIsSubscribed(!!sub);
       });
     });
@@ -71,7 +71,7 @@ export function usePushNotifications() {
       setRegistration(reg);
 
       // Subscribe to push
-      const subscription = await reg.pushManager.subscribe({
+      const subscription = await (reg as any).pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
@@ -112,7 +112,7 @@ export function usePushNotifications() {
     setIsLoading(true);
 
     try {
-      const subscription = await registration.pushManager.getSubscription();
+      const subscription = await (registration as any).pushManager.getSubscription();
       if (subscription) {
         await subscription.unsubscribe();
       }
