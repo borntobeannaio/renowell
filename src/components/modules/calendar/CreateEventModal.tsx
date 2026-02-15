@@ -95,15 +95,15 @@ export function CreateEventModal({
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            <div className="col-span-3 sm:col-span-1">
-              <Label>Дата *</Label>
-              <Input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
-            </div>
+          <div>
+            <Label>Дата *</Label>
+            <Input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
             <div>
               <Label>Начало *</Label>
               <Input
