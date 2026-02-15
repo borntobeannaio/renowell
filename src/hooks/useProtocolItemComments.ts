@@ -41,6 +41,7 @@ export function useCreateProtocolItemComment() {
       mentionedProfileIds?: string[];
       protocolTitle?: string;
       authorName?: string;
+      taskId?: string | null;
     }) => {
       const { data, error } = await proxyInsert<DbProtocolItemComment>(
         "protocol_item_comments",
@@ -54,6 +55,18 @@ export function useCreateProtocolItemComment() {
 
       if (error) throw new Error(error.message);
       const createdComment = data?.[0] as DbProtocolItemComment;
+
+      // Дублируем комментарий в task_comments, если есть связанная задача
+      if (comment.taskId && createdComment) {
+        const { error: taskCommentError } = await proxyInsert("task_comments", {
+          task_id: comment.taskId,
+          author_id: comment.author_id,
+          content: comment.content,
+        });
+        if (taskCommentError) {
+          console.error("Failed to duplicate comment to task_comments:", taskCommentError);
+        }
+      }
 
       // Создание записей об упоминаниях и уведомлений
       const mentionedProfileIds = comment.mentionedProfileIds || [];
