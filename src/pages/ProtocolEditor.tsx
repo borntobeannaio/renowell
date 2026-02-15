@@ -236,7 +236,7 @@ export default function ProtocolEditor() {
   } = useFormDraft('protocol', draftEntityId, draftData, {
     autoSaveInterval: 3000,
     enabled: !!user && !isCopyDataLoading,
-    saveEnabled: !!user && !isCopyDataLoading && !isEditDataLoading && (editInitialized || isNew) && hasUnsavedChanges
+    saveEnabled: !!user && !isCopyDataLoading && !isEditDataLoading && (editInitialized || isNew) && (hasUnsavedChanges || isNew)
   });
   
   // Track changes to form and sections
