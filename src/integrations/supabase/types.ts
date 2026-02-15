@@ -77,10 +77,12 @@ export type Database = {
           creator_id: string
           description: string | null
           end_time: string
+          external_uid: string | null
           id: string
           is_online: boolean
           location: string | null
           participant_ids: string[]
+          source: string
           start_time: string
           title: string
           updated_at: string
@@ -90,10 +92,12 @@ export type Database = {
           creator_id: string
           description?: string | null
           end_time: string
+          external_uid?: string | null
           id?: string
           is_online?: boolean
           location?: string | null
           participant_ids?: string[]
+          source?: string
           start_time: string
           title: string
           updated_at?: string
@@ -103,10 +107,12 @@ export type Database = {
           creator_id?: string
           description?: string | null
           end_time?: string
+          external_uid?: string | null
           id?: string
           is_online?: boolean
           location?: string | null
           participant_ids?: string[]
+          source?: string
           start_time?: string
           title?: string
           updated_at?: string
@@ -652,6 +658,7 @@ export type Database = {
           created_at: string
           description: string | null
           first_name: string | null
+          ics_url: string | null
           id: string
           last_name: string | null
           notify_email: boolean | null
@@ -669,6 +676,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           first_name?: string | null
+          ics_url?: string | null
           id?: string
           last_name?: string | null
           notify_email?: boolean | null
@@ -686,6 +694,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           first_name?: string | null
+          ics_url?: string | null
           id?: string
           last_name?: string | null
           notify_email?: boolean | null

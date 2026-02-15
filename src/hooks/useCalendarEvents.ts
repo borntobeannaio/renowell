@@ -13,6 +13,8 @@ export interface CalendarEvent {
   is_online: boolean;
   creator_id: string;
   participant_ids: string[];
+  source: string;
+  external_uid: string | null;
   created_at: string;
   updated_at: string;
 }

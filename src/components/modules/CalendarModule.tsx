@@ -11,6 +11,7 @@ import {
   Video,
   Plus,
   Trash2,
+  Globe,
 } from "lucide-react";
 import { format, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -205,9 +206,17 @@ export function CalendarModule() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-foreground mb-1">
-                          {event.title}
-                        </h3>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-foreground">
+                            {event.title}
+                          </h3>
+                          {event.source === "external" && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 flex-shrink-0">
+                              <Globe className="w-3 h-3" />
+                              Внешний
+                            </Badge>
+                          )}
+                        </div>
                         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5" />
@@ -227,7 +236,7 @@ export function CalendarModule() {
                           ) : null}
                         </div>
                       </div>
-                      {event.creator_id === profileId && (
+                      {event.source !== "external" && event.creator_id === profileId && (
                         <Button
                           variant="ghost"
                           size="icon"

@@ -19,6 +19,7 @@ export interface Profile {
   notify_email: boolean;
   notify_push: boolean;
   push_subscription: object | null;
+  ics_url: string | null;
 }
 
 export function useCurrentProfile() {
