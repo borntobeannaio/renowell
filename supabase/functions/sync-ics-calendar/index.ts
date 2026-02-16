@@ -18,21 +18,25 @@ interface VEvent {
 /** Minimal ICS parser — extracts VEVENT blocks */
 function parseICS(raw: string): VEvent[] {
   const events: VEvent[] = [];
-  const blocks = raw.split("BEGIN:VEVENT");
+  
+  // Normalize line endings first
+  const normalized = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  
+  // Unfold continuation lines globally (RFC 5545 §3.1)
+  const unfolded = normalized.replace(/\n[ \t]/g, "");
+  
+  const blocks = unfolded.split("BEGIN:VEVENT");
 
   for (let i = 1; i < blocks.length; i++) {
     const block = blocks[i].split("END:VEVENT")[0];
     const get = (key: string): string | undefined => {
-      // Handle folded lines (RFC 5545 §3.1)
-      const unfolded = block.replace(/\r?\n[ \t]/g, "");
       const regex = new RegExp(`^${key}[;:](.*)$`, "m");
-      const m = unfolded.match(regex);
+      const m = block.match(regex);
       if (!m) return undefined;
-      // Strip parameters for date fields (e.g. DTSTART;TZID=...:20250101T090000)
       const val = m[1];
+      // Strip parameters for date fields (e.g. DTSTART;TZID=...:20250101T090000)
       if (key.startsWith("DT")) {
         const colonIdx = val.lastIndexOf(":");
-        // If there's a colon it means there were parameters
         return colonIdx > -1 ? val.substring(colonIdx + 1) : val;
       }
       return val.trim();
@@ -43,7 +47,10 @@ function parseICS(raw: string): VEvent[] {
     const dtstart = get("DTSTART");
     const dtend = get("DTEND");
 
-    if (!uid || !dtstart) continue;
+    if (!uid || !dtstart) {
+      console.log(`[sync-ics] Skipping event: uid=${uid}, dtstart=${dtstart}, summary=${summary}`);
+      continue;
+    }
 
     events.push({
       uid,
@@ -107,7 +114,9 @@ Deno.serve(async (req) => {
         }
 
         const icsText = await resp.text();
+        console.log(`[sync-ics] Profile ${profile.id}: fetched ${icsText.length} bytes, first 200 chars: ${icsText.substring(0, 200)}`);
         const vevents = parseICS(icsText);
+        console.log(`[sync-ics] Profile ${profile.id}: parsed ${vevents.length} events`);
 
         // Upsert events
         let synced = 0;
@@ -136,7 +145,11 @@ Deno.serve(async (req) => {
               ignoreDuplicates: false,
             });
 
-          if (!upsertErr) synced++;
+          if (upsertErr) {
+            console.error(`[sync-ics] Upsert error for uid=${ev.uid}:`, upsertErr.message, upsertErr.details, upsertErr.hint);
+          } else {
+            synced++;
+          }
         }
 
         // Delete events that are no longer in the ICS file
