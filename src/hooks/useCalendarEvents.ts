@@ -93,11 +93,33 @@ export function useCalendarEvents() {
     },
   });
 
+  const syncCalendars = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sync-ics-calendar");
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["calendar_events"] });
+      const results = data?.results;
+      if (results?.length) {
+        const total = results.reduce((s: number, r: { synced: number }) => s + r.synced, 0);
+        toast.success(`Синхронизировано: ${total} событий`);
+      } else {
+        toast.info("Нет календарей для синхронизации");
+      }
+    },
+    onError: (err) => {
+      toast.error("Ошибка синхронизации: " + (err instanceof Error ? err.message : String(err)));
+    },
+  });
+
   return {
     events: query.data || [],
     isLoading: query.isLoading,
     error: query.error,
     createEvent,
     deleteEvent,
+    syncCalendars,
   };
 }
