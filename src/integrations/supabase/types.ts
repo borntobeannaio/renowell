@@ -71,6 +71,21 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_settings: {
+        Row: {
+          key: string
+          value: string
+        }
+        Insert: {
+          key: string
+          value: string
+        }
+        Update: {
+          key?: string
+          value?: string
+        }
+        Relationships: []
+      }
       calendar_events: {
         Row: {
           created_at: string
