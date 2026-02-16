@@ -59,6 +59,18 @@ serve(async (req) => {
     if (username === FORWARD_TARGET_USERNAME) {
       await saveForwardChatId(supabase, chatId);
       console.log(`Saved forward_chat_id: ${chatId} for @${FORWARD_TARGET_USERNAME}`);
+
+      // Check if this is a reply to a support message
+      const replyTo = message.reply_to_message as { message_id: number } | undefined;
+      if (replyTo?.message_id && text) {
+        const handled = await handleSupportReply(supabase, replyTo.message_id, text);
+        if (handled) {
+          console.log("Support reply handled successfully");
+          return new Response(JSON.stringify({ ok: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
     }
 
     // Forward message to admin (unless it's from admin herself)
@@ -280,6 +292,48 @@ async function processChannelPost(
   }
 
   console.log(`Channel post ${messageId} saved to database`);
+}
+
+// --- Support reply handling ---
+
+async function handleSupportReply(
+  supabase: ReturnType<typeof createClient>,
+  replyToMessageId: number,
+  text: string
+): Promise<boolean> {
+  try {
+    // Look up the mapping
+    const { data: mapping, error } = await supabase
+      .from("support_telegram_map")
+      .select("user_profile_id")
+      .eq("telegram_message_id", replyToMessageId)
+      .single();
+
+    if (error || !mapping) {
+      console.log("No support mapping found for message_id:", replyToMessageId);
+      return false;
+    }
+
+    // Insert incoming support message
+    const { error: insertError } = await supabase
+      .from("support_messages")
+      .insert({
+        user_profile_id: mapping.user_profile_id,
+        direction: "incoming",
+        content: text,
+      });
+
+    if (insertError) {
+      console.error("Error inserting support reply:", insertError);
+      return false;
+    }
+
+    console.log(`Support reply inserted for profile ${mapping.user_profile_id}`);
+    return true;
+  } catch (err) {
+    console.error("handleSupportReply error:", err);
+    return false;
+  }
 }
 
 // --- Telegram API helpers ---
