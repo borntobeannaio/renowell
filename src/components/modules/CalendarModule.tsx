@@ -13,6 +13,7 @@ import {
   Trash2,
   Globe,
   Link,
+  RefreshCw,
 } from "lucide-react";
 import { format, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -27,7 +28,7 @@ export function CalendarModule() {
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const { events, isLoading, createEvent, deleteEvent } = useCalendarEvents();
+  const { events, isLoading, createEvent, deleteEvent, syncCalendars } = useCalendarEvents();
   const navigate = useNavigate();
   const { data: currentProfile } = useCurrentProfile();
   const profileId = currentProfile?.id;
@@ -109,6 +110,16 @@ export function CalendarModule() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={syncCalendars.isPending}
+            onClick={() => syncCalendars.mutate()}
+          >
+            <RefreshCw className={`w-4 h-4 ${syncCalendars.isPending ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Обновить</span>
+          </Button>
           {currentProfile && !currentProfile.ics_url && (
             <Button
               variant="outline"
