@@ -13,6 +13,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import ProtocolEditorPage from "./pages/ProtocolEditor";
 import Profile from "./pages/Profile";
+import CreateEvent from "./pages/CreateEvent";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -120,6 +121,14 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <Index />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/calendar/new"
+                  element={
+                    <ProtectedRoute>
+                      <CreateEvent />
                     </ProtectedRoute>
                   }
                 />
