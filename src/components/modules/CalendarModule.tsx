@@ -25,14 +25,12 @@ import { ru } from "date-fns/locale";
 import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { useEmployees } from "@/hooks/useEmployees";
-import { CreateEventModal } from "@/components/modules/calendar/CreateEventModal";
 
 export function CalendarModule() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
-  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const { events, isLoading, createEvent, deleteEvent, syncCalendars } = useCalendarEvents();
+  const { events, isLoading, deleteEvent, syncCalendars } = useCalendarEvents();
   const navigate = useNavigate();
   const { data: currentProfile } = useCurrentProfile();
   const profileId = currentProfile?.id;
@@ -77,22 +75,6 @@ export function CalendarModule() {
       .slice(0, 5);
   }, [events]);
 
-  const handleCreate = (data: {
-    title: string;
-    description?: string;
-    start_time: string;
-    end_time: string;
-    location?: string;
-    is_online: boolean;
-    participant_ids: string[];
-  }) => {
-    if (!profileId) return;
-    createEvent.mutate(
-      { ...data, creator_id: profileId },
-      { onSuccess: () => setShowCreateModal(false) }
-    );
-  };
-
   const formatTime = (iso: string) => format(new Date(iso), "HH:mm");
 
   const getInitials = (name: string) => {
@@ -135,7 +117,7 @@ export function CalendarModule() {
               <span className="hidden sm:inline">Подключить календарь</span>
             </Button>
           )}
-          <Button onClick={() => setShowCreateModal(true)} size="sm" className="gap-1.5">
+          <Button onClick={() => navigate(`/calendar/new?date=${format(selectedDate, "yyyy-MM-dd")}`)} size="sm" className="gap-1.5">
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Новая встреча</span>
           </Button>
@@ -387,13 +369,6 @@ export function CalendarModule() {
         </Card>
       </div>
 
-      <CreateEventModal
-        open={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onSubmit={handleCreate}
-        defaultDate={selectedDate}
-        isSubmitting={createEvent.isPending}
-      />
     </div>
   );
 }
