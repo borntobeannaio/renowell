@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from "react";
-import { MessageCircle, X, Send, Users, Bot, ChevronLeft, Loader2, Maximize2, Minimize2, Plus, Trash2, Phone, Video, Paperclip } from "lucide-react";
+import { MessageCircle, X, Send, Users, Bot, ChevronLeft, Loader2, Maximize2, Minimize2, Plus, Trash2, Phone, Video, Paperclip, Headphones } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useConversations, useConversationMessages, useCreateConversation, useSendMessage, useAIMessages, useSaveAIMessage, useClearAIHistory } from "@/hooks/useChat";
 import { useCreateCall } from "@/hooks/useCalls";
@@ -13,8 +13,8 @@ import { ChatAttachmentPreview, ChatMessageAttachments } from "@/components/chat
 import { useMessageReactions, useToggleReaction, groupReactions } from "@/hooks/useChatReactions";
 import { MessageReactions } from "@/components/chat/MessageReactions";
 import { ReactionPicker } from "@/components/chat/ReactionPicker";
-
-type ChatTab = "general" | "ai";
+import { useSupportMessages, useSendSupportMessage } from "@/hooks/useSupportChat";
+type ChatTab = "general" | "ai" | "support";
 
 interface StreamingAIMessage {
   role: "user" | "assistant";
@@ -55,6 +55,10 @@ export function FloatingChat() {
   const toggleReaction = useToggleReaction(selectedConversationId);
   const clearAIHistory = useClearAIHistory();
   const createCall = useCreateCall();
+
+  // Support chat hooks
+  const { data: supportMessages = [] } = useSupportMessages();
+  const sendSupportMessage = useSendSupportMessage();
   
   // Unread counts per conversation
   const conversationIds = conversations.map(c => c.id);
@@ -106,6 +110,11 @@ export function FloatingChat() {
 
     if (activeTab === "ai") {
       handleSendAiMessage();
+    } else if (activeTab === "support") {
+      if (message.trim()) {
+        sendSupportMessage.mutate(message.trim());
+        setMessage("");
+      }
     } else if (selectedConversationId) {
       sendMessage.mutate({
         conversationId: selectedConversationId,
@@ -505,6 +514,43 @@ export function FloatingChat() {
       );
     }
 
+    if (activeTab === "support") {
+      return (
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          {supportMessages.length === 0 && (
+            <div className="text-center text-muted-foreground text-sm py-8">
+              <Headphones className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <p>Техподдержка</p>
+              <p>Напишите ваш вопрос — мы ответим.</p>
+            </div>
+          )}
+          {supportMessages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`flex ${msg.direction === "outgoing" ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
+                  msg.direction === "outgoing"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-secondary-foreground"
+                }`}
+              >
+                {msg.direction === "incoming" && (
+                  <p className="text-xs font-medium mb-1 opacity-70">Поддержка</p>
+                )}
+                <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                <p className={`text-xs mt-1 ${msg.direction === "outgoing" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                  {formatTime(msg.created_at)}
+                </p>
+              </div>
+            </div>
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
+      );
+    }
+
     if (!selectedConversationId) {
       return renderChatList();
     }
@@ -630,7 +676,7 @@ export function FloatingChat() {
                 </button>
               ) : (
                 <span className="text-sm font-semibold text-foreground">
-                  {activeTab === "ai" ? "AI Ассистент" : "Чаты"}
+                  {activeTab === "ai" ? "AI Ассистент" : activeTab === "support" ? "Техподдержка" : "Чаты"}
                 </span>
               )}
               <div className="flex items-center gap-1">
@@ -714,6 +760,17 @@ export function FloatingChat() {
                 <Bot className="w-3 h-3" />
                 AI чат
               </button>
+              <button
+                onClick={() => setActiveTab("support")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  activeTab === "support"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                }`}
+              >
+                <Headphones className="w-3 h-3" />
+                Поддержка
+              </button>
             </div>
           </div>
 
@@ -721,7 +778,7 @@ export function FloatingChat() {
           {renderMessages()}
 
           {/* Input */}
-          {(activeTab === "ai" || selectedConversationId) && (
+          {(activeTab === "ai" || activeTab === "support" || selectedConversationId) && (
             <div className="p-3 border-t border-border space-y-2">
               {/* Pending attachments preview */}
               {pendingAttachments.length > 0 && (

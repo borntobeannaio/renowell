@@ -997,6 +997,64 @@ export type Database = {
         }
         Relationships: []
       }
+      support_messages: {
+        Row: {
+          content: string
+          created_at: string
+          direction: string
+          id: string
+          user_profile_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          direction?: string
+          id?: string
+          user_profile_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          user_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_telegram_map: {
+        Row: {
+          created_at: string
+          telegram_message_id: number
+          user_profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          telegram_message_id: number
+          user_profile_id: string
+        }
+        Update: {
+          created_at?: string
+          telegram_message_id?: number
+          user_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_telegram_map_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_comments: {
         Row: {
           author_id: string
