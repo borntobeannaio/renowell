@@ -12,8 +12,10 @@ import {
   Plus,
   Trash2,
   Globe,
+  Link,
 } from "lucide-react";
 import { format, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
+import { useNavigate } from "react-router-dom";
 import { ru } from "date-fns/locale";
 import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
@@ -26,6 +28,7 @@ export function CalendarModule() {
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const { events, isLoading, createEvent, deleteEvent } = useCalendarEvents();
+  const navigate = useNavigate();
   const { data: currentProfile } = useCurrentProfile();
   const profileId = currentProfile?.id;
   const { data: employees = [] } = useEmployees();
@@ -105,10 +108,23 @@ export function CalendarModule() {
             Встречи и события
           </p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)} size="sm" className="gap-1.5">
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Новая встреча</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          {currentProfile && !currentProfile.ics_url && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => navigate("/profile#ics")}
+            >
+              <Link className="w-4 h-4" />
+              <span className="hidden sm:inline">Подключить календарь</span>
+            </Button>
+          )}
+          <Button onClick={() => setShowCreateModal(true)} size="sm" className="gap-1.5">
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Новая встреча</span>
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">

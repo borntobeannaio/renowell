@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, CalendarIcon, Save, Loader2, Camera, User, Lock, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Save, Loader2, Camera, User, Lock, Eye, EyeOff, HelpCircle, X } from "lucide-react";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -35,9 +35,12 @@ interface ProfileData {
 
 export default function Profile() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, signOut } = useAuth();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const icsFieldRef = useRef<HTMLDivElement>(null);
+  const [showIcsGuide, setShowIcsGuide] = useState(false);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -85,6 +88,15 @@ export default function Profile() {
       }
     }
   }, [profile]);
+
+  // Scroll to ICS field when navigating with #ics hash
+  useEffect(() => {
+    if (location.hash === "#ics" && icsFieldRef.current) {
+      setTimeout(() => {
+        icsFieldRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 300);
+    }
+  }, [location.hash, profile]);
 
   const updateMutation = useMutation({
     mutationFn: async () => {
@@ -469,11 +481,49 @@ export default function Profile() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="icsUrl" className="flex items-center gap-1.5">
-                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                Ссылка на календарь (ICS)
-              </Label>
+            <div className="space-y-2" ref={icsFieldRef} id="ics">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="icsUrl" className="flex items-center gap-1.5">
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  Ссылка на календарь (ICS)
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1 text-xs h-7 text-muted-foreground"
+                  onClick={() => setShowIcsGuide(!showIcsGuide)}
+                >
+                  <HelpCircle className="h-3.5 w-3.5" />
+                  Инструкция
+                </Button>
+              </div>
+
+              {showIcsGuide && (
+                <div className="rounded-lg border bg-muted/50 p-4 text-sm space-y-3 relative">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2 h-6 w-6"
+                    onClick={() => setShowIcsGuide(false)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                  <p className="font-medium">Как получить ссылку ICS из Outlook:</p>
+                  <ol className="list-decimal list-inside space-y-1.5 text-muted-foreground">
+                    <li>Откройте <strong>Outlook Web</strong> → <a href="https://outlook.office.com/calendar" target="_blank" rel="noopener noreferrer" className="text-primary underline">outlook.office.com/calendar</a></li>
+                    <li>Нажмите <strong>⚙️ Настройки</strong> (шестерёнка) → <strong>Просмотреть все параметры Outlook</strong></li>
+                    <li>Перейдите в <strong>Календарь</strong> → <strong>Общие календари</strong></li>
+                    <li>В разделе <strong>«Опубликовать календарь»</strong> выберите ваш календарь и уровень доступа</li>
+                    <li>Нажмите <strong>«Опубликовать»</strong></li>
+                    <li>Скопируйте ссылку <strong>ICS</strong> (не HTML) и вставьте в поле ниже</li>
+                  </ol>
+                  <p className="text-xs text-muted-foreground pt-1">
+                    Для Google Calendar: Настройки календаря → «Секретный адрес в формате iCal» → скопируйте ссылку.
+                  </p>
+                </div>
+              )}
+
               <Input
                 id="icsUrl"
                 name="ics_calendar_link_url"
