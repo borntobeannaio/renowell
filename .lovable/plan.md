@@ -1,49 +1,42 @@
 
 
-## Исправление извлечения участников (ATTENDEE) из ICS
+## Исправление дропдауна участников в модалке создания встречи
 
-### Проблема
+### Корневая причина
 
-Парсер находит строки `ATTENDEE`, но `extractEmail` / `extractCN` не извлекают данные. Вероятные причины:
-
-1. **Outlook использует `MAILTO:` в верхнем регистре**, а `extractEmail` ищет `mailto:` через regex без флага `i` — нет, флаг `i` стоит. Проверено.
-2. **Формат Outlook без `CN`**: Outlook часто генерирует `ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:user@company.com` — без `CN` вообще. В этом случае `cn` будет пустой строкой, `email` должен работать. Условие `if (email || cn)` должно пропустить запись.
-3. **Скорее всего: пробел перед `mailto:`**. После unfolding строка может выглядеть как `...RSVP=TRUE :mailto:user@...` (с пробелом перед двоеточием). Regex `mailto:([^\s;]+)` ожидает `mailto:` сразу, но пробел перед `:` не мешает — проблема в другом.
-4. **Самая вероятная причина**: Outlook оборачивает `ATTENDEE` через **line folding** так, что после unfolding строка начинается НЕ с `ATTENDEE`, а содержит его внутри. Или, что ещё вероятнее, **длинные строки ATTENDEE складываются нестандартно** и regex не находит `mailto:`.
+`stopPropagation` на контейнере дропдауна не помогает, потому что Radix Dialog использует **другой механизм**: он слушает `pointerdown` на `document` и проверяет, находится ли цель клика **внутри DOM-дерева `DialogContent`**. Поскольку портал рендерится в `document.body` (вне `DialogContent`), Radix всегда считает это кликом снаружи и закрывает диалог.
 
 ### Решение
 
-Добавить **диагностическое логирование** в парсер, чтобы увидеть точный формат строк из Outlook, и одновременно сделать парсер **более устойчивым**:
+В `CreateEventModal.tsx` добавить обработчик `onInteractOutside` на `DialogContent`, который проверяет, был ли клик внутри элемента с атрибутом `[data-employee-dropdown]`. Если да — отменять закрытие (`event.preventDefault()`).
 
-### Изменения в `supabase/functions/sync-ics-calendar/index.ts`
+### Изменения
 
-1. **Добавить лог** всех строк, начинающихся с `ATTENDEE` и `ORGANIZER` — чтобы увидеть реальный формат:
-   ```
-   console.log(`[sync-ics] Raw ATTENDEE line: ${trimmed.substring(0, 200)}`);
-   ```
+**Файл: `src/components/modules/calendar/CreateEventModal.tsx`**
 
-2. **Улучшить `extractEmail`** — сделать более гибким:
-   - Помимо `mailto:`, искать email-паттерн напрямую (regex для `user@domain.com`)
-   - Обрезать пробелы и кавычки вокруг email
+На компоненте `DialogContent` добавить:
 
-3. **Улучшить `extractCN`** — обрабатывать кавычки и кодировку:
-   - Outlook иногда оборачивает CN в двойные кавычки: `CN="Имя Фамилия"`
-   - Иногда использует одинарные: `CN='Имя'`
+```tsx
+<DialogContent
+  className="max-w-md"
+  onInteractOutside={(e) => {
+    const target = e.target as HTMLElement;
+    if (target?.closest?.("[data-employee-dropdown]")) {
+      e.preventDefault();
+    }
+  }}
+>
+```
 
-4. **Добавить fallback для имени**: если `CN` пуст, использовать часть email до `@` как имя.
+Это единственное изменение. `stopPropagation` в `EmployeeMultiSelect` можно оставить — он не мешает и полезен для других случаев.
 
-5. **Логировать итоговое количество attendees** для каждого события:
-   ```
-   console.log(`[sync-ics] Event ${summary}: ${attendees.length} attendees, organizer=${organizer}`);
-   ```
+### Почему это сработает
 
-### План действий
+- Radix Dialog вызывает `onInteractOutside` перед закрытием
+- `e.preventDefault()` отменяет закрытие диалога
+- Проверка `closest("[data-employee-dropdown]")` гарантирует, что отменяем только для дропдауна, а не для любого клика снаружи
 
-1. Деплой edge-функции с добавленным логированием и улучшенными regex
-2. Вызвать синхронизацию
-3. Проверить логи — увидеть формат строк Outlook
-4. При необходимости подправить regex на основе реальных данных
+### Файлы
 
-### Один файл
+1. `src/components/modules/calendar/CreateEventModal.tsx` — добавить `onInteractOutside` на `DialogContent`
 
-`supabase/functions/sync-ics-calendar/index.ts` — добавить логирование и улучшить парсинг ATTENDEE/ORGANIZER.
