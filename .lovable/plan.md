@@ -1,42 +1,29 @@
 
 
-## Исправление дропдауна участников в модалке создания встречи
+## Создание встречи — отдельная страница вместо модалки
 
-### Корневая причина
+### Причина
 
-`stopPropagation` на контейнере дропдауна не помогает, потому что Radix Dialog использует **другой механизм**: он слушает `pointerdown` на `document` и проверяет, находится ли цель клика **внутри DOM-дерева `DialogContent`**. Поскольку портал рендерится в `document.body` (вне `DialogContent`), Radix всегда считает это кликом снаружи и закрывает диалог.
+Radix Dialog перехватывает все pointer-события за пределами `DialogContent`. Портал `EmployeeMultiSelect` рендерится в `document.body` — вне DOM-дерева диалога. Несмотря на `onInteractOutside` и `stopPropagation`, Radix продолжает блокировать взаимодействие. Самое надёжное решение — убрать модалку и сделать создание встречи отдельной страницей.
 
-### Решение
+### Что будет сделано
 
-В `CreateEventModal.tsx` добавить обработчик `onInteractOutside` на `DialogContent`, который проверяет, был ли клик внутри элемента с атрибутом `[data-employee-dropdown]`. Если да — отменять закрытие (`event.preventDefault()`).
+1. **Новая страница** `src/pages/CreateEvent.tsx`
+   - Форма создания встречи (те же поля: название, дата, время, участники, место, описание)
+   - `EmployeeMultiSelect` без портала — обычный дропдаун, никаких конфликтов
+   - Кнопки «Отмена» (возврат на `/calendar`) и «Создать и пригласить»
+   - После успешного создания — автоматический переход на `/calendar`
 
-### Изменения
+2. **Новый маршрут** в `src/App.tsx`
+   - `/calendar/new` — защищённый маршрут на страницу `CreateEvent`
 
-**Файл: `src/components/modules/calendar/CreateEventModal.tsx`**
+3. **Обновление `CalendarModule.tsx`**
+   - Кнопка «Новая встреча» вместо открытия модалки — навигация на `/calendar/new`
+   - Удалить импорт `CreateEventModal` и связанный state `showCreateModal`
 
-На компоненте `DialogContent` добавить:
+4. **Удаление `CreateEventModal.tsx`**
+   - Файл больше не нужен
 
-```tsx
-<DialogContent
-  className="max-w-md"
-  onInteractOutside={(e) => {
-    const target = e.target as HTMLElement;
-    if (target?.closest?.("[data-employee-dropdown]")) {
-      e.preventDefault();
-    }
-  }}
->
-```
+### Визуальный стиль страницы
 
-Это единственное изменение. `stopPropagation` в `EmployeeMultiSelect` можно оставить — он не мешает и полезен для других случаев.
-
-### Почему это сработает
-
-- Radix Dialog вызывает `onInteractOutside` перед закрытием
-- `e.preventDefault()` отменяет закрытие диалога
-- Проверка `closest("[data-employee-dropdown]")` гарантирует, что отменяем только для дропдауна, а не для любого клика снаружи
-
-### Файлы
-
-1. `src/components/modules/calendar/CreateEventModal.tsx` — добавить `onInteractOutside` на `DialogContent`
-
+Страница будет оформлена карточкой по центру (как страница профиля), с теми же полями и стилями, что были в модалке. Дата по умолчанию передаётся через query-параметр (`?date=2026-02-16`).
