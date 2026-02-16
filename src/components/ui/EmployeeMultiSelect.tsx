@@ -97,6 +97,9 @@ export function EmployeeMultiSelect({
       className={`bg-popover border border-border rounded-lg shadow-xl max-h-60 flex flex-col ${
         usePortal ? "" : "absolute z-50 mt-1 w-full"
       }`}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
     >
       <div className="p-2 border-b border-border">
         <input
@@ -105,7 +108,7 @@ export function EmployeeMultiSelect({
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Поиск..."
           className="input-base w-full h-8 text-sm"
-          autoFocus={!usePortal}
+          autoFocus
         />
       </div>
       <div className="overflow-y-auto min-h-0 flex-1">
