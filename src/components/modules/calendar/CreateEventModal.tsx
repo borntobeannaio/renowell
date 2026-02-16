@@ -80,7 +80,15 @@ export function CreateEventModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent
+        className="max-w-md"
+        onInteractOutside={(e) => {
+          const target = e.target as HTMLElement;
+          if (target?.closest?.("[data-employee-dropdown]")) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Новая встреча</DialogTitle>
         </DialogHeader>
