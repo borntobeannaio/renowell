@@ -14,6 +14,7 @@ import { useMessageReactions, useToggleReaction, groupReactions } from "@/hooks/
 import { MessageReactions } from "@/components/chat/MessageReactions";
 import { ReactionPicker } from "@/components/chat/ReactionPicker";
 import { useSupportMessages, useSendSupportMessage } from "@/hooks/useSupportChat";
+import { useIsSupportAdmin, useSupportThreads, useSupportUserMessages, useSendSupportReply } from "@/hooks/useSupportAdmin";
 type ChatTab = "general" | "ai" | "support";
 
 interface StreamingAIMessage {
@@ -59,6 +60,13 @@ export function FloatingChat() {
   // Support chat hooks
   const { data: supportMessages = [] } = useSupportMessages();
   const sendSupportMessage = useSendSupportMessage();
+  
+  // Support admin hooks
+  const isSupportAdmin = useIsSupportAdmin();
+  const { data: supportThreads = [] } = useSupportThreads();
+  const [selectedSupportUserId, setSelectedSupportUserId] = useState<string | null>(null);
+  const { data: adminSupportMessages = [] } = useSupportUserMessages(isSupportAdmin ? selectedSupportUserId : null);
+  const sendSupportReply = useSendSupportReply();
   
   // Unread counts per conversation
   const conversationIds = conversations.map(c => c.id);
@@ -112,7 +120,11 @@ export function FloatingChat() {
       handleSendAiMessage();
     } else if (activeTab === "support") {
       if (message.trim()) {
-        sendSupportMessage.mutate(message.trim());
+        if (isSupportAdmin && selectedSupportUserId) {
+          sendSupportReply.mutate({ userProfileId: selectedSupportUserId, content: message.trim() });
+        } else if (!isSupportAdmin) {
+          sendSupportMessage.mutate(message.trim());
+        }
         setMessage("");
       }
     } else if (selectedConversationId) {
@@ -515,6 +527,74 @@ export function FloatingChat() {
     }
 
     if (activeTab === "support") {
+      // Admin view: show user folders or selected user's chat
+      if (isSupportAdmin) {
+        if (!selectedSupportUserId) {
+          // Show list of support threads
+          return (
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              {supportThreads.length === 0 && (
+                <div className="text-center text-muted-foreground text-sm py-8">
+                  <Headphones className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                  <p>Нет обращений</p>
+                </div>
+              )}
+              {supportThreads.map((thread) => (
+                <button
+                  key={thread.userProfileId}
+                  onClick={() => setSelectedSupportUserId(thread.userProfileId)}
+                  className="w-full p-3 rounded-lg text-left transition-colors bg-secondary/50 hover:bg-secondary"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Headphones className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground text-sm truncate">{thread.userName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{thread.lastMessage}</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {formatTime(thread.lastMessageAt)}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          );
+        }
+
+        // Show selected user's support chat (admin)
+        const currentThread = supportThreads.find(t => t.userProfileId === selectedSupportUserId);
+        return (
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            {adminSupportMessages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex ${msg.direction === "incoming" ? "justify-end" : "justify-start"}`}
+              >
+                <div
+                  className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
+                    msg.direction === "incoming"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-secondary-foreground"
+                  }`}
+                >
+                  {msg.direction === "outgoing" && (
+                    <p className="text-xs font-medium mb-1 opacity-70">{currentThread?.userName || "Пользователь"}</p>
+                  )}
+                  <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                  <p className={`text-xs mt-1 ${msg.direction === "incoming" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                    {formatTime(msg.created_at)}
+                  </p>
+                </div>
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+        );
+      }
+
+      // Regular user support view
       return (
         <div className="flex-1 overflow-y-auto p-3 space-y-3">
           {supportMessages.length === 0 && (
@@ -666,13 +746,21 @@ export function FloatingChat() {
           {/* Header with tabs */}
           <div className="bg-card border-b border-border">
             <div className="flex items-center justify-between p-3">
-              {selectedConversationId && activeTab === "general" ? (
+              {(selectedConversationId && activeTab === "general") ? (
                 <button
                   onClick={() => setSelectedConversation(null)}
                   className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" />
                   {selectedConversation ? getConversationDisplayTitle(selectedConversation) : ""}
+                </button>
+              ) : (isSupportAdmin && activeTab === "support" && selectedSupportUserId) ? (
+                <button
+                  onClick={() => setSelectedSupportUserId(null)}
+                  className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  {supportThreads.find(t => t.userProfileId === selectedSupportUserId)?.userName || "Поддержка"}
                 </button>
               ) : (
                 <span className="text-sm font-semibold text-foreground">
@@ -778,7 +866,7 @@ export function FloatingChat() {
           {renderMessages()}
 
           {/* Input */}
-          {(activeTab === "ai" || activeTab === "support" || selectedConversationId) && (
+          {(activeTab === "ai" || (activeTab === "support" && (!isSupportAdmin || selectedSupportUserId)) || selectedConversationId) && (
             <div className="p-3 border-t border-border space-y-2">
               {/* Pending attachments preview */}
               {pendingAttachments.length > 0 && (
