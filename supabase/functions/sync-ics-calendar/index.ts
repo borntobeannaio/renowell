@@ -296,13 +296,18 @@ function extractTzid(line: string): string | undefined {
 }
 
 function extractCN(params: string): string {
-  const m = params.match(/CN=([^;:]+)/i);
-  return m ? m[1].replace(/"/g, "").trim() : "";
+  // Handle CN="Name", CN='Name', CN=Name
+  const m = params.match(/CN=["']?([^;:"']+)["']?/i);
+  return m ? m[1].replace(/"/g, "").replace(/'/g, "").trim() : "";
 }
 
 function extractEmail(value: string): string {
-  const m = value.match(/mailto:([^\s;]+)/i);
-  return m ? m[1].trim() : "";
+  // Try mailto: first
+  const m = value.match(/mailto:([^\s;>"']+)/i);
+  if (m) return m[1].trim();
+  // Fallback: find email pattern directly
+  const emailMatch = value.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+  return emailMatch ? emailMatch[1].trim() : "";
 }
 
 function extractPartstat(params: string): string {
@@ -366,15 +371,19 @@ function parseICS(raw: string): { events: VEvent[]; vtimezones: Record<string, n
           if (httpIdx > -1) url = trimmed.substring(httpIdx).trim();
         }
       } else if (trimmed.startsWith("ORGANIZER")) {
+        console.log(`[sync-ics] Raw ORGANIZER: ${trimmed.substring(0, 200)}`);
         const cn = extractCN(trimmed);
         const email = extractEmail(trimmed);
         organizer = cn ? (email ? `${cn} <${email}>` : cn) : email || undefined;
       } else if (trimmed.startsWith("ATTENDEE")) {
+        console.log(`[sync-ics] Raw ATTENDEE: ${trimmed.substring(0, 200)}`);
         const cn = extractCN(trimmed);
         const email = extractEmail(trimmed);
         const status = extractPartstat(trimmed);
-        if (email || cn) {
-          attendees.push({ name: cn || email, email, status });
+        // Fallback: use email prefix as name if CN is missing
+        const name = cn || (email ? email.split("@")[0] : "");
+        if (email || name) {
+          attendees.push({ name, email, status });
         }
       } else if (trimmed.startsWith("ATTACH")) {
         const httpIdx = trimmed.indexOf("http");
@@ -395,6 +404,10 @@ function parseICS(raw: string): { events: VEvent[]; vtimezones: Record<string, n
     if (!uid || !dtstart) {
       console.log(`[sync-ics] Skipping event: uid=${uid}, dtstart=${dtstart}, summary=${summary}`);
       continue;
+    }
+
+    if (attendees.length > 0 || organizer) {
+      console.log(`[sync-ics] Event "${summary}": ${attendees.length} attendees, organizer=${organizer || 'none'}`);
     }
 
     events.push({
