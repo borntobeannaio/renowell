@@ -540,7 +540,7 @@ export default function Profile() {
 
             <Button
               onClick={handleSave}
-              disabled={updateMutation.isPending}
+              disabled={updateMutation.isPending || isLoading || !profile}
               className="w-full sm:w-auto"
             >
               {updateMutation.isPending ? (
