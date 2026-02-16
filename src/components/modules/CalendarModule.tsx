@@ -14,6 +14,10 @@ import {
   Globe,
   Link,
   RefreshCw,
+  User,
+  Users,
+  Paperclip,
+  ExternalLink,
 } from "lucide-react";
 import { format, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -275,9 +279,42 @@ export function CalendarModule() {
                       )}
                     </div>
 
-                    {/* Participants */}
+                    {/* Organizer */}
+                    {event.organizer && (
+                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/30 text-xs text-muted-foreground">
+                        <User className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>Организатор: {event.organizer}</span>
+                      </div>
+                    )}
+
+                    {/* ICS Attendees */}
+                    {event.attendees?.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-border/30">
+                        <div className="flex items-center gap-1.5 mb-1.5 text-xs text-muted-foreground">
+                          <Users className="w-3.5 h-3.5" />
+                          <span>Участники ({event.attendees.length})</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {event.attendees.slice(0, 8).map((att, idx) => (
+                            <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0 gap-1">
+                              {att.name || att.email}
+                              {att.status === "accepted" && <span className="text-green-500">✓</span>}
+                              {att.status === "tentative" && <span className="text-yellow-500">?</span>}
+                              {att.status === "declined" && <span className="text-red-500">✗</span>}
+                            </Badge>
+                          ))}
+                          {event.attendees.length > 8 && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                              +{event.attendees.length - 8}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Internal participants (profile-based) */}
                     {event.participant_ids?.length > 0 && (
-                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/30">
+                      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/30">
                         <div className="flex -space-x-2">
                           {event.participant_ids.slice(0, 5).map((pid) => {
                             const name = profileNameMap[pid] || "?";
@@ -300,10 +337,46 @@ export function CalendarModule() {
                         </div>
                         <span className="text-xs text-muted-foreground">
                           {event.participant_ids.length}{" "}
-                          {event.participant_ids.length === 1
-                            ? "участник"
-                            : "участников"}
+                          {event.participant_ids.length === 1 ? "участник" : "участников"}
                         </span>
+                      </div>
+                    )}
+
+                    {/* Meeting URL */}
+                    {event.url && (
+                      <div className="mt-2 pt-2 border-t border-border/30">
+                        <a
+                          href={event.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          Ссылка на встречу
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Attachments */}
+                    {event.attachments?.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-border/30">
+                        <div className="flex items-center gap-1.5 mb-1 text-xs text-muted-foreground">
+                          <Paperclip className="w-3.5 h-3.5" />
+                          <span>Вложения</span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          {event.attachments.map((att, idx) => (
+                            <a
+                              key={idx}
+                              href={att.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary hover:underline truncate"
+                            >
+                              {att.filename}
+                            </a>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>

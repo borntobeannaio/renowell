@@ -88,6 +88,8 @@ export type Database = {
       }
       calendar_events: {
         Row: {
+          attachments: Json | null
+          attendees: Json | null
           created_at: string
           creator_id: string
           description: string | null
@@ -96,13 +98,17 @@ export type Database = {
           id: string
           is_online: boolean
           location: string | null
+          organizer: string | null
           participant_ids: string[]
           source: string
           start_time: string
           title: string
           updated_at: string
+          url: string | null
         }
         Insert: {
+          attachments?: Json | null
+          attendees?: Json | null
           created_at?: string
           creator_id: string
           description?: string | null
@@ -111,13 +117,17 @@ export type Database = {
           id?: string
           is_online?: boolean
           location?: string | null
+          organizer?: string | null
           participant_ids?: string[]
           source?: string
           start_time: string
           title: string
           updated_at?: string
+          url?: string | null
         }
         Update: {
+          attachments?: Json | null
+          attendees?: Json | null
           created_at?: string
           creator_id?: string
           description?: string | null
@@ -126,11 +136,13 @@ export type Database = {
           id?: string
           is_online?: boolean
           location?: string | null
+          organizer?: string | null
           participant_ids?: string[]
           source?: string
           start_time?: string
           title?: string
           updated_at?: string
+          url?: string | null
         }
         Relationships: [
           {

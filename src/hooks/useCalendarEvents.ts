@@ -3,6 +3,17 @@ import { proxySelect, proxyInsert, proxyUpdate, proxyDelete } from "@/lib/dbProx
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+export interface CalendarEventAttendee {
+  name: string;
+  email: string;
+  status: string;
+}
+
+export interface CalendarEventAttachment {
+  filename: string;
+  url: string;
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -17,6 +28,10 @@ export interface CalendarEvent {
   external_uid: string | null;
   created_at: string;
   updated_at: string;
+  organizer: string | null;
+  attendees: CalendarEventAttendee[];
+  url: string | null;
+  attachments: CalendarEventAttachment[];
 }
 
 export function useCalendarEvents() {
