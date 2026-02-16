@@ -100,7 +100,7 @@ export default function Profile() {
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      if (!user?.id || !profile?.id) throw new Error("No user");
+      if (!user?.id || !profile?.id) throw new Error("Профиль ещё загружается. Попробуйте через несколько секунд.");
       
       console.log('[Profile] Updating profile:', profile.id);
       console.log('[Profile] Data:', { firstName, lastName, position, birthday, description });
