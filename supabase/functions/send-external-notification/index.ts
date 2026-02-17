@@ -271,7 +271,7 @@ async function sendEmail(
     `;
 
     const emailResponse = await resend.emails.send({
-      from: "Реновель Портал <noreply@renowell.ru>",
+      from: "Реновель Портал <account@renowell.silkagro.ru>",
       to: [to],
       subject: title,
       html: htmlContent,

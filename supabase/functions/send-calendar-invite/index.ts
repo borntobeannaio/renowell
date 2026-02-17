@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            from: "Реновель <onboarding@resend.dev>",
+            from: "Реновель Портал <account@renowell.silkagro.ru>",
             to: [recipient.email],
             subject: `Приглашение: ${event.title}`,
             html: `
