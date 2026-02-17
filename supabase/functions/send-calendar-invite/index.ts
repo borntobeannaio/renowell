@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 function generateICS(event: {
+  id: string;
   title: string;
   description?: string;
   start_time: string;
@@ -16,6 +17,7 @@ function generateICS(event: {
   organizer_email: string;
   organizer_name: string;
   attendees: { email: string; name: string }[];
+  isUpdate?: boolean;
 }): string {
   const formatDate = (iso: string) =>
     new Date(iso)
@@ -23,8 +25,10 @@ function generateICS(event: {
       .replace(/[-:]/g, "")
       .replace(/\.\d{3}/, "");
 
-  const uid = crypto.randomUUID() + "@renowell.app";
+  // Use event.id as stable UID so mail clients can update existing entries
+  const uid = event.id + "@renowell.app";
   const now = formatDate(new Date().toISOString());
+  const sequence = event.isUpdate ? 1 : 0;
 
   let ics = `BEGIN:VCALENDAR
 VERSION:2.0
@@ -33,6 +37,7 @@ CALSCALE:GREGORIAN
 METHOD:REQUEST
 BEGIN:VEVENT
 UID:${uid}
+SEQUENCE:${sequence}
 DTSTAMP:${now}
 DTSTART:${formatDate(event.start_time)}
 DTEND:${formatDate(event.end_time)}
@@ -63,13 +68,15 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { event_id } = await req.json();
+    const { event_id, update } = await req.json();
     if (!event_id) {
       return new Response(JSON.stringify({ error: "event_id required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const isUpdate = !!update;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -165,12 +172,14 @@ Deno.serve(async (req) => {
       minute: "2-digit",
     });
 
+    const subjectPrefix = isUpdate ? "Обновление" : "Приглашение";
+
     // Send emails via Resend — one per recipient with personalized ICS
     let sentCount = 0;
     for (const recipient of emails) {
       try {
-        // Generate ICS with all attendees for each recipient
         const ics = generateICS({
+          id: event.id,
           title: event.title,
           description: event.description,
           start_time: event.start_time,
@@ -180,6 +189,7 @@ Deno.serve(async (req) => {
           organizer_email: "account@renowell.silkagro.ru",
           organizer_name: organizerName,
           attendees: emails,
+          isUpdate,
         });
 
         const icsBase64 = btoa(unescape(encodeURIComponent(ics)));
@@ -193,10 +203,11 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             from: "Реновель Портал <account@renowell.silkagro.ru>",
             to: [recipient.email],
-            subject: `Приглашение: ${event.title}`,
+            subject: `${subjectPrefix}: ${event.title}`,
             html: `
               <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
                 <h2 style="color: #333;">📅 ${event.title}</h2>
+                ${isUpdate ? '<p style="color: #e67e22; font-weight: bold;">⚡ Встреча обновлена</p>' : ""}
                 <p><strong>Когда:</strong> ${formattedDate}</p>
                 ${event.location ? `<p><strong>Где:</strong> ${event.location}</p>` : ""}
                 ${event.is_online ? "<p><strong>Формат:</strong> Онлайн</p>" : ""}

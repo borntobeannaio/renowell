@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,17 +10,20 @@ import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { useEmployees } from "@/hooks/useEmployees";
 import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
-import { ArrowLeft, CalendarPlus } from "lucide-react";
+import { ArrowLeft, CalendarPlus, Pencil } from "lucide-react";
 import { format } from "date-fns";
 
 export default function CreateEvent() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { id: editId } = useParams<{ id: string }>();
+  const isEdit = Boolean(editId);
+
   const dateParam = searchParams.get("date");
   const defaultDate = dateParam || format(new Date(), "yyyy-MM-dd");
 
   const { data: employees = [] } = useEmployees();
-  const { createEvent } = useCalendarEvents();
+  const { events, createEvent, updateEvent } = useCalendarEvents();
   const { data: currentProfile } = useCurrentProfile();
 
   const [title, setTitle] = useState("");
@@ -31,6 +34,31 @@ export default function CreateEvent() {
   const [location, setLocation] = useState("");
   const [isOnline, setIsOnline] = useState(false);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  // Find editing event
+  const editEvent = useMemo(
+    () => (editId ? events.find((e) => e.id === editId) : undefined),
+    [editId, events]
+  );
+
+  // Prefill form for edit mode
+  useEffect(() => {
+    if (!editEvent || loaded) return;
+    setTitle(editEvent.title);
+    setDescription(editEvent.description || "");
+    setDate(format(new Date(editEvent.start_time), "yyyy-MM-dd"));
+    setStartTime(format(new Date(editEvent.start_time), "HH:mm"));
+    setEndTime(format(new Date(editEvent.end_time), "HH:mm"));
+    setLocation(editEvent.location || "");
+    setIsOnline(editEvent.is_online);
+    // Map profile_ids back to employee ids
+    const empIds = employees
+      .filter((e) => e.profile_id && editEvent.participant_ids?.includes(e.profile_id))
+      .map((e) => e.id);
+    setSelectedEmployeeIds(empIds);
+    setLoaded(true);
+  }, [editEvent, employees, loaded]);
 
   const handleSubmit = () => {
     if (!title.trim() || !date || !startTime || !endTime || !currentProfile?.id) return;
@@ -39,20 +67,38 @@ export default function CreateEvent() {
       .filter((e) => selectedEmployeeIds.includes(e.id) && e.profile_id)
       .map((e) => e.profile_id!);
 
-    createEvent.mutate(
-      {
-        title: title.trim(),
-        description: description.trim() || undefined,
-        start_time: `${date}T${startTime}:00`,
-        end_time: `${date}T${endTime}:00`,
-        location: location.trim() || undefined,
-        is_online: isOnline,
-        creator_id: currentProfile.id,
-        participant_ids: profileIds,
-      },
-      { onSuccess: () => navigate("/calendar") }
-    );
+    if (isEdit && editId) {
+      updateEvent.mutate(
+        {
+          id: editId,
+          title: title.trim(),
+          description: description.trim() || undefined,
+          start_time: `${date}T${startTime}:00`,
+          end_time: `${date}T${endTime}:00`,
+          location: location.trim() || undefined,
+          is_online: isOnline,
+          participant_ids: profileIds,
+        },
+        { onSuccess: () => navigate("/calendar") }
+      );
+    } else {
+      createEvent.mutate(
+        {
+          title: title.trim(),
+          description: description.trim() || undefined,
+          start_time: `${date}T${startTime}:00`,
+          end_time: `${date}T${endTime}:00`,
+          location: location.trim() || undefined,
+          is_online: isOnline,
+          creator_id: currentProfile.id,
+          participant_ids: profileIds,
+        },
+        { onSuccess: () => navigate("/calendar") }
+      );
+    }
   };
+
+  const isPending = isEdit ? updateEvent.isPending : createEvent.isPending;
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
@@ -70,8 +116,12 @@ export default function CreateEvent() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <CalendarPlus className="w-5 h-5 text-primary" />
-              Новая встреча
+              {isEdit ? (
+                <Pencil className="w-5 h-5 text-primary" />
+              ) : (
+                <CalendarPlus className="w-5 h-5 text-primary" />
+              )}
+              {isEdit ? "Редактировать встречу" : "Новая встреча"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -152,11 +202,14 @@ export default function CreateEvent() {
               <Button variant="outline" onClick={() => navigate("/calendar")}>
                 Отмена
               </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={!title.trim() || createEvent.isPending}
-              >
-                {createEvent.isPending ? "Создание..." : "Создать и пригласить"}
+              <Button onClick={handleSubmit} disabled={!title.trim() || isPending}>
+                {isPending
+                  ? isEdit
+                    ? "Сохранение..."
+                    : "Создание..."
+                  : isEdit
+                    ? "Сохранить"
+                    : "Создать и пригласить"}
               </Button>
             </div>
           </CardContent>
