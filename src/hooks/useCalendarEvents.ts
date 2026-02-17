@@ -92,6 +92,44 @@ export function useCalendarEvents() {
     },
   });
 
+  const updateEvent = useMutation({
+    mutationFn: async (payload: {
+      id: string;
+      title: string;
+      description?: string;
+      start_time: string;
+      end_time: string;
+      location?: string;
+      is_online: boolean;
+      participant_ids: string[];
+    }) => {
+      const { id, ...fields } = payload;
+      const { error } = await proxyUpdate("calendar_events", fields, [
+        { column: "id", operator: "eq", value: id },
+      ]);
+      if (error) throw new Error(error.message);
+      return payload;
+    },
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ["calendar_events"] });
+      toast.success("Встреча обновлена");
+
+      if (updated.participant_ids?.length > 0) {
+        supabase.functions
+          .invoke("send-calendar-invite", {
+            body: { event_id: updated.id, update: true },
+          })
+          .then(({ error }) => {
+            if (error) console.error("Failed to send update invites:", error);
+            else toast.success("Обновлённые приглашения отправлены");
+          });
+      }
+    },
+    onError: (err) => {
+      toast.error("Ошибка обновления: " + err.message);
+    },
+  });
+
   const deleteEvent = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await proxyDelete("calendar_events", [
@@ -134,6 +172,7 @@ export function useCalendarEvents() {
     isLoading: query.isLoading,
     error: query.error,
     createEvent,
+    updateEvent,
     deleteEvent,
     syncCalendars,
   };

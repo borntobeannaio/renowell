@@ -133,6 +133,14 @@ const App = () => (
                   }
                 />
                 <Route
+                  path="/calendar/edit/:id"
+                  element={
+                    <ProtectedRoute>
+                      <CreateEvent />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/chats"
                   element={
                     <ProtectedRoute>

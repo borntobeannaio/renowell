@@ -5,12 +5,23 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Calendar as CalendarIcon,
   Clock,
   MapPin,
   Video,
   Plus,
   Trash2,
+  Pencil,
   Globe,
   Link,
   RefreshCw,
@@ -22,13 +33,14 @@ import {
 import { format, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { ru } from "date-fns/locale";
-import { useCalendarEvents } from "@/hooks/useCalendarEvents";
+import { useCalendarEvents, CalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { useEmployees } from "@/hooks/useEmployees";
 
 export function CalendarModule() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const [deleteTarget, setDeleteTarget] = useState<CalendarEvent | null>(null);
 
   const { events, isLoading, deleteEvent, syncCalendars } = useCalendarEvents();
   const navigate = useNavigate();
@@ -82,8 +94,35 @@ export function CalendarModule() {
     return (parts[0]?.[0] || "") + (parts[1]?.[0] || "");
   };
 
+  const isOwnInternal = (event: CalendarEvent) =>
+    event.source !== "external" && event.creator_id === profileId;
+
   return (
     <div className="space-y-4 md:space-y-6">
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить встречу?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Удалить встречу «{deleteTarget?.title}»? Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteTarget) deleteEvent.mutate(deleteTarget.id);
+                setDeleteTarget(null);
+              }}
+            >
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -173,7 +212,6 @@ export function CalendarModule() {
                 <CalendarIcon className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
                 <p className="text-sm text-muted-foreground mb-6">Пока пусто</p>
 
-                {/* Show upcoming if this day is empty */}
                 {upcoming.length > 0 && (
                   <div className="text-left">
                     <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">
@@ -249,15 +287,25 @@ export function CalendarModule() {
                           ) : null}
                         </div>
                       </div>
-                      {event.source !== "external" && event.creator_id === profileId && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => deleteEvent.mutate(event.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                      {isOwnInternal(event) && (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                            onClick={() => navigate(`/calendar/edit/${event.id}`)}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => setDeleteTarget(event)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       )}
                     </div>
 
@@ -294,17 +342,14 @@ export function CalendarModule() {
                       </div>
                     )}
 
-                    {/* Internal participants (profile-based) */}
+                    {/* Internal participants */}
                     {event.participant_ids?.length > 0 && (
                       <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/30">
                         <div className="flex -space-x-2">
                           {event.participant_ids.slice(0, 5).map((pid) => {
                             const name = profileNameMap[pid] || "?";
                             return (
-                              <Avatar
-                                key={pid}
-                                className="w-7 h-7 border-2 border-background"
-                              >
+                              <Avatar key={pid} className="w-7 h-7 border-2 border-background">
                                 <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
                                   {getInitials(name)}
                                 </AvatarFallback>
@@ -368,7 +413,6 @@ export function CalendarModule() {
           </CardContent>
         </Card>
       </div>
-
     </div>
   );
 }
