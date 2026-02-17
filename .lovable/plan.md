@@ -1,81 +1,45 @@
 
 
-## Отправка ICS как настоящего приглашения (Accept/Decline в Outlook/Gmail)
+## Подтверждение удаления и редактирование встреч
 
-### Проблема
+### 1. Подтверждение удаления
 
-Сейчас ICS отправляется как обычное вложение (attachment). Почтовые клиенты показывают его как файл для скачивания, а не как приглашение с кнопками "Принять / Отклонить".
+В `CalendarModule.tsx` при нажатии на кнопку удаления (Trash2) — вместо прямого вызова `deleteEvent.mutate()` показывать AlertDialog с текстом "Удалить встречу «{title}»?" и кнопками "Отмена / Удалить". Используем уже установленный `@radix-ui/react-alert-dialog` (компонент `alert-dialog.tsx`).
 
-### Решение
+### 2. Редактирование встречи
 
-Нужно два изменения в `supabase/functions/send-calendar-invite/index.ts`:
+**Маршрут:** Добавить `/calendar/edit/:id` в `App.tsx`, переиспользуя страницу `CreateEvent`.
 
-**1. Добавить ATTENDEE в ICS**
+**Страница `CreateEvent.tsx`:** Переделать в универсальную create/edit форму:
+- Считывать параметр `id` из URL (`useParams`)
+- Если `id` есть — загрузить событие из `useCalendarEvents().events` и заполнить форму
+- Изменить заголовок на "Редактировать встречу"
+- Кнопка: "Сохранить" вместо "Создать и пригласить"
+- При сохранении вызывать `updateEvent` вместо `createEvent`
 
-Для каждого участника добавить строку `ATTENDEE` в сгенерированный ICS. Без этого Outlook не покажет кнопки принятия. Функция `generateICS` должна принимать массив участников:
+**Хук `useCalendarEvents.ts`:** Добавить мутацию `updateEvent`:
+- Вызов `proxyUpdate("calendar_events", ...)` для обновления полей
+- После успешного обновления — вызов `send-calendar-invite` с параметром `{ event_id, update: true }` для пересылки обновленного ICS
 
-```
-ATTENDEE;CN=Анна Сирум;RSVP=TRUE;PARTSTAT=NEEDS-ACTION;ROLE=REQ-PARTICIPANT:mailto:anna@example.com
-```
+**Кнопка редактирования:** В `CalendarModule.tsx` рядом с кнопкой удаления добавить кнопку "Редактировать" (иконка Pencil), которая ведёт на `/calendar/edit/{id}`. Показывать только для внутренних встреч, где `creator_id === profileId`.
 
-**2. Отправлять ICS и как inline alternative, и как вложение**
+### 3. Обновление ICS-приглашений
 
-Для максимальной совместимости (Outlook + Gmail + Apple Mail) ICS нужно отправлять двумя способами одновременно:
-- Как вложение с `content_type: "text/calendar; method=REQUEST; charset=UTF-8"` и `headers` с `Content-Disposition: inline` -- это покажет кнопки в Outlook
-- Обычное вложение -- фоллбэк для клиентов, которые не поддерживают inline
+**Edge-функция `send-calendar-invite/index.ts`:**
+- Принимать опциональный параметр `update: true` в body
+- При обновлении использовать тот же UID из таблицы (`id` события) вместо `crypto.randomUUID()`, чтобы почтовые клиенты обновили событие, а не создали дубликат
+- Добавить `SEQUENCE:1` (или инкрементировать) для обозначения обновления
+- Тема письма: "Обновление: {title}" вместо "Приглашение: {title}"
 
-Resend API поддерживает параметр `headers` на каждом attachment начиная с SDK v3.4+. Через REST API мы можем передать:
+### Технические детали
 
-```json
-{
-  "attachments": [
-    {
-      "filename": "invite.ics",
-      "content": "<base64>",
-      "content_type": "text/calendar; method=REQUEST; charset=UTF-8",
-      "headers": {
-        "Content-Disposition": "inline; filename=\"invite.ics\""
-      }
-    }
-  ]
-}
-```
+**Файлы для изменения:**
 
-### Файл: `supabase/functions/send-calendar-invite/index.ts`
-
-**Изменения в `generateICS`:**
-- Добавить параметр `attendees: { email: string; name: string }[]`
-- Для каждого участника добавить строку ATTENDEE в ICS
-- Убедиться что ORGANIZER стоит перед ATTENDEE
-
-**Изменения в отправке:**
-- Передать список `emails` в `generateICS` как attendees
-- Генерировать персональный ICS для каждого получателя (чтобы его email был в ATTENDEE)
-- Добавить `headers` к attachment для inline отображения
-- Обновить текст письма (убрать фразу про "откройте файл .ics")
-
-### Итоговый формат ICS
-
-```text
-BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Renowell//Calendar//RU
-CALSCALE:GREGORIAN
-METHOD:REQUEST
-BEGIN:VEVENT
-UID:xxx@renowell.app
-DTSTAMP:20260217T120000Z
-DTSTART:20260218T100000Z
-DTEND:20260218T110000Z
-SUMMARY:Статус проекта
-ORGANIZER;CN=Иван Петров:mailto:account@renowell.silkagro.ru
-ATTENDEE;CN=Анна Сирум;RSVP=TRUE;PARTSTAT=NEEDS-ACTION;ROLE=REQ-PARTICIPANT:mailto:anna@example.com
-STATUS:CONFIRMED
-END:VEVENT
-END:VCALENDAR
-```
-
-### Результат
-
-Outlook, Gmail и Apple Mail покажут встречу с кнопками "Принять / Под вопросом / Отклонить" прямо в теле письма.
+| Файл | Что меняется |
+|---|---|
+| `src/App.tsx` | Добавить маршрут `/calendar/edit/:id` |
+| `src/pages/CreateEvent.tsx` | Поддержка режима редактирования (useParams, предзаполнение, updateEvent) |
+| `src/hooks/useCalendarEvents.ts` | Добавить мутацию `updateEvent` с вызовом proxyUpdate + send-calendar-invite |
+| `src/components/modules/CalendarModule.tsx` | AlertDialog для удаления + кнопка "Редактировать" |
+| `supabase/functions/send-calendar-invite/index.ts` | Поддержка `update: true`, стабильный UID из event.id, SEQUENCE |
 
