@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { proxySelect, proxyInsert, proxyUpdate, proxyDelete } from "@/lib/dbProxy";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { ru } from "date-fns/locale";
 
 export interface CalendarEventAttendee {
   name: string;
@@ -72,6 +74,21 @@ export function useCalendarEvents() {
       queryClient.invalidateQueries({ queryKey: ["calendar_events"] });
       toast.success("Встреча создана");
 
+      // Send in-app notifications to participants
+      if (newEvent && newEvent.participant_ids?.length > 0) {
+        const startFormatted = format(new Date(newEvent.start_time), "d MMMM, HH:mm", { locale: ru });
+        const recipients = newEvent.participant_ids.filter((id: string) => id !== newEvent.creator_id);
+        for (const recipientId of recipients) {
+          proxyInsert("notifications", {
+            recipient_id: recipientId,
+            type: "calendar_invite",
+            title: "Вас добавили во встречу",
+            body: `${newEvent.title} — ${startFormatted}`,
+            link: "/calendar",
+          }).catch((err) => console.error("Failed to create calendar notification:", err));
+        }
+      }
+
       // Send calendar invite in background
       if (newEvent?.id && newEvent.participant_ids?.length > 0) {
         supabase.functions
@@ -113,6 +130,20 @@ export function useCalendarEvents() {
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ["calendar_events"] });
       toast.success("Встреча обновлена");
+
+      // Send in-app notifications about update
+      if (updated.participant_ids?.length > 0) {
+        const startFormatted = format(new Date(updated.start_time), "d MMMM, HH:mm", { locale: ru });
+        for (const recipientId of updated.participant_ids) {
+          proxyInsert("notifications", {
+            recipient_id: recipientId,
+            type: "calendar_invite",
+            title: "Встреча обновлена",
+            body: `${updated.title} — ${startFormatted}`,
+            link: "/calendar",
+          }).catch((err) => console.error("Failed to create calendar notification:", err));
+        }
+      }
 
       if (updated.participant_ids?.length > 0) {
         supabase.functions
