@@ -15,6 +15,7 @@ function generateICS(event: {
   is_online: boolean;
   organizer_email: string;
   organizer_name: string;
+  attendees: { email: string; name: string }[];
 }): string {
   const formatDate = (iso: string) =>
     new Date(iso)
@@ -37,6 +38,10 @@ DTSTART:${formatDate(event.start_time)}
 DTEND:${formatDate(event.end_time)}
 SUMMARY:${event.title}
 ORGANIZER;CN=${event.organizer_name}:mailto:${event.organizer_email}`;
+
+  for (const a of event.attendees) {
+    ics += `\nATTENDEE;CN=${a.name};RSVP=TRUE;PARTSTAT=NEEDS-ACTION;ROLE=REQ-PARTICIPANT:mailto:${a.email}`;
+  }
 
   if (event.description) {
     ics += `\nDESCRIPTION:${event.description.replace(/\n/g, "\\n")}`;
@@ -101,7 +106,7 @@ Deno.serve(async (req) => {
       .single();
 
     // Get creator email from auth
-    let creatorEmail = "noreply@renowell.app";
+    let creatorEmail = "account@renowell.silkagro.ru";
     if (creator?.user_id) {
       const { data: authUser } = await supabase.auth.admin.getUserById(creator.user_id);
       if (authUser?.user?.email) creatorEmail = authUser.user.email;
@@ -150,20 +155,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Generate ICS
-    const ics = generateICS({
-      title: event.title,
-      description: event.description,
-      start_time: event.start_time,
-      end_time: event.end_time,
-      location: event.location,
-      is_online: event.is_online,
-      organizer_email: creatorEmail,
-      organizer_name: organizerName,
-    });
-
-    const icsBase64 = btoa(unescape(encodeURIComponent(ics)));
-
     // Format date for email
     const startDate = new Date(event.start_time);
     const formattedDate = startDate.toLocaleDateString("ru-RU", {
@@ -174,10 +165,25 @@ Deno.serve(async (req) => {
       minute: "2-digit",
     });
 
-    // Send emails via Resend
+    // Send emails via Resend — one per recipient with personalized ICS
     let sentCount = 0;
     for (const recipient of emails) {
       try {
+        // Generate ICS with all attendees for each recipient
+        const ics = generateICS({
+          title: event.title,
+          description: event.description,
+          start_time: event.start_time,
+          end_time: event.end_time,
+          location: event.location,
+          is_online: event.is_online,
+          organizer_email: "account@renowell.silkagro.ru",
+          organizer_name: organizerName,
+          attendees: emails,
+        });
+
+        const icsBase64 = btoa(unescape(encodeURIComponent(ics)));
+
         const res = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: {
@@ -196,21 +202,23 @@ Deno.serve(async (req) => {
                 ${event.is_online ? "<p><strong>Формат:</strong> Онлайн</p>" : ""}
                 ${event.description ? `<p>${event.description}</p>` : ""}
                 <p style="color: #666;">Организатор: ${organizerName}</p>
-                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-                <p style="color: #999; font-size: 12px;">Откройте прикреплённый файл .ics, чтобы добавить встречу в календарь Outlook.</p>
               </div>
             `,
             attachments: [
               {
                 filename: "invite.ics",
                 content: icsBase64,
-                content_type: "text/calendar; method=REQUEST",
+                content_type: "text/calendar; method=REQUEST; charset=UTF-8",
+                headers: {
+                  "Content-Disposition": 'inline; filename="invite.ics"',
+                },
               },
             ],
           }),
         });
 
         if (res.ok) sentCount++;
+        else console.error(`Resend error for ${recipient.email}:`, await res.text());
       } catch (e) {
         console.error(`Failed to send to ${recipient.email}:`, e);
       }
