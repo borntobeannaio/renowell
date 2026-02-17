@@ -93,6 +93,7 @@ export function useCreateTaskComment() {
             type: "mention" as const,
             title: `Вас упомянули в задаче "${taskTitle}"`,
             body: commentPreview,
+            link: `/tasks?task=${taskId}`,
             related_task_id: taskId,
           }));
 

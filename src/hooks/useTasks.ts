@@ -99,6 +99,7 @@ export function useCreateTask() {
           type: 'task_assigned',
           title: 'У вас появилась новая задача',
           body: task.title,
+          link: `/tasks?task=${newTask.id}`,
           related_task_id: newTask.id,
         }));
         await proxyInsert('notifications', notifications);
