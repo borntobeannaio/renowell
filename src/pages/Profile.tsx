@@ -16,7 +16,7 @@ import { ru } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { proxyUpload, proxyDelete as storageProxyDelete, proxyGetPublicUrl } from "@/lib/storageProxy";
-import { proxySelect, proxyUpdate } from "@/lib/dbProxy";
+import { proxySelect, proxyUpdate, proxyDelete } from "@/lib/dbProxy";
 import { useProxiedAvatarUrl } from "@/lib/avatarProxy";
 import { supabase } from "@/integrations/supabase/client";
 import renowellLogo from "@/assets/renowell-logo-text.png";
@@ -141,14 +141,28 @@ export default function Profile() {
       
       if (employeeError) {
         console.warn('[Profile] Employee sync warning:', employeeError);
-        // Don't throw — profile already saved
       } else {
         console.log('[Profile] Employee synced successfully');
+      }
+
+      // If ICS URL was cleared, delete all external calendar events for this profile
+      if (!icsUrl.trim() && profile.ics_url) {
+        console.log('[Profile] ICS URL removed, deleting external events...');
+        const { error: deleteError } = await proxyDelete("calendar_events", [
+          { column: "creator_id", operator: "eq", value: profile.id },
+          { column: "source", operator: "eq", value: "external" },
+        ]);
+        if (deleteError) {
+          console.warn('[Profile] Failed to delete external events:', deleteError);
+        } else {
+          console.log('[Profile] External events deleted');
+        }
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar_events"] });
       toast.success("Профиль сохранён");
     },
     onError: (error: Error) => {
