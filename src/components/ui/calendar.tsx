@@ -43,7 +43,6 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         dropdown_month: "relative inline-flex items-center",
         dropdown_year: "relative inline-flex items-center",
         dropdown: "appearance-none bg-background border border-input rounded-md px-2 py-1 text-sm font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 pr-6",
-        vhd_dropdown: "appearance-none bg-background border border-input rounded-md px-2 py-1 text-sm",
         ...classNames,
       }}
       components={{
