@@ -4,6 +4,8 @@ import { useAuth } from "@/hooks/useAuth";
 const HR_ADMINS = [
   "sonya369@gmail.com",
   "astashkina495@gmail.com",
+  "anna.rum91@gmail.com",
+  "oparin@renowell.ru",
 ];
 
 export function useHRPermissions() {
