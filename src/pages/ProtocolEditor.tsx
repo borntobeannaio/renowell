@@ -2374,6 +2374,7 @@ export default function ProtocolEditor() {
         }}
       />
 
+      <Modal
         isOpen={showHistoryPanel}
         onClose={() => setShowHistoryPanel(false)}
         title="История версий черновика"
