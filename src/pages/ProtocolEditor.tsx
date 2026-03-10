@@ -20,6 +20,7 @@ import { TenderSection } from "@/components/protocols/TenderSection";
 import { ProtocolItemData, ProtocolItemEditor } from "@/components/protocols/ProtocolItemEditor";
 import { GoalItemData, GoalItemEditor } from "@/components/protocols/GoalItemEditor";
 import { SectionTypeModal } from "@/components/protocols/SectionTypeModal";
+import { AddCompanyModal } from "@/components/protocols/AddCompanyModal";
 import { SortableProtocolSection } from "@/components/protocols/SortableProtocolSection";
 import { DraftHistoryPanel } from "@/components/protocols/DraftHistoryPanel";
 import { Modal } from "@/components/ui/Modal";
