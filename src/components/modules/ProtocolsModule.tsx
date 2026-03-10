@@ -40,8 +40,16 @@ export function ProtocolsModule() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [protocolToDelete, setProtocolToDelete] = useState<DbProtocol | null>(null);
 
+  // Split protocols into meeting and tender
+  const meetingProtocols = useMemo(() => protocols.filter(p => p.meeting_type !== 'tender'), [protocols]);
+  const tenderProtocols = useMemo(() => protocols.filter(p => p.meeting_type === 'tender'), [protocols]);
+
   const handleNewProtocol = () => {
     window.open('/protocols/new', '_blank');
+  };
+
+  const handleNewTenderProtocol = () => {
+    window.open('/protocols/new?type=tender', '_blank');
   };
 
   const handleCopyProtocol = (protocolId: string) => {
@@ -69,51 +77,90 @@ export function ProtocolsModule() {
     }
   };
 
+  const renderProtocolList = (list: DbProtocol[]) => {
+    if (isLoading) {
+      return <div className="text-center py-12 text-muted-foreground">Загрузка...</div>;
+    }
+    if (list.length === 0) {
+      return <div className="text-center py-12 text-muted-foreground">Нет протоколов</div>;
+    }
+    return list.map((protocol) => (
+      <ProtocolCard
+        key={protocol.id}
+        protocol={protocol}
+        projects={projects}
+        isExpanded={expandedId === protocol.id}
+        onToggleExpand={() => setExpandedId(expandedId === protocol.id ? null : protocol.id)}
+        onEdit={canEditProtocols ? () => handleEditProtocol(protocol.id) : undefined}
+        onCopy={canCopyProtocol ? () => handleCopyProtocol(protocol.id) : undefined}
+        onDelete={canDeleteProtocol ? () => handleDeleteClick(protocol) : undefined}
+      />
+    ));
+  };
+
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm md:text-base text-muted-foreground">
-          Протоколов: {protocols.length}
-        </p>
-        {canCreateProtocol && (
-          <button
-            onClick={handleNewProtocol}
-            className="btn-primary h-9 md:h-11 px-3 md:px-5 flex items-center gap-2 text-sm md:text-base"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Новый протокол</span>
-            <span className="sm:hidden">Добавить</span>
-          </button>
-        )}
-      </div>
+      <Tabs defaultValue="meetings" className="w-full">
+        <div className="flex items-center justify-between gap-2">
+          <TabsList>
+            <TabsTrigger value="meetings">
+              Протоколы совещаний
+              <span className="ml-1.5 text-xs text-muted-foreground">({meetingProtocols.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="tenders" className="gap-1.5">
+              <Building className="w-3.5 h-3.5" />
+              Тендер-протоколы
+              <span className="ml-1.5 text-xs text-muted-foreground">({tenderProtocols.length})</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-      {/* Drafts section */}
-      {canEditProtocols && <DraftsSection />}
+        <TabsContent value="meetings" className="space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm md:text-base text-muted-foreground">
+              Протоколов: {meetingProtocols.length}
+            </p>
+            {canCreateProtocol && (
+              <button
+                onClick={handleNewProtocol}
+                className="btn-primary h-9 md:h-11 px-3 md:px-5 flex items-center gap-2 text-sm md:text-base"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Новый протокол</span>
+                <span className="sm:hidden">Добавить</span>
+              </button>
+            )}
+          </div>
 
-      <div className="space-y-4">
-        {isLoading ? (
-          <div className="text-center py-12 text-muted-foreground">
-            Загрузка...
+          {canEditProtocols && <DraftsSection />}
+
+          <div className="space-y-4">
+            {renderProtocolList(meetingProtocols)}
           </div>
-        ) : protocols.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            Нет протоколов
+        </TabsContent>
+
+        <TabsContent value="tenders" className="space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm md:text-base text-muted-foreground">
+              Тендер-протоколов: {tenderProtocols.length}
+            </p>
+            {canCreateProtocol && (
+              <button
+                onClick={handleNewTenderProtocol}
+                className="btn-primary h-9 md:h-11 px-3 md:px-5 flex items-center gap-2 text-sm md:text-base"
+              >
+                <Building className="w-4 h-4" />
+                <span className="hidden sm:inline">Новый тендер-протокол</span>
+                <span className="sm:hidden">Добавить</span>
+              </button>
+            )}
           </div>
-        ) : (
-          protocols.map((protocol) => (
-            <ProtocolCard
-              key={protocol.id}
-              protocol={protocol}
-              projects={projects}
-              isExpanded={expandedId === protocol.id}
-              onToggleExpand={() => setExpandedId(expandedId === protocol.id ? null : protocol.id)}
-              onEdit={canEditProtocols ? () => handleEditProtocol(protocol.id) : undefined}
-              onCopy={canCopyProtocol ? () => handleCopyProtocol(protocol.id) : undefined}
-              onDelete={canDeleteProtocol ? () => handleDeleteClick(protocol) : undefined}
-            />
-          ))
-        )}
-      </div>
+
+          <div className="space-y-4">
+            {renderProtocolList(tenderProtocols)}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
