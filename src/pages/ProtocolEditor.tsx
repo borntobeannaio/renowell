@@ -191,7 +191,7 @@ export default function ProtocolEditor() {
   useEffect(() => {
     if (isTenderMode && isNew && !isCopyMode && !tenderDefaultsApplied && employees.length > 0) {
       const oparinEmployee = employees.find(e => 
-        e.full_name.toLowerCase().includes("опарин") && e.full_name.toLowerCase().includes("андрей")
+        getEmployeeDisplayName(e).toLowerCase().includes("опарин") && getEmployeeDisplayName(e).toLowerCase().includes("андрей")
       );
       setForm(prev => ({
         ...prev,
