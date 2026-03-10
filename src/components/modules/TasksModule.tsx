@@ -6,7 +6,7 @@ import { TaskComments } from "@/components/tasks/TaskComments";
 import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight, Pencil, Users, Archive, ArchiveRestore, UserCheck, MoreVertical } from "lucide-react";
 import { useTasks, useCreateTask, useUpdateTask, DbTask, TaskStatus, TaskPriority, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS, TASK_PRIORITY_COLORS } from "@/hooks/useTasks";
 import { useProjects, useUpdateProject, Project } from "@/hooks/useProjects";
-import { useEmployees, DbEmployee } from "@/hooks/useEmployees";
+import { useEmployees, DbEmployee, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { formatDisplayDate } from "@/utils/dateFormat";
 import { toast } from "sonner";
