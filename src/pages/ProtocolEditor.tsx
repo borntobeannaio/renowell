@@ -295,11 +295,11 @@ export default function ProtocolEditor() {
   useEffect(() => {
     if (isEditMode && existingProtocol && !editInitialized && employees.length > 0 && !existingItemsLoading && !existingSectionsLoading) {
       const organizerEmployee = existingProtocol.organizer
-        ? employees.find((e) => e.full_name === existingProtocol.organizer)
+        ? employees.find((e) => getEmployeeDisplayName(e) === existingProtocol.organizer)
         : null;
 
       const attendeeIds = (existingProtocol.attendees || [])
-        .map((name) => employees.find((e) => e.full_name === name)?.id)
+        .map((name) => employees.find((e) => getEmployeeDisplayName(e) === name)?.id)
         .filter(Boolean) as string[];
 
       setForm({
