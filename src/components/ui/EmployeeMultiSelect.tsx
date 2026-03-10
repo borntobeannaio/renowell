@@ -74,7 +74,7 @@ export function EmployeeMultiSelect({
   }, []);
 
   const filteredEmployees = employees.filter((emp) =>
-    emp.full_name.toLowerCase().includes(search.toLowerCase()) ||
+    getEmployeeDisplayName(emp).toLowerCase().includes(search.toLowerCase()) ||
     emp.position.toLowerCase().includes(search.toLowerCase())
   );
 
