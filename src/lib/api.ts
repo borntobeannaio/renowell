@@ -1,5 +1,6 @@
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { proxyPing } from "@/lib/dbProxy";
+import { proxyEdgeFunction } from "@/lib/mediaProxy";
 
 // Configuration
 const DEFAULT_TIMEOUT = 15000; // 15 seconds
