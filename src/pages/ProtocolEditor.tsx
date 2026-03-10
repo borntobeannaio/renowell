@@ -1420,7 +1420,7 @@ export default function ProtocolEditor() {
                 const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
                 const taskResult = await createTask.mutateAsync({
-                  title: item.item_text,
+                  title: `[${company.companyName}] ${item.item_text}`,
                   assignee_ids: assigneeProfileIds,
                   project_id: sectionProjectId,
                   due_date: item.due_date || null,
