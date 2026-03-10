@@ -411,7 +411,7 @@ export function TasksModule() {
     // Add employees without tasks at the end
     employees.forEach((emp) => {
       if (emp.profile_id && !tasksByAssignee[emp.profile_id]?.length) {
-        result.push({ id: emp.profile_id, name: emp.full_name });
+        result.push({ id: emp.profile_id, name: getEmployeeDisplayName(emp) });
       }
     });
 
