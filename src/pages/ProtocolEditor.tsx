@@ -1552,7 +1552,7 @@ export default function ProtocolEditor() {
         date: form.date,
         title: form.title,
         organizer: organizerName,
-        meeting_type: form.title,
+        meeting_type: isTenderMode ? 'tender' : form.title,
         attendees: attendeeNames,
       });
 
