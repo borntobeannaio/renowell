@@ -257,19 +257,7 @@ export function TenderSection({
 // Sub-component for each company
 interface CompanySubSectionProps {
   company: CompanyGroup;
-  employees: {
-    id: string;
-    full_name: string;
-    position: string;
-    avatar_url: string | null;
-    phone: string | null;
-    email: string | null;
-    department: string | null;
-    birthday: string | null;
-    profile_id: string | null;
-    description: string | null;
-    middle_name: string | null;
-  }[];
+  employees: DbEmployee[];
   defaultResponsible: string | null;
   isEditing: boolean;
   editingName: string;
