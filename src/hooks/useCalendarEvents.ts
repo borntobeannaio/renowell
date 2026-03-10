@@ -91,16 +91,12 @@ export function useCalendarEvents() {
 
       // Send calendar invite in background
       if (newEvent?.id && newEvent.participant_ids?.length > 0) {
-        supabase.functions
-          .invoke("send-calendar-invite", {
-            body: { event_id: newEvent.id },
+        proxyEdgeFunction("send-calendar-invite", { event_id: newEvent.id })
+          .then(() => {
+            toast.success("Приглашения отправлены на email");
           })
-          .then(({ error }) => {
-            if (error) {
-              console.error("Failed to send invites:", error);
-            } else {
-              toast.success("Приглашения отправлены на email");
-            }
+          .catch((error) => {
+            console.error("Failed to send invites:", error);
           });
       }
     },
