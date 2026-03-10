@@ -26,6 +26,7 @@ interface ProfileData {
   user_id: string;
   first_name: string | null;
   last_name: string | null;
+  middle_name: string | null;
   position: string | null;
   avatar_url: string | null;
   birthday: string | null;
