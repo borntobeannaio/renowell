@@ -127,7 +127,7 @@ export function ProtocolItemComments({ itemId, taskId, profiles, protocolTitle, 
     // Извлечь упоминания для создания уведомлений
     const mentionedNames = extractMentions(newComment);
     const mentionedProfileIds = mentionedNames
-      .map((name) => employees.find((e) => e.full_name === name)?.profile_id)
+      .map((name) => employees.find((e) => getEmployeeDisplayName(e) === name)?.profile_id)
       .filter(Boolean) as string[];
 
     const authorName = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || "Пользователь";
