@@ -236,6 +236,32 @@ function EmployeesTab() {
                 </div>
               )}
             </div>
+
+            {canEditEmployee && (
+              <div className="flex justify-end gap-2 pt-4 border-t border-border">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedEmployee(null);
+                    setEditingEmployee(selectedEmployee);
+                  }}
+                >
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Редактировать
+                </Button>
+                {canDeleteEmployee && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setDeletingEmployee(selectedEmployee)}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Удалить
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </Modal>
