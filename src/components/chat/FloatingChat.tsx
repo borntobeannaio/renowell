@@ -81,11 +81,11 @@ export function FloatingChat() {
   const { data: profiles = [] } = useQuery({
     queryKey: ["profiles"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, avatar_url, user_id");
-      if (error) throw error;
-      return data;
+      const { data, error } = await proxySelect<{ id: string; first_name: string | null; last_name: string | null; avatar_url: string | null; user_id: string }>("profiles", {
+        select: "id, first_name, last_name, avatar_url, user_id",
+      });
+      if (error) throw new Error(error.message);
+      return data ?? [];
     },
   });
 
