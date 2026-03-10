@@ -35,6 +35,7 @@ interface TenderSectionProps {
     department: string | null;
     birthday: string | null;
     profile_id: string | null;
+    description: string | null;
   }[];
   defaultResponsible: string | null;
   onChangeDefaultResponsible: (responsible: string | null) => void;
@@ -276,6 +277,7 @@ interface CompanySubSectionProps {
     department: string | null;
     birthday: string | null;
     profile_id: string | null;
+    description: string | null;
   }[];
   defaultResponsible: string | null;
   isEditing: boolean;

@@ -40,6 +40,7 @@ interface UniversalSectionProps {
     department: string | null;
     birthday: string | null;
     profile_id: string | null;
+    description: string | null;
   }[];
   projects: { id: string; name: string }[];
   defaultResponsible: string | null;

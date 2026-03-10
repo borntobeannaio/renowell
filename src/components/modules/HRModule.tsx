@@ -36,6 +36,7 @@ interface DbEmployee {
   avatar_url: string | null;
   birthday: string | null;
   profile_id: string | null;
+  description: string | null;
 }
 
 type HRTab = "employees" | "vacations" | "docs";
@@ -265,6 +266,13 @@ function EmployeesTab() {
                 <div className="flex items-center gap-3 text-foreground">
                   <Cake className="w-4 h-4 text-muted-foreground" />
                   <span>{formatDisplayDate(selectedEmployee.birthday)}</span>
+                </div>
+              )}
+              {selectedEmployee.description && (
+                <div className="pt-2 border-t border-border">
+                  <p className="text-sm text-muted-foreground whitespace-pre-line">
+                    {selectedEmployee.description}
+                  </p>
                 </div>
               )}
             </div>

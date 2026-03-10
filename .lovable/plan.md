@@ -1,60 +1,33 @@
 
 
-## Синхронизация профилей → сотрудники + описание в карточке
+## Уведомления при добавлении во встречу
 
-### Проблема
+### Текущее поведение
 
-1. **Триггер `sync_profile_to_employee` не привязан** — функция существует, но триггер на таблице `profiles` не создан. Поэтому обновления профиля не синхронизируются автоматически.
-2. В коде Profile.tsx синхронизация делается вручную (строки 131-139), но **не включает `description`**.
-3. В таблице `employees` **нет колонки `description`**.
-4. Карточка сотрудника в HRModule **не отображает описание**.
+При создании или редактировании встречи участникам отправляется только ICS-приглашение на email. Внутренних уведомлений (колокольчик в приложении, Telegram, push) нет.
 
-### План
+### Что нужно сделать
 
-**1. Миграция БД:**
-- Добавить колонку `description text` в таблицу `employees`
-- Создать триггер `on_profile_updated` на таблице `profiles` AFTER UPDATE, вызывающий `sync_profile_to_employee()`
-- Обновить функцию `sync_profile_to_employee` — добавить синхронизацию поля `description`
+Добавить создание записей в таблицу `notifications` при создании и обновлении встречи — аналогично тому, как это сделано для задач (`task_assigned`).
 
-```sql
-ALTER TABLE public.employees ADD COLUMN description text;
+### Файл для изменения
 
-CREATE OR REPLACE FUNCTION public.sync_profile_to_employee()
-  RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
-AS $$
-BEGIN
-  UPDATE public.employees SET 
-    avatar_url = NEW.avatar_url,
-    full_name = COALESCE(NULLIF(CONCAT_WS(' ', NEW.first_name, NEW.last_name), ''), 'Пользователь'),
-    position = COALESCE(NEW.position, 'Сотрудник'),
-    birthday = NEW.birthday,
-    description = NEW.description
-  WHERE profile_id = NEW.id;
-  RETURN NEW;
-END;
-$$;
+**`src/hooks/useCalendarEvents.ts`**
 
-CREATE TRIGGER on_profile_updated
-  AFTER UPDATE ON public.profiles
-  FOR EACH ROW EXECUTE FUNCTION public.sync_profile_to_employee();
-```
+В мутации `createEvent` (в `onSuccess`):
+- Для каждого `participant_id` (кроме `creator_id`) создать уведомление:
+  - `type`: `"calendar_invite"`
+  - `title`: `"Вас добавили во встречу"`
+  - `body`: название встречи + дата/время
+  - `link`: `/calendar` (чтобы при клике открывался календарь на нужную дату)
+  - `recipient_id`: ID участника
 
-**2. `src/pages/Profile.tsx`** — добавить `description` в ручную синхронизацию employees (строка 134):
-```typescript
-description: description.trim() || null,
-```
+В мутации `updateEvent` (в `onSuccess`):
+- Аналогично, но с текстом `"Встреча обновлена"` для всех участников
 
-**3. `src/components/modules/HRModule.tsx`:**
-- Добавить `description` в интерфейс `DbEmployee`
-- Отобразить описание в карточке сотрудника (модалка)
+### Результат
 
-**4. `src/hooks/useEmployees.ts`** — добавить `description` в интерфейс `DbEmployee`
-
-| Файл | Изменения |
-|---|---|
-| Миграция | Колонка `description`, обновление функции, создание триггера |
-| `Profile.tsx` | Добавить `description` в sync employees |
-| `HRModule.tsx` | `description` в интерфейс + отображение в карточке |
-| `useEmployees.ts` | `description` в интерфейс |
-| `EditEmployeeModal.tsx` | `description` в интерфейс |
+- Участники увидят уведомление в колокольчике приложения
+- Если включены Telegram/Email-уведомления — сработает существующий триггер `after_notification_insert`, который автоматически вызовет `send-external-notification`
+- Ссылка в уведомлении будет вести на календарь
 

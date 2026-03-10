@@ -135,6 +135,7 @@ export default function Profile() {
           position: position.trim() || "Сотрудник",
           birthday: birthday ? format(birthday, "yyyy-MM-dd") : null,
           avatar_url: avatarUrl,
+          description: description.trim() || null,
         },
         [{ column: "profile_id", operator: "eq", value: profile.id }]
       );

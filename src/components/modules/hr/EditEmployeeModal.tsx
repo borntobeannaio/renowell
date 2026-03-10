@@ -17,6 +17,7 @@ interface DbEmployee {
   avatar_url: string | null;
   birthday: string | null;
   profile_id: string | null;
+  description: string | null;
 }
 
 interface DbProfile {
