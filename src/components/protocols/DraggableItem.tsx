@@ -15,7 +15,7 @@ function isGoalItem(item: UniversalItemData): item is GoalItemData {
 
 interface DraggableItemProps {
   item: UniversalItemData;
-  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null; description: string | null }[];
+  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null; description: string | null; middle_name: string | null }[];
   projectDefaultResponsible: string | null;
   onUpdate: (updates: Partial<UniversalItemData>) => void;
   onRemove: () => void;

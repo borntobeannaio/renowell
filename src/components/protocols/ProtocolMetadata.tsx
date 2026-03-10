@@ -10,7 +10,7 @@ interface ProtocolMetadataProps {
     attendee_ids: string[];
   };
   onChange: (updates: Partial<ProtocolMetadataProps["form"]>) => void;
-  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null; description: string | null }[];
+  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null; description: string | null; middle_name: string | null }[];
   protocolNumber: number;
   isEditMode?: boolean;
   defaultCollapsed?: boolean;
