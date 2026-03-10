@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Plus, Loader2, Save, Download, Cloud, ChevronsUpDown, Archive, RotateCcw, History, WifiOff } from "lucide-react";
+import { ArrowLeft, Plus, Loader2, Save, Download, Cloud, ChevronsUpDown, Archive, RotateCcw, History, WifiOff, Building } from "lucide-react";
 import {
   DndContext,
   DragEndEvent,
@@ -20,6 +20,7 @@ import { TenderSection } from "@/components/protocols/TenderSection";
 import { ProtocolItemData, ProtocolItemEditor } from "@/components/protocols/ProtocolItemEditor";
 import { GoalItemData, GoalItemEditor } from "@/components/protocols/GoalItemEditor";
 import { SectionTypeModal } from "@/components/protocols/SectionTypeModal";
+import { AddCompanyModal } from "@/components/protocols/AddCompanyModal";
 import { SortableProtocolSection } from "@/components/protocols/SortableProtocolSection";
 import { DraftHistoryPanel } from "@/components/protocols/DraftHistoryPanel";
 import { Modal } from "@/components/ui/Modal";
@@ -107,6 +108,7 @@ export default function ProtocolEditor() {
   const { id } = useParams<{ id?: string }>();
   const [searchParams] = useSearchParams();
   const copyFromId = searchParams.get("copy");
+  const urlType = searchParams.get("type");
 
   const isNew = !id || id === "new";
   const isEditMode = !!id && id !== "new";
@@ -136,6 +138,9 @@ export default function ProtocolEditor() {
 
   // Existing protocol data
   const existingProtocol = isEditMode ? protocols.find(p => p.id === id) : null;
+  
+  // Detect tender mode: from URL param or existing protocol meeting_type
+  const isTenderMode = urlType === 'tender' || existingProtocol?.meeting_type === 'tender';
   const { data: existingItems = [], isLoading: existingItemsLoading } = useProtocolItems(isEditMode ? id : null);
   const { data: existingSections = [], isLoading: existingSectionsLoading } = useProtocolSections(isEditMode ? id : null);
 
@@ -174,16 +179,36 @@ export default function ProtocolEditor() {
   });
 
   // Section groups with items (unified state for both new and edit modes)
-  const [sectionGroups, setSectionGroups] = useState<SectionGroup[]>([
-    { id: 'temp-default', sectionType: 'project', entityId: null, entityName: null, defaultResponsible: null, items: [] }
-  ]);
+  const defaultSectionGroup: SectionGroup = isTenderMode && isNew && !isCopyMode
+    ? { id: 'temp-default', sectionType: 'tender', entityId: null, entityName: 'Тендеры', defaultResponsible: null, items: [], companyGroups: [] }
+    : { id: 'temp-default', sectionType: 'project', entityId: null, entityName: null, defaultResponsible: null, items: [] };
+  
+  const [sectionGroups, setSectionGroups] = useState<SectionGroup[]>([defaultSectionGroup]);
+  
+  // Tender mode: set default title and organizer when employees load
+  const [tenderDefaultsApplied, setTenderDefaultsApplied] = useState(false);
+  useEffect(() => {
+    if (isTenderMode && isNew && !isCopyMode && !tenderDefaultsApplied && employees.length > 0) {
+      const oparinEmployee = employees.find(e => 
+        e.full_name.toLowerCase().includes("опарин") && e.full_name.toLowerCase().includes("андрей")
+      );
+      setForm(prev => ({
+        ...prev,
+        title: prev.title || "Тендеры",
+        organizer_id: prev.organizer_id || (oparinEmployee?.id || ""),
+      }));
+      setTenderDefaultsApplied(true);
+    }
+  }, [isTenderMode, isNew, isCopyMode, tenderDefaultsApplied, employees]);
 
   const [copyApplied, setCopyApplied] = useState(false);
   const [editInitialized, setEditInitialized] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
+  const [showAddCompanyModal, setShowAddCompanyModal] = useState(false);
   const [showHistoryPanel, setShowHistoryPanel] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [allSectionsCollapsed, setAllSectionsCollapsed] = useState(false);
+
   const [draftRestorePrompted, setDraftRestorePrompted] = useState(false);
   
   // Connection status state
@@ -1340,7 +1365,7 @@ export default function ProtocolEditor() {
         date: form.date,
         title: form.title,
         organizer: organizerName,
-        meeting_type: form.title,
+        meeting_type: isTenderMode ? 'tender' : form.title,
         attendees: attendeeNames,
       });
 
@@ -1527,7 +1552,7 @@ export default function ProtocolEditor() {
         date: form.date,
         title: form.title,
         organizer: organizerName,
-        meeting_type: form.title,
+        meeting_type: isTenderMode ? 'tender' : form.title,
         attendees: attendeeNames,
       });
 
@@ -1961,10 +1986,12 @@ export default function ProtocolEditor() {
 
   // Computed
   const pageTitle = isEditMode
-    ? `Протокол №${existingProtocol?.number || ""}`
+    ? `${isTenderMode ? 'Тендер-протокол' : 'Протокол'} №${existingProtocol?.number || ""}`
     : isCopyMode
       ? "Копирование протокола"
-      : "Новый протокол";
+      : isTenderMode
+        ? "Новый тендер-протокол"
+        : "Новый протокол";
 
   const totalItems = sectionGroups.reduce((sum, g) => {
     if (g.sectionType === "tender" && g.companyGroups) {
@@ -2066,10 +2093,17 @@ export default function ProtocolEditor() {
             >
               <ChevronsUpDown className="w-4 h-4" />
             </Button>
-            <Button onClick={() => setShowSectionModal(true)} variant="outline" size="sm" className="gap-2">
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Секция</span>
-            </Button>
+            {isTenderMode ? (
+              <Button onClick={() => setShowAddCompanyModal(true)} variant="outline" size="sm" className="gap-2">
+                <Building className="w-4 h-4" />
+                <span className="hidden sm:inline">Компания</span>
+              </Button>
+            ) : (
+              <Button onClick={() => setShowSectionModal(true)} variant="outline" size="sm" className="gap-2">
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Секция</span>
+              </Button>
+            )}
             {isEditMode && (
               <Button onClick={handleExportPdf} variant="outline" size="sm" className="gap-2">
                 <Download className="w-4 h-4" />
@@ -2315,6 +2349,31 @@ export default function ProtocolEditor() {
         onSelect={handleAddSection}
         projects={projects}
         usedProjectIds={usedProjectIds}
+      />
+
+      <AddCompanyModal
+        open={showAddCompanyModal}
+        onClose={() => setShowAddCompanyModal(false)}
+        onAdd={(companyName) => {
+          // Find or create the tender section, then add company
+          const tenderGroupIndex = sectionGroups.findIndex(g => g.sectionType === 'tender');
+          if (tenderGroupIndex >= 0) {
+            handleAddCompany(tenderGroupIndex, companyName);
+          } else {
+            // Create a new tender section with this company
+            const newGroup: SectionGroup = {
+              id: generateTempId(),
+              sectionType: 'tender',
+              entityId: null,
+              entityName: 'Тендеры',
+              defaultResponsible: null,
+              items: [],
+              companyGroups: [{ id: generateTempId(), companyName, items: [] }],
+            };
+            setSectionGroups(prev => [...prev, newGroup]);
+            markAsChanged();
+          }
+        }}
       />
 
       <Modal
