@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, X, User } from "lucide-react";
 import { DbEmployee } from "@/hooks/useEmployees";
@@ -26,6 +26,7 @@ export function EmployeeMultiSelect({
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Position dropdown when using portal
   useEffect(() => {
@@ -50,6 +51,13 @@ export function EmployeeMultiSelect({
       };
     }
   }, [isOpen, usePortal]);
+
+  // Focus search input without scrolling
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      searchInputRef.current.focus({ preventScroll: true });
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -103,12 +111,12 @@ export function EmployeeMultiSelect({
     >
       <div className="p-2 border-b border-border">
         <input
+          ref={searchInputRef}
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Поиск..."
           className="input-base w-full h-8 text-sm"
-          autoFocus
         />
       </div>
       <div className="overflow-y-auto min-h-0 flex-1">
