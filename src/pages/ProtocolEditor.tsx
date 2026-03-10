@@ -380,11 +380,11 @@ export default function ProtocolEditor() {
   useEffect(() => {
     if (isCopyMode && sourceProtocol && !copyApplied && employees.length > 0 && !sourceItemsLoading && !sourceSectionsLoading) {
       const organizerEmployee = sourceProtocol.organizer
-        ? employees.find((e) => e.full_name === sourceProtocol.organizer)
+        ? employees.find((e) => getEmployeeDisplayName(e) === sourceProtocol.organizer)
         : null;
 
       const attendeeIds = (sourceProtocol.attendees || [])
-        .map((name) => employees.find((e) => e.full_name === name)?.id)
+        .map((name) => employees.find((e) => getEmployeeDisplayName(e) === name)?.id)
         .filter(Boolean) as string[];
 
       setForm({
