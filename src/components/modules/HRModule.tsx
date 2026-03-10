@@ -12,6 +12,7 @@ import { AddEmployeeModal } from "@/components/modules/hr/AddEmployeeModal";
 import { EditEmployeeModal } from "@/components/modules/hr/EditEmployeeModal";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { DbEmployee, getEmployeeDisplayName, getEmployeeFullDisplayName } from "@/hooks/useEmployees";
 import {
   Users,
   Calendar,
@@ -25,20 +26,6 @@ import {
   Trash2,
   Loader2,
 } from "lucide-react";
-
-interface DbEmployee {
-  id: string;
-  full_name: string;
-  position: string;
-  phone: string | null;
-  email: string | null;
-  department: string | null;
-  avatar_url: string | null;
-  birthday: string | null;
-  profile_id: string | null;
-  description: string | null;
-  middle_name: string | null;
-}
 
 type HRTab = "employees" | "vacations" | "docs";
 
