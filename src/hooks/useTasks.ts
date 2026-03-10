@@ -121,6 +121,18 @@ export function useUpdateTask() {
       id,
       ...updates
     }: Partial<DbTask> & { id: string }) => {
+      // Fetch current task to diff assignee_ids and get title
+      let previousAssigneeIds: string[] = [];
+      let taskTitle = '';
+      if (updates.assignee_ids) {
+        const { data: current } = await proxySelect<DbTask>('tasks', {
+          filters: [{ column: 'id', operator: 'eq', value: id }],
+          select: 'assignee_ids,title',
+        });
+        previousAssigneeIds = current?.[0]?.assignee_ids || [];
+        taskTitle = current?.[0]?.title || '';
+      }
+
       const { data, error } = await proxyUpdate<DbTask>(
         'tasks',
         updates,
@@ -129,6 +141,26 @@ export function useUpdateTask() {
       );
 
       if (error) throw new Error(error.message);
+
+      // Send notifications to newly added assignees
+      if (updates.assignee_ids) {
+        const newAssignees = updates.assignee_ids.filter(
+          aid => !previousAssigneeIds.includes(aid)
+        );
+        if (newAssignees.length > 0) {
+          const title = updates.title || taskTitle || 'Задача';
+          const notifications = newAssignees.map(assigneeId => ({
+            recipient_id: assigneeId,
+            type: 'task_assigned',
+            title: 'Вас назначили исполнителем задачи',
+            body: title,
+            link: `/tasks?task=${id}`,
+            related_task_id: id,
+          }));
+          await proxyInsert('notifications', notifications);
+        }
+      }
+
       return data?.[0];
     },
     onSuccess: () => {
