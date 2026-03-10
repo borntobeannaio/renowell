@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { proxySelect, proxyInsert, proxyUpdate, proxyDelete } from "@/lib/dbProxy";
-import { supabase } from "@/integrations/supabase/client";
+import { proxyEdgeFunction } from "@/lib/mediaProxy";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
