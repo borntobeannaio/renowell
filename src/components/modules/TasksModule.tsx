@@ -132,9 +132,9 @@ export function TasksModule() {
         if (task.assignee_id) {
           setExpandedAssignees(prev => new Set([...prev, task.assignee_id!]));
         }
-        // If task is archived, show archive column
-        if (task.status === "archived") {
-          setShowArchived(true);
+        // If task is archived and archive is hidden, show archive column
+        if (task.status === "archived" && !showArchived) {
+          // Don't auto-show archive
         }
         // Clear the URL param after opening
         setSearchParams({}, { replace: true });
