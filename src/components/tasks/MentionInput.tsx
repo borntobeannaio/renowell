@@ -171,7 +171,7 @@ export function MentionInput({
               <Avatar className="w-6 h-6">
                 <AvatarImage src={employee.avatar_url || undefined} />
                 <AvatarFallback className="text-xs">
-                  {getInitials(employee.full_name)}
+                  {getInitials(getEmployeeDisplayName(employee))}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
