@@ -33,7 +33,7 @@ export function MentionInput({
 
   // Фильтрация сотрудников по запросу
   const filteredEmployees = employees.filter((emp) =>
-    emp.full_name.toLowerCase().includes(mentionQuery.toLowerCase())
+    getEmployeeDisplayName(emp).toLowerCase().includes(mentionQuery.toLowerCase())
   );
 
   // Обработка ввода текста
