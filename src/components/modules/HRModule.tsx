@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
+import { DocsTab } from "@/components/modules/hr/DocsTab";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { proxySelect } from "@/lib/dbProxy";
 
