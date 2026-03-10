@@ -512,6 +512,7 @@ export type Database = {
           birthday: string | null
           created_at: string
           department: string | null
+          description: string | null
           email: string | null
           full_name: string
           id: string
@@ -525,6 +526,7 @@ export type Database = {
           birthday?: string | null
           created_at?: string
           department?: string | null
+          description?: string | null
           email?: string | null
           full_name: string
           id?: string
@@ -538,6 +540,7 @@ export type Database = {
           birthday?: string | null
           created_at?: string
           department?: string | null
+          description?: string | null
           email?: string | null
           full_name?: string
           id?: string
