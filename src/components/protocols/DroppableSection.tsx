@@ -7,6 +7,7 @@ import { DraggableItem } from "./DraggableItem";
 import { ProtocolItemData } from "./ProtocolItemEditor";
 import { GoalItemData } from "./GoalItemEditor";
 import { SectionType } from "@/hooks/useProtocolSections";
+import { DbEmployee } from "@/hooks/useEmployees";
 
 // Union type for all item types
 export type UniversalItemData = ProtocolItemData | GoalItemData;
@@ -15,7 +16,7 @@ interface DroppableSectionProps {
   sectionId: string;
   sectionIndex?: number;
   items: UniversalItemData[];
-  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null; description: string | null; middle_name: string | null }[];
+  employees: DbEmployee[];
   projectDefaultResponsible: string | null;
   onUpdateItem: (itemId: string, updates: Partial<UniversalItemData>) => void;
   onRemoveItem: (itemId: string) => void;

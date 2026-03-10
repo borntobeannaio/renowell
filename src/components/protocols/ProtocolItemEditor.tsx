@@ -55,13 +55,13 @@ export function ProtocolItemEditor({
     if (!responsible) return [];
     const names = responsible.split(", ").map(n => n.trim());
     return names
-      .map(name => employees.find(e => e.full_name === name)?.id)
+      .map(name => employees.find(e => getEmployeeDisplayName(e) === name)?.id)
       .filter(Boolean) as string[];
   };
 
   const handleResponsibleChange = (ids: string[]) => {
     const responsibleNames = ids
-      .map(id => employees.find(e => e.id === id)?.full_name)
+      .map(id => { const e = employees.find(e => e.id === id); return e ? getEmployeeDisplayName(e) : null; })
       .filter(Boolean)
       .join(", ");
     // Setting value explicitly breaks inheritance

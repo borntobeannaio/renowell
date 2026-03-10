@@ -4,6 +4,7 @@ import { GripVertical } from "lucide-react";
 import { ProtocolItemEditor, ProtocolItemData } from "./ProtocolItemEditor";
 import { GoalItemEditor, GoalItemData } from "./GoalItemEditor";
 import { SectionType } from "@/hooks/useProtocolSections";
+import { DbEmployee } from "@/hooks/useEmployees";
 
 // Union type for all item types
 export type UniversalItemData = ProtocolItemData | GoalItemData;
@@ -15,7 +16,7 @@ function isGoalItem(item: UniversalItemData): item is GoalItemData {
 
 interface DraggableItemProps {
   item: UniversalItemData;
-  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null; description: string | null; middle_name: string | null }[];
+  employees: DbEmployee[];
   projectDefaultResponsible: string | null;
   onUpdate: (updates: Partial<UniversalItemData>) => void;
   onRemove: () => void;
