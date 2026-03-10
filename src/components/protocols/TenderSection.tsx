@@ -277,6 +277,7 @@ interface CompanySubSectionProps {
     department: string | null;
     birthday: string | null;
     profile_id: string | null;
+    description: string | null;
   }[];
   defaultResponsible: string | null;
   isEditing: boolean;
