@@ -173,7 +173,7 @@ export function EmployeeMultiSelect({
                 key={emp.id}
                 className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full"
               >
-                {emp.full_name}
+                {getEmployeeDisplayName(emp)}
                 {!single && (
                   <button
                     type="button"
