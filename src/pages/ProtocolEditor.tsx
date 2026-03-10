@@ -2349,7 +2349,31 @@ export default function ProtocolEditor() {
         usedProjectIds={usedProjectIds}
       />
 
-      <Modal
+      <AddCompanyModal
+        open={showAddCompanyModal}
+        onClose={() => setShowAddCompanyModal(false)}
+        onAdd={(companyName) => {
+          // Find or create the tender section, then add company
+          const tenderGroupIndex = sectionGroups.findIndex(g => g.sectionType === 'tender');
+          if (tenderGroupIndex >= 0) {
+            handleAddCompany(tenderGroupIndex, companyName);
+          } else {
+            // Create a new tender section with this company
+            const newGroup: SectionGroup = {
+              id: generateTempId(),
+              sectionType: 'tender',
+              entityId: null,
+              entityName: 'Тендеры',
+              defaultResponsible: null,
+              items: [],
+              companyGroups: [{ id: generateTempId(), companyName, items: [] }],
+            };
+            setSectionGroups(prev => [...prev, newGroup]);
+            markAsChanged();
+          }
+        }}
+      />
+
         isOpen={showHistoryPanel}
         onClose={() => setShowHistoryPanel(false)}
         title="История версий черновика"
