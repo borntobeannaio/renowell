@@ -43,7 +43,7 @@ import {
   getSectionDisplayName,
 } from "@/hooks/useProtocolSections";
 import { useProjects } from "@/hooks/useProjects";
-import { useEmployees } from "@/hooks/useEmployees";
+import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import { useCreateTask, useUpdateTask } from "@/hooks/useTasks";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useAuth } from "@/hooks/useAuth";

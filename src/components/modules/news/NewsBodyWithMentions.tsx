@@ -22,7 +22,7 @@ export function NewsBodyWithMentions({ body }: NewsBodyWithMentionsProps) {
 
       const mentionName = match[1];
       const employee = employees.find(
-        (e) => e.full_name.toLowerCase() === mentionName.toLowerCase()
+        (e) => getEmployeeDisplayName(e).toLowerCase() === mentionName.toLowerCase()
       );
 
       // Подсвеченное упоминание

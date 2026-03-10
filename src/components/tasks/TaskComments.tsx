@@ -38,7 +38,7 @@ export function TaskComments({ taskId, taskTitle }: TaskCommentsProps) {
     // Извлечь упоминания для создания уведомлений
     const mentionedNames = extractMentions(newComment);
     const mentionedProfileIds = mentionedNames
-      .map((name) => employees.find((e) => e.full_name === name)?.profile_id)
+      .map((name) => employees.find((e) => getEmployeeDisplayName(e) === name)?.profile_id)
       .filter(Boolean) as string[];
 
     createComment.mutate(

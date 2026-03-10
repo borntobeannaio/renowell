@@ -52,7 +52,7 @@ export function CalendarModule() {
   const profileNameMap = useMemo(() => {
     const map: Record<string, string> = {};
     employees.forEach((e) => {
-      if (e.profile_id) map[e.profile_id] = e.full_name;
+      if (e.profile_id) map[e.profile_id] = getEmployeeDisplayName(e);
     });
     return map;
   }, [employees]);
