@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Send, Trash2, MessageSquare, Pencil, Check, X, Loader2 } from "lucide-react";
 import { useTaskComments, useCreateTaskComment, useDeleteTaskComment, useUpdateTaskComment, TaskComment } from "@/hooks/useTaskComments";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
-import { useEmployees } from "@/hooks/useEmployees";
+import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { toast } from "sonner";
