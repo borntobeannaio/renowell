@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.sync-ics-calendar]
 verify_jwt = false
+
+[functions.send-queued-notifications]
+verify_jwt = false
