@@ -35,7 +35,7 @@ import { useNavigate } from "react-router-dom";
 import { ru } from "date-fns/locale";
 import { useCalendarEvents, CalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
-import { useEmployees } from "@/hooks/useEmployees";
+import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 
 export function CalendarModule() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
