@@ -634,9 +634,6 @@ export function TasksModule() {
                                         {
                                           onSuccess: () => {
                                             toast.success(isArchived ? "Задача восстановлена" : "Задача архивирована");
-                                            if (!isArchived && !showArchived) {
-                                              setShowArchived(true);
-                                            }
                                           },
                                           onError: (error) => {
                                             console.error("Failed to archive task:", error);
