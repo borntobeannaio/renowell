@@ -108,7 +108,7 @@ function EmployeesTab() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      toast.success(`Сотрудник ${deletingEmployee.full_name} удалён`);
+      toast.success(`Сотрудник ${getEmployeeDisplayName(deletingEmployee)} удалён`);
       setDeletingEmployee(null);
       setSelectedEmployee(null);
       queryClient.invalidateQueries({ queryKey: ["employees"] });
