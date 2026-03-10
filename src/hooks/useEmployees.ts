@@ -17,10 +17,10 @@ export interface DbEmployee {
   description: string | null;
 }
 
-/** Returns "Фамилия Имя" display name */
+/** Returns "Имя Фамилия" display name */
 export function getEmployeeDisplayName(emp: Pick<DbEmployee, 'first_name' | 'last_name' | 'full_name'>): string {
-  if (emp.last_name || emp.first_name) {
-    return [emp.last_name, emp.first_name].filter(Boolean).join(" ");
+  if (emp.first_name || emp.last_name) {
+    return [emp.first_name, emp.last_name].filter(Boolean).join(" ");
   }
   return emp.full_name || "Сотрудник";
 }
