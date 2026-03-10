@@ -1,33 +1,57 @@
+## Проблема
+
+Триггер `on_profile_updated` **отсутствует в базе данных** (в секции db-triggers написано "There are no triggers in the database"). Предыдущая миграция не применилась. Без триггера автоматическая синхронизация profiles → employees не работает.
+
+Ручная синхронизация в Profile.tsx присутствует и выглядит корректно — значит либо `proxyUpdate` для employees тихо завершается ошибкой, либо данные профиля не сохраняются в первую очередь.
+
+## План
+
+**1. Миграция — создать триггер заново:**
+
+```sql
+CREATE TRIGGER on_profile_updated
+  AFTER UPDATE ON public.profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.sync_profile_to_employee();
+```
+
+**2. Одноразовая синхронизация данных** (через insert tool):
+
+```sql
+UPDATE public.employees e
+SET 
+  full_name = COALESCE(NULLIF(CONCAT_WS(' ', p.first_name, p.last_name), ''), e.full_name),
+  position = COALESCE(p.position, e.position),
+  birthday = COALESCE(p.birthday, e.birthday),
+  avatar_url = COALESCE(p.avatar_url, e.avatar_url),
+  description = COALESCE(p.description, e.description)
+FROM public.profiles p
+WHERE e.profile_id = p.id;
+```
+
+Это подтянет все текущие данные из профилей (включая Опарина и Новикову) в таблицу сотрудников.
+
+**3. Создать запись сотрудника для Артёма Покровского** (профиль без employee):
+
+```sql
+INSERT INTO public.employees (full_name, position, profile_id, avatar_url, birthday, description)
+SELECT 
+  COALESCE(NULLIF(CONCAT_WS(' ', first_name, last_name), ''), 'Артём Покровский'),
+  COALESCE(position, 'Сотрудник'),
+  id,
+  avatar_url,
+  birthday,
+  description
+FROM public.profiles
+WHERE id = '8b000734-0488-485f-9fc5-13fcdeb2ca74';
+```
 
 
-## Уведомления при добавлении во встречу
+| Шаг       | Что делаем                                              |
+| --------- | ------------------------------------------------------- |
+| Миграция  | Создать триггер `on_profile_updated`                    |
+| Data sync | UPDATE employees из profiles для всех связанных записей |
+| &nbsp;    | &nbsp;                                                  |
 
-### Текущее поведение
 
-При создании или редактировании встречи участникам отправляется только ICS-приглашение на email. Внутренних уведомлений (колокольчик в приложении, Telegram, push) нет.
-
-### Что нужно сделать
-
-Добавить создание записей в таблицу `notifications` при создании и обновлении встречи — аналогично тому, как это сделано для задач (`task_assigned`).
-
-### Файл для изменения
-
-**`src/hooks/useCalendarEvents.ts`**
-
-В мутации `createEvent` (в `onSuccess`):
-- Для каждого `participant_id` (кроме `creator_id`) создать уведомление:
-  - `type`: `"calendar_invite"`
-  - `title`: `"Вас добавили во встречу"`
-  - `body`: название встречи + дата/время
-  - `link`: `/calendar` (чтобы при клике открывался календарь на нужную дату)
-  - `recipient_id`: ID участника
-
-В мутации `updateEvent` (в `onSuccess`):
-- Аналогично, но с текстом `"Встреча обновлена"` для всех участников
-
-### Результат
-
-- Участники увидят уведомление в колокольчике приложения
-- Если включены Telegram/Email-уведомления — сработает существующий триггер `after_notification_insert`, который автоматически вызовет `send-external-notification`
-- Ссылка в уведомлении будет вести на календарь
-
+Код менять не нужно — ручная синхронизация в Profile.tsx уже корректна.
