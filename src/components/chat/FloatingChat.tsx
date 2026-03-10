@@ -360,12 +360,12 @@ export function FloatingChat() {
     queryKey: ["conversation-participants", selectedConversationId],
     queryFn: async () => {
       if (!selectedConversationId) return [];
-      const { data, error } = await supabase
-        .from("chat_participants")
-        .select("user_id")
-        .eq("conversation_id", selectedConversationId);
-      if (error) throw error;
-      return data.map(p => p.user_id);
+      const { data, error } = await proxySelect<{ user_id: string }>("chat_participants", {
+        select: "user_id",
+        filters: [{ column: "conversation_id", operator: "eq", value: selectedConversationId }],
+      });
+      if (error) throw new Error(error.message);
+      return (data ?? []).map(p => p.user_id);
     },
     enabled: !!selectedConversationId,
   });
