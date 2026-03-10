@@ -3,7 +3,7 @@ import { MessageCircle, Send, Trash2, Loader2, Pencil, X, Check, Link2 } from "l
 import { useProtocolItemComments, useCreateProtocolItemComment, useUpdateProtocolItemComment, useDeleteProtocolItemComment } from "@/hooks/useProtocolItemComments";
 import { useTaskComments } from "@/hooks/useTaskComments";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
-import { useEmployees } from "@/hooks/useEmployees";
+import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
