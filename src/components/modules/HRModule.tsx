@@ -156,10 +156,10 @@ function EmployeesTab() {
             className="card-base p-4 text-left hover:border-primary/30 transition-colors"
           >
             <div className="flex items-center gap-3">
-              <ProxiedAvatar url={emp.avatar_url} alt={emp.full_name} size="sm" />
+              <ProxiedAvatar url={emp.avatar_url} alt={getEmployeeDisplayName(emp)} size="sm" />
               <div className="flex-1 min-w-0">
                 <h4 className="font-medium text-foreground truncate">
-                  {emp.full_name}
+                  {getEmployeeDisplayName(emp)}
                 </h4>
                 <p className="text-sm text-muted-foreground truncate">
                   {emp.position}
