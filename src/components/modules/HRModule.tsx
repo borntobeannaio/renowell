@@ -79,7 +79,9 @@ function EmployeesTab() {
   const [selectedEmployee, setSelectedEmployee] = useState<DbEmployee | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<DbEmployee | null>(null);
-  const { canAddEmployee, canEditEmployee } = useHRPermissions();
+  const [deletingEmployee, setDeletingEmployee] = useState<DbEmployee | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { canAddEmployee, canEditEmployee, canDeleteEmployee } = useHRPermissions();
   const queryClient = useQueryClient();
 
   const { data: employees = [], isLoading } = useQuery({
