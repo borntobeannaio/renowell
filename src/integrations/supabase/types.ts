@@ -641,11 +641,13 @@ export type Database = {
           attachments: Json | null
           body: string
           created_at: string
+          external_sent: boolean | null
           id: string
           is_read: boolean
           link: string | null
           recipient_id: string
           related_task_id: string | null
+          send_after: string | null
           title: string
           type: string
         }
@@ -653,11 +655,13 @@ export type Database = {
           attachments?: Json | null
           body: string
           created_at?: string
+          external_sent?: boolean | null
           id?: string
           is_read?: boolean
           link?: string | null
           recipient_id: string
           related_task_id?: string | null
+          send_after?: string | null
           title: string
           type: string
         }
@@ -665,11 +669,13 @@ export type Database = {
           attachments?: Json | null
           body?: string
           created_at?: string
+          external_sent?: boolean | null
           id?: string
           is_read?: boolean
           link?: string | null
           recipient_id?: string
           related_task_id?: string | null
+          send_after?: string | null
           title?: string
           type?: string
         }
