@@ -291,7 +291,7 @@ function EmployeesTab() {
           <div className="space-y-4">
             <p className="text-foreground">
               Вы уверены, что хотите удалить сотрудника{" "}
-              <strong>{deletingEmployee.full_name}</strong>?
+              <strong>{getEmployeeDisplayName(deletingEmployee)}</strong>?
             </p>
             <p className="text-sm text-destructive">
               Это действие необратимо. Будут удалены: аккаунт пользователя, профиль и запись сотрудника.
