@@ -10,6 +10,9 @@ import { Loader2 } from "lucide-react";
 interface DbEmployee {
   id: string;
   full_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  middle_name: string | null;
   position: string;
   phone: string | null;
   email: string | null;
@@ -18,7 +21,6 @@ interface DbEmployee {
   birthday: string | null;
   profile_id: string | null;
   description: string | null;
-  middle_name: string | null;
 }
 
 interface DbProfile {
