@@ -122,10 +122,7 @@ export const mockTasks: Task[] = [
   },
 ];
 
-export const mockVacations: HRVacation[] = [
-  { id: "v1", userId: "e1", from: "2024-12-25", to: "2025-01-08", status: "approved" },
-  { id: "v2", userId: "e4", from: "2024-12-30", to: "2025-01-03", status: "pending" },
-];
+export const mockVacations: HRVacation[] = [];
 
 export const mockHRDocs: HRDoc[] = [
   { id: "d1", title: "Трудовой договор (шаблон)", type: "docx", updated: "2024-11-01" },

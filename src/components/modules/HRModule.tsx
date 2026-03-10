@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
+import { DocsTab } from "@/components/modules/hr/DocsTab";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { proxySelect } from "@/lib/dbProxy";
 
@@ -359,41 +360,4 @@ function VacationsTab() {
   );
 }
 
-function DocsTab() {
-  const { hrDocs } = useApp();
-
-  const typeIcons: Record<string, string> = {
-    pdf: "📄",
-    docx: "📝",
-    xlsx: "📊",
-    link: "🔗",
-  };
-
-  return (
-    <div className="space-y-3">
-      {hrDocs.map((doc) => (
-        <div
-          key={doc.id}
-          className="card-base p-4 flex items-center justify-between hover:border-primary/30 transition-colors cursor-pointer"
-        >
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">{typeIcons[doc.type] || "📄"}</span>
-            <div>
-              <p className="font-medium text-foreground">{doc.title}</p>
-              <p className="text-sm text-muted-foreground">
-                Обновлено: {doc.updated}
-              </p>
-            </div>
-          </div>
-          <span className="chip">{doc.type.toUpperCase()}</span>
-        </div>
-      ))}
-
-      {hrDocs.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          Нет документов
-        </div>
-      )}
-    </div>
-  );
-}
+// DocsTab moved to src/components/modules/hr/DocsTab.tsx
