@@ -52,6 +52,13 @@ export function EmployeeMultiSelect({
     }
   }, [isOpen, usePortal]);
 
+  // Focus search input without scrolling
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      searchInputRef.current.focus({ preventScroll: true });
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
