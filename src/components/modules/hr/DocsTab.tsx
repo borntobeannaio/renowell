@@ -48,7 +48,7 @@ export function DocsTab() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { canManageEmployees } = useHRPermissions();
   const { user } = useAuth();
-  const { profile } = useCurrentProfile();
+  const { data: profile } = useCurrentProfile();
   const queryClient = useQueryClient();
 
   const { data: docs = [], isLoading } = useQuery({
