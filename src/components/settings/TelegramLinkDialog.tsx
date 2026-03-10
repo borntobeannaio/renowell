@@ -34,7 +34,7 @@ export function TelegramLinkDialog({
   const [code, setCode] = useState("");
   const [copied, setCopied] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
-  const [checkInterval, setCheckInterval] = useState<NodeJS.Timeout | null>(null);
+  const [checkInterval, setCheckInterval] = useState<ReturnType<typeof setInterval> | null>(null);
 
   // Generate code when dialog opens
   useEffect(() => {
