@@ -516,6 +516,7 @@ export type Database = {
           email: string | null
           full_name: string
           id: string
+          middle_name: string | null
           phone: string | null
           position: string
           profile_id: string | null
@@ -530,6 +531,7 @@ export type Database = {
           email?: string | null
           full_name: string
           id?: string
+          middle_name?: string | null
           phone?: string | null
           position: string
           profile_id?: string | null
@@ -544,6 +546,7 @@ export type Database = {
           email?: string | null
           full_name?: string
           id?: string
+          middle_name?: string | null
           phone?: string | null
           position?: string
           profile_id?: string | null
@@ -691,6 +694,7 @@ export type Database = {
           ics_url: string | null
           id: string
           last_name: string | null
+          middle_name: string | null
           notify_email: boolean | null
           notify_push: boolean | null
           notify_telegram: boolean | null
@@ -709,6 +713,7 @@ export type Database = {
           ics_url?: string | null
           id?: string
           last_name?: string | null
+          middle_name?: string | null
           notify_email?: boolean | null
           notify_push?: boolean | null
           notify_telegram?: boolean | null
@@ -727,6 +732,7 @@ export type Database = {
           ics_url?: string | null
           id?: string
           last_name?: string | null
+          middle_name?: string | null
           notify_email?: boolean | null
           notify_push?: boolean | null
           notify_telegram?: boolean | null

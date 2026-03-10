@@ -14,7 +14,8 @@ interface AddEmployeeModalProps {
 }
 
 interface CreatedEmployee {
-  full_name: string;
+  last_name: string;
+  first_name: string;
   email: string;
   password: string;
 }
@@ -26,7 +27,9 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
   const [copied, setCopied] = useState(false);
 
   const [formData, setFormData] = useState({
-    full_name: "",
+    last_name: "",
+    first_name: "",
+    middle_name: "",
     position: "",
     email: "",
     phone: "",
@@ -36,7 +39,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.full_name || !formData.position || !formData.email) {
+    if (!formData.last_name || !formData.first_name || !formData.position || !formData.email) {
       toast.error("Заполните обязательные поля");
       return;
     }
@@ -44,6 +47,8 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
     setLoading(true);
 
     try {
+      const full_name = [formData.last_name, formData.first_name, formData.middle_name].filter(Boolean).join(" ");
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-employee-user`,
         {
@@ -53,7 +58,10 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
             Authorization: `Bearer ${session?.access_token}`,
           },
           body: JSON.stringify({
-            full_name: formData.full_name,
+            full_name,
+            last_name: formData.last_name,
+            first_name: formData.first_name,
+            middle_name: formData.middle_name || undefined,
             position: formData.position,
             email: formData.email,
             phone: formData.phone || undefined,
@@ -68,9 +76,9 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
         throw new Error(data.error || "Ошибка создания сотрудника");
       }
 
-      // Show password dialog
       setCreatedEmployee({
-        full_name: formData.full_name,
+        last_name: formData.last_name,
+        first_name: formData.first_name,
         email: formData.email,
         password: data.password,
       });
@@ -78,9 +86,10 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
       toast.success("Сотрудник успешно создан");
       onSuccess();
 
-      // Reset form
       setFormData({
-        full_name: "",
+        last_name: "",
+        first_name: "",
+        middle_name: "",
         position: "",
         email: "",
         phone: "",
@@ -116,7 +125,6 @@ Email: ${createdEmployee.email}
     onClose();
   };
 
-  // Password display dialog
   if (createdEmployee) {
     return (
       <Modal
@@ -135,7 +143,7 @@ Email: ${createdEmployee.email}
           <div className="space-y-3">
             <div>
               <Label className="text-muted-foreground text-xs">Сотрудник</Label>
-              <p className="font-medium text-foreground">{createdEmployee.full_name}</p>
+              <p className="font-medium text-foreground">{createdEmployee.last_name} {createdEmployee.first_name}</p>
             </div>
             
             <div>
@@ -182,14 +190,37 @@ Email: ${createdEmployee.email}
     <Modal isOpen={isOpen} onClose={onClose} title="Добавить сотрудника">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="full_name">ФИО *</Label>
+          <Label htmlFor="last_name">Фамилия *</Label>
           <Input
-            id="full_name"
-            value={formData.full_name}
-            onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-            placeholder="Иванов Иван Иванович"
+            id="last_name"
+            value={formData.last_name}
+            onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+            placeholder="Иванов"
             required
           />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor="first_name">Имя *</Label>
+            <Input
+              id="first_name"
+              value={formData.first_name}
+              onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+              placeholder="Иван"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="middle_name">Отчество</Label>
+            <Input
+              id="middle_name"
+              value={formData.middle_name}
+              onChange={(e) => setFormData({ ...formData, middle_name: e.target.value })}
+              placeholder="Иванович"
+            />
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -225,7 +256,6 @@ Email: ${createdEmployee.email}
             placeholder="+7 999 123-45-67"
           />
         </div>
-
 
         <div className="space-y-2">
           <Label htmlFor="birthday">Дата рождения</Label>

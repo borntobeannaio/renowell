@@ -18,12 +18,14 @@ interface DbEmployee {
   birthday: string | null;
   profile_id: string | null;
   description: string | null;
+  middle_name: string | null;
 }
 
 interface DbProfile {
   id: string;
   first_name: string | null;
   last_name: string | null;
+  middle_name: string | null;
   position: string | null;
   birthday: string | null;
 }
@@ -41,7 +43,9 @@ export function EditEmployeeModal({
   employee,
   onSuccess,
 }: EditEmployeeModalProps) {
-  const [fullName, setFullName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
   const [position, setPosition] = useState("");
   const [phone, setPhone] = useState("");
   const [birthday, setBirthday] = useState("");
@@ -50,12 +54,15 @@ export function EditEmployeeModal({
 
   useEffect(() => {
     if (employee && isOpen) {
-      setFullName(employee.full_name || "");
+      // Parse full_name into parts as fallback
+      const nameParts = (employee.full_name || "").trim().split(/\s+/);
+      setLastName(nameParts[0] || "");
+      setFirstName(nameParts[1] || "");
+      setMiddleName(employee.middle_name || nameParts[2] || "");
       setPosition(employee.position || "");
       setPhone(employee.phone || "");
       setBirthday(employee.birthday || "");
 
-      // Load profile data if profile_id exists
       if (employee.profile_id) {
         loadProfileData(employee.profile_id);
       }
@@ -66,16 +73,15 @@ export function EditEmployeeModal({
     setLoadingProfile(true);
     try {
       const { data } = await proxySelect<DbProfile>("profiles", {
-        select: "id, first_name, last_name, position, birthday",
+        select: "id, first_name, last_name, middle_name, position, birthday",
         filters: [{ column: "id", operator: "eq", value: profileId }],
         limit: 1,
       });
       if (data && data.length > 0) {
         const profile = data[0];
-        // Use profile data if available
-        if (profile.first_name || profile.last_name) {
-          setFullName(`${profile.first_name || ""} ${profile.last_name || ""}`.trim());
-        }
+        if (profile.last_name) setLastName(profile.last_name);
+        if (profile.first_name) setFirstName(profile.first_name);
+        if (profile.middle_name) setMiddleName(profile.middle_name);
         if (profile.position) setPosition(profile.position);
         if (profile.birthday) setBirthday(profile.birthday);
       }
@@ -92,19 +98,15 @@ export function EditEmployeeModal({
 
     setLoading(true);
     try {
-      // Parse full name into first and last name
-      const nameParts = fullName.trim().split(" ");
-      const lastName = nameParts[0] || "";
-      const firstName = nameParts.slice(1).join(" ") || "";
+      const fullName = [lastName.trim(), firstName.trim(), middleName.trim()].filter(Boolean).join(" ");
 
-      // If employee has a linked profile, update the profile
-      // The trigger will sync changes to employees table
       if (employee.profile_id) {
         const { error: profileError } = await proxyUpdate(
           "profiles",
           {
-            first_name: firstName,
-            last_name: lastName,
+            first_name: firstName.trim() || null,
+            last_name: lastName.trim() || null,
+            middle_name: middleName.trim() || null,
             position: position || null,
             birthday: birthday || null,
           },
@@ -116,15 +118,13 @@ export function EditEmployeeModal({
         }
       }
 
-      // Update phone directly in employees table (not in profiles)
-      // Also update other fields for employees without linked profiles
       const employeeUpdateData: Record<string, unknown> = {
         phone: phone || null,
+        middle_name: middleName.trim() || null,
       };
 
-      // If no profile linked, update all fields directly in employees
       if (!employee.profile_id) {
-        employeeUpdateData.full_name = fullName;
+        employeeUpdateData.full_name = fullName || "Пользователь";
         employeeUpdateData.position = position;
         employeeUpdateData.birthday = birthday || null;
       }
@@ -159,7 +159,9 @@ export function EditEmployeeModal({
   };
 
   const handleClose = () => {
-    setFullName("");
+    setLastName("");
+    setFirstName("");
+    setMiddleName("");
     setPosition("");
     setPhone("");
     setBirthday("");
@@ -175,14 +177,37 @@ export function EditEmployeeModal({
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="fullName">ФИО *</Label>
+            <Label htmlFor="lastName">Фамилия *</Label>
             <Input
-              id="fullName"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Иванов Иван Иванович"
+              id="lastName"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Иванов"
               required
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="firstName">Имя *</Label>
+              <Input
+                id="firstName"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="Иван"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="middleName">Отчество</Label>
+              <Input
+                id="middleName"
+                value={middleName}
+                onChange={(e) => setMiddleName(e.target.value)}
+                placeholder="Иванович"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">

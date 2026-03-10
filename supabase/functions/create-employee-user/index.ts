@@ -8,6 +8,9 @@ const corsHeaders = {
 
 interface CreateEmployeeRequest {
   full_name: string;
+  first_name?: string;
+  last_name?: string;
+  middle_name?: string;
   position: string;
   email: string;
   phone?: string;
@@ -67,7 +70,17 @@ serve(async (req) => {
     }
 
     const body: CreateEmployeeRequest = await req.json();
-    const { full_name, position, email, phone, department, birthday } = body;
+    const { full_name, position, email, phone, department, birthday, middle_name } = body;
+
+    // Support both old (full_name) and new (first_name/last_name) formats
+    let firstName = body.first_name || "";
+    let lastName = body.last_name || "";
+    
+    if (!firstName && !lastName && full_name) {
+      const nameParts = full_name.trim().split(/\s+/);
+      lastName = nameParts[0] || "";
+      firstName = nameParts.slice(1).join(" ") || "";
+    }
 
     if (!full_name || !position || !email) {
       return new Response(
@@ -91,11 +104,6 @@ serve(async (req) => {
 
     // Generate password
     const password = generatePassword();
-
-    // Parse name into first and last name
-    const nameParts = full_name.trim().split(/\s+/);
-    const lastName = nameParts[0] || "";
-    const firstName = nameParts.slice(1).join(" ") || "";
 
     // Create auth user with auto-confirm
     const { data: authData, error: createError } = await supabase.auth.admin.createUser({
@@ -127,6 +135,7 @@ serve(async (req) => {
       .update({
         first_name: firstName,
         last_name: lastName,
+        middle_name: middle_name || null,
         position,
         birthday: birthday || null,
       })
@@ -155,6 +164,7 @@ serve(async (req) => {
         department: department || null,
         birthday: birthday || null,
         profile_id: profile.id,
+        middle_name: middle_name || null,
       })
       .select()
       .single();

@@ -26,6 +26,7 @@ interface ProfileData {
   user_id: string;
   first_name: string | null;
   last_name: string | null;
+  middle_name: string | null;
   position: string | null;
   avatar_url: string | null;
   birthday: string | null;
@@ -44,6 +45,7 @@ export default function Profile() {
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [middleName, setMiddleName] = useState("");
   const [position, setPosition] = useState("");
   const [birthday, setBirthday] = useState<Date | undefined>();
   const [description, setDescription] = useState("");
@@ -79,6 +81,7 @@ export default function Profile() {
     if (profile) {
       setFirstName(profile.first_name || "");
       setLastName(profile.last_name || "");
+      setMiddleName(profile.middle_name || "");
       setPosition(profile.position || "");
       setDescription(profile.description || "");
       setAvatarUrl(profile.avatar_url);
@@ -110,6 +113,7 @@ export default function Profile() {
         {
           first_name: firstName.trim() || null,
           last_name: lastName.trim() || null,
+          middle_name: middleName.trim() || null,
           position: position.trim() || null,
           birthday: birthday ? format(birthday, "yyyy-MM-dd") : null,
           description: description.trim() || null,
@@ -127,7 +131,7 @@ export default function Profile() {
       console.log('[Profile] Profile updated, syncing employee...');
 
       // Sync to linked employee (don't fail if employee update fails)
-      const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
+      const fullName = [lastName.trim(), firstName.trim()].filter(Boolean).join(" ");
       const { error: employeeError } = await proxyUpdate(
         "employees",
         {
@@ -136,6 +140,7 @@ export default function Profile() {
           birthday: birthday ? format(birthday, "yyyy-MM-dd") : null,
           avatar_url: avatarUrl,
           description: description.trim() || null,
+          middle_name: middleName.trim() || null,
         },
         [{ column: "profile_id", operator: "eq", value: profile.id }]
       );
@@ -339,8 +344,8 @@ export default function Profile() {
   };
 
   const proxiedAvatarUrl = useProxiedAvatarUrl(avatarUrl);
-  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || "U";
-  const fullName = [firstName, lastName].filter(Boolean).join(" ") || "Пользователь";
+  const initials = `${lastName.charAt(0)}${firstName.charAt(0)}`.toUpperCase() || "U";
+  const fullName = [lastName, firstName].filter(Boolean).join(" ") || "Пользователь";
 
   if (isLoading) {
     return (
@@ -418,7 +423,16 @@ export default function Profile() {
 
           {/* Form */}
           <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Фамилия</Label>
+                <Input
+                  id="lastName"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Иванов"
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="firstName">Имя</Label>
                 <Input
@@ -429,12 +443,12 @@ export default function Profile() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Фамилия</Label>
+                <Label htmlFor="middleName">Отчество</Label>
                 <Input
-                  id="lastName"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  placeholder="Иванов"
+                  id="middleName"
+                  value={middleName}
+                  onChange={(e) => setMiddleName(e.target.value)}
+                  placeholder="Иванович"
                 />
               </div>
             </div>
