@@ -111,12 +111,12 @@ export function EmployeeMultiSelect({
     >
       <div className="p-2 border-b border-border">
         <input
+          ref={searchInputRef}
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Поиск..."
           className="input-base w-full h-8 text-sm"
-          autoFocus
         />
       </div>
       <div className="overflow-y-auto min-h-0 flex-1">
