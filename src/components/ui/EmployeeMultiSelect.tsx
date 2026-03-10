@@ -26,6 +26,7 @@ export function EmployeeMultiSelect({
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Position dropdown when using portal
   useEffect(() => {
