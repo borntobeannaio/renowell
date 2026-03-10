@@ -104,7 +104,7 @@ export function MentionInput({
         );
       } else if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        insertMention(filteredEmployees[selectedIndex].full_name);
+        insertMention(getEmployeeDisplayName(filteredEmployees[selectedIndex]));
       } else if (e.key === "Escape") {
         setShowSuggestions(false);
       }
