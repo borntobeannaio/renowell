@@ -113,6 +113,7 @@ export default function Profile() {
         {
           first_name: firstName.trim() || null,
           last_name: lastName.trim() || null,
+          middle_name: middleName.trim() || null,
           position: position.trim() || null,
           birthday: birthday ? format(birthday, "yyyy-MM-dd") : null,
           description: description.trim() || null,
