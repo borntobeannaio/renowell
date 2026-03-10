@@ -1,41 +1,33 @@
 
 
-# Fix: Birthday date picker dropdowns + Employee card button placement
+## Уведомления при добавлении во встречу
 
-## Problem 1: Birthday picker month/year selector broken
-The Profile page uses `captionLayout="dropdown-buttons"` on the Calendar component, but the Calendar component (`src/components/ui/calendar.tsx`) has no styles for dropdown elements (`vhd-dropdown`, `caption_dropdowns`, etc.). The native `<select>` elements render unstyled and look broken.
+### Текущее поведение
 
-## Problem 2: Edit/Delete buttons cramped next to name
-In the employee card modal (`HRModule.tsx` lines 189-225), the Edit and Delete buttons sit in the same flex row as the avatar and name, causing layout issues on smaller screens.
+При создании или редактировании встречи участникам отправляется только ICS-приглашение на email. Внутренних уведомлений (колокольчик в приложении, Telegram, push) нет.
 
-## Changes
+### Что нужно сделать
 
-### 1. `src/components/ui/calendar.tsx`
-Add classNames for dropdown caption layout elements:
-- `caption_dropdowns` — flex container for the two dropdowns
-- `dropdown_month`, `dropdown_year` — styled select elements
-- `dropdown` — base select styling with proper appearance, border, padding
+Добавить создание записей в таблицу `notifications` при создании и обновлении встречи — аналогично тому, как это сделано для задач (`task_assigned`).
 
-### 2. `src/components/modules/HRModule.tsx` (lines 188-225)
-Restructure the employee card modal layout:
-- Top section: avatar + name/position/department (no buttons)
-- Bottom of the card (after contact info): action buttons row with Edit and Delete, separated by a border-top
+### Файл для изменения
 
-```
-Before:
-┌─────────────────────────────────┐
-│ [avatar] Name    [Edit][Delete] │
-│          Position               │
-│ email / phone / birthday        │
-└─────────────────────────────────┘
+**`src/hooks/useCalendarEvents.ts`**
 
-After:
-┌─────────────────────────────────┐
-│ [avatar] Name                   │
-│          Position               │
-│ email / phone / birthday        │
-│ ─────────────────────────────── │
-│              [Edit]   [Delete]  │
-└─────────────────────────────────┘
-```
+В мутации `createEvent` (в `onSuccess`):
+- Для каждого `participant_id` (кроме `creator_id`) создать уведомление:
+  - `type`: `"calendar_invite"`
+  - `title`: `"Вас добавили во встречу"`
+  - `body`: название встречи + дата/время
+  - `link`: `/calendar` (чтобы при клике открывался календарь на нужную дату)
+  - `recipient_id`: ID участника
+
+В мутации `updateEvent` (в `onSuccess`):
+- Аналогично, но с текстом `"Встреча обновлена"` для всех участников
+
+### Результат
+
+- Участники увидят уведомление в колокольчике приложения
+- Если включены Telegram/Email-уведомления — сработает существующий триггер `after_notification_insert`, который автоматически вызовет `send-external-notification`
+- Ссылка в уведомлении будет вести на календарь
 
