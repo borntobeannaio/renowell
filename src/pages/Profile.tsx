@@ -131,7 +131,7 @@ export default function Profile() {
       console.log('[Profile] Profile updated, syncing employee...');
 
       // Sync to linked employee (don't fail if employee update fails)
-      const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
+      const fullName = [lastName.trim(), firstName.trim()].filter(Boolean).join(" ");
       const { error: employeeError } = await proxyUpdate(
         "employees",
         {
@@ -140,6 +140,7 @@ export default function Profile() {
           birthday: birthday ? format(birthday, "yyyy-MM-dd") : null,
           avatar_url: avatarUrl,
           description: description.trim() || null,
+          middle_name: middleName.trim() || null,
         },
         [{ column: "profile_id", operator: "eq", value: profile.id }]
       );
