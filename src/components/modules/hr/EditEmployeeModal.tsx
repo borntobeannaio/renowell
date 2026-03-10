@@ -56,11 +56,17 @@ export function EditEmployeeModal({
 
   useEffect(() => {
     if (employee && isOpen) {
-      // Parse full_name into parts as fallback
-      const nameParts = (employee.full_name || "").trim().split(/\s+/);
-      setLastName(nameParts[0] || "");
-      setFirstName(nameParts[1] || "");
-      setMiddleName(employee.middle_name || nameParts[2] || "");
+      // Use separate name fields if available, fallback to parsing full_name
+      if (employee.last_name || employee.first_name) {
+        setLastName(employee.last_name || "");
+        setFirstName(employee.first_name || "");
+        setMiddleName(employee.middle_name || "");
+      } else {
+        const nameParts = (employee.full_name || "").trim().split(/\s+/);
+        setLastName(nameParts[0] || "");
+        setFirstName(nameParts[1] || "");
+        setMiddleName(employee.middle_name || nameParts[2] || "");
+      }
       setPosition(employee.position || "");
       setPhone(employee.phone || "");
       setBirthday(employee.birthday || "");
