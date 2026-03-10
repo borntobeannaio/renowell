@@ -5,6 +5,7 @@ const PROTOCOL_EDITORS = [
   "sonya369@gmail.com",
   "anna.rum91@gmail.com",
   "astashkina495@gmail.com",
+  "oparin@renowell.ru",
 ];
 
 export function useProtocolPermissions() {

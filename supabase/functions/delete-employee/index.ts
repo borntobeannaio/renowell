@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const hrAdmins = ["sonya369@gmail.com", "astashkina495@gmail.com"];
+    const hrAdmins = ["sonya369@gmail.com", "astashkina495@gmail.com", "anna.rum91@gmail.com", "oparin@renowell.ru"];
     if (!callerUser.email || !hrAdmins.includes(callerUser.email.toLowerCase())) {
       return new Response(
         JSON.stringify({ error: "Forbidden - only HR admins can delete employees" }),
