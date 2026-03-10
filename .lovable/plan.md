@@ -1,33 +1,42 @@
 
 
-## Уведомления при добавлении во встречу
+# Места, где не используется Яндекс прокси
 
-### Текущее поведение
+## Результаты анализа
 
-При создании или редактировании встречи участникам отправляется только ICS-приглашение на email. Внутренних уведомлений (колокольчик в приложении, Telegram, push) нет.
+### 1. `src/components/chat/FloatingChat.tsx` — 3 прямых запроса к БД
+- **Строка ~84**: `supabase.from("profiles").select(...)` — загрузка профилей
+- **Строка ~363**: `supabase.from("chat_participants").select("user_id")` — участники беседы
+- **Строка ~377**: `supabase.from("chat_participants").select(...)` с join на profiles
 
-### Что нужно сделать
+Нужно заменить на `proxySelect`.
 
-Добавить создание записей в таблицу `notifications` при создании и обновлении встречи — аналогично тому, как это сделано для задач (`task_assigned`).
+### 2. `src/lib/api.ts` — 2 проблемных места
+- **`invokeEdgeFunction()`** (строка ~182): вызывает `supabase.functions.invoke()` напрямую. Нужно заменить на `proxyEdgeFunction` из `mediaProxy.ts`.
+- **`testConnection()`** (строка ~202): `supabase.from('profiles').select('id')` — тест соединения идёт мимо прокси. Заменить на `proxySelect` или `proxyPing`.
 
-### Файл для изменения
+### 3. `src/components/modules/HRModule.tsx` — вызов edge function
+- **Строка ~105**: `supabase.functions.invoke("delete-employee")` — удаление сотрудника напрямую. Заменить на `proxyEdgeFunction`.
 
-**`src/hooks/useCalendarEvents.ts`**
+### 4. `src/hooks/useCalendarEvents.ts` — 3 вызова edge functions
+- **Строка ~94**: `supabase.functions.invoke("send-calendar-invite")` — отправка приглашения
+- **Строка ~149**: то же при обновлении события
+- **Строка ~182**: `supabase.functions.invoke("sync-ics-calendar")` — синхронизация календарей
 
-В мутации `createEvent` (в `onSuccess`):
-- Для каждого `participant_id` (кроме `creator_id`) создать уведомление:
-  - `type`: `"calendar_invite"`
-  - `title`: `"Вас добавили во встречу"`
-  - `body`: название встречи + дата/время
-  - `link`: `/calendar` (чтобы при клике открывался календарь на нужную дату)
-  - `recipient_id`: ID участника
+Все три заменить на `proxyEdgeFunction`.
 
-В мутации `updateEvent` (в `onSuccess`):
-- Аналогично, но с текстом `"Встреча обновлена"` для всех участников
+### Что НЕ нужно менять (работает корректно)
+- **`supabase.auth.*`** — авторизация должна идти напрямую
+- **`supabase.channel()` / `supabase.removeChannel()`** — Realtime подписки работают через WebSocket, прокси не нужен
+- **Все хуки** (`useChat`, `useTasks`, `useEmployees`, `useNotifications`, `DocsTab` и т.д.) — уже используют `proxySelect` / `proxyInsert` / `proxyUpdate` / `proxyDelete`
+- **Медиа** (`PhotoGallery`, `TelegramFeed`) — уже используют `proxyEdgeFunction`
 
-### Результат
+## План исправлений
 
-- Участники увидят уведомление в колокольчике приложения
-- Если включены Telegram/Email-уведомления — сработает существующий триггер `after_notification_insert`, который автоматически вызовет `send-external-notification`
-- Ссылка в уведомлении будет вести на календарь
+1. **FloatingChat.tsx**: заменить 3 вызова `supabase.from()` на `proxySelect`
+2. **api.ts**: заменить `testConnection` на `proxyPing`, `invokeEdgeFunction` на `proxyEdgeFunction`
+3. **HRModule.tsx**: заменить `supabase.functions.invoke("delete-employee")` на `proxyEdgeFunction`
+4. **useCalendarEvents.ts**: заменить 3 вызова `supabase.functions.invoke` на `proxyEdgeFunction`
+
+Итого: **9 прямых вызовов** в 4 файлах нужно перевести на Яндекс прокси.
 
