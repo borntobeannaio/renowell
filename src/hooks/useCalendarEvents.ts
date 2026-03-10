@@ -174,9 +174,7 @@ export function useCalendarEvents() {
 
   const syncCalendars = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("sync-ics-calendar");
-      if (error) throw error;
-      return data;
+      return await proxyEdgeFunction<{ results?: { synced: number }[] }>("sync-ics-calendar", {});
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["calendar_events"] });

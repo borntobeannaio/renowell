@@ -187,7 +187,7 @@ export async function invokeEdgeFunction<T>(
   );
 }
 
-// Connection test utility
+// Connection test utility (via Yandex proxy)
 export async function testConnection(): Promise<{
   success: boolean;
   latency: number;
@@ -196,14 +196,8 @@ export async function testConnection(): Promise<{
   const start = Date.now();
   
   try {
-    await withRetry(
-      async () => {
-        const { error } = await supabase.from('profiles').select('id').limit(1);
-        if (error) throw error;
-      },
-      'Тест подключения',
-      { maxRetries: 1, timeout: 5000, showToast: false, silent: true }
-    );
+    const { error } = await proxyPing();
+    if (error) throw new Error(error.message);
     
     return {
       success: true,
