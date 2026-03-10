@@ -81,6 +81,7 @@ export default function Profile() {
     if (profile) {
       setFirstName(profile.first_name || "");
       setLastName(profile.last_name || "");
+      setMiddleName(profile.middle_name || "");
       setPosition(profile.position || "");
       setDescription(profile.description || "");
       setAvatarUrl(profile.avatar_url);

@@ -37,6 +37,7 @@ interface DbEmployee {
   birthday: string | null;
   profile_id: string | null;
   description: string | null;
+  middle_name: string | null;
 }
 
 type HRTab = "employees" | "vacations" | "docs";
