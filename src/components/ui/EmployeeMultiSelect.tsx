@@ -144,7 +144,7 @@ export function EmployeeMultiSelect({
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{emp.full_name}</p>
+                  <p className="text-sm font-medium text-foreground truncate">{getEmployeeDisplayName(emp)}</p>
                   <p className="text-xs text-muted-foreground truncate">{emp.position}</p>
                 </div>
                 {isSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
