@@ -176,9 +176,27 @@ export default function ProtocolEditor() {
   });
 
   // Section groups with items (unified state for both new and edit modes)
-  const [sectionGroups, setSectionGroups] = useState<SectionGroup[]>([
-    { id: 'temp-default', sectionType: 'project', entityId: null, entityName: null, defaultResponsible: null, items: [] }
-  ]);
+  const defaultSectionGroup: SectionGroup = isTenderMode && isNew && !isCopyMode
+    ? { id: 'temp-default', sectionType: 'tender', entityId: null, entityName: 'Тендеры', defaultResponsible: null, items: [], companyGroups: [] }
+    : { id: 'temp-default', sectionType: 'project', entityId: null, entityName: null, defaultResponsible: null, items: [] };
+  
+  const [sectionGroups, setSectionGroups] = useState<SectionGroup[]>([defaultSectionGroup]);
+  
+  // Tender mode: set default title and organizer when employees load
+  const [tenderDefaultsApplied, setTenderDefaultsApplied] = useState(false);
+  useEffect(() => {
+    if (isTenderMode && isNew && !isCopyMode && !tenderDefaultsApplied && employees.length > 0) {
+      const oparinEmployee = employees.find(e => 
+        e.full_name.toLowerCase().includes("опарин") && e.full_name.toLowerCase().includes("андрей")
+      );
+      setForm(prev => ({
+        ...prev,
+        title: prev.title || "Тендеры",
+        organizer_id: prev.organizer_id || (oparinEmployee?.id || ""),
+      }));
+      setTenderDefaultsApplied(true);
+    }
+  }, [isTenderMode, isNew, isCopyMode, tenderDefaultsApplied, employees]);
 
   const [copyApplied, setCopyApplied] = useState(false);
   const [editInitialized, setEditInitialized] = useState(false);
