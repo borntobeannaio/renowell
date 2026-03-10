@@ -214,7 +214,7 @@ export default function ProtocolEditor() {
   
   // Connection status state
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
-  const connectionCheckRef = useRef<NodeJS.Timeout | null>(null);
+  const connectionCheckRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Save progress state for UX feedback
   const [saveProgress, setSaveProgress] = useState<string | null>(null);
