@@ -142,13 +142,12 @@ export function useCalendarEvents() {
       }
 
       if (updated.participant_ids?.length > 0) {
-        supabase.functions
-          .invoke("send-calendar-invite", {
-            body: { event_id: updated.id, update: true },
+        proxyEdgeFunction("send-calendar-invite", { event_id: updated.id, update: true })
+          .then(() => {
+            toast.success("Обновлённые приглашения отправлены");
           })
-          .then(({ error }) => {
-            if (error) console.error("Failed to send update invites:", error);
-            else toast.success("Обновлённые приглашения отправлены");
+          .catch((error) => {
+            console.error("Failed to send update invites:", error);
           });
       }
     },
