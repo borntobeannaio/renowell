@@ -136,6 +136,8 @@ export default function Profile() {
         "employees",
         {
           full_name: fullName || "Пользователь",
+          first_name: firstName.trim() || null,
+          last_name: lastName.trim() || null,
           position: position.trim() || "Сотрудник",
           birthday: birthday ? format(birthday, "yyyy-MM-dd") : null,
           avatar_url: avatarUrl,
