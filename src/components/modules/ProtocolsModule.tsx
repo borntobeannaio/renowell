@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, ChevronDown, ChevronUp, Download, Pencil, Copy, FolderOpen, User, Calendar, CheckCircle2, Trash2, Loader2, Building, Users, Briefcase, Target, MessageCircle } from "lucide-react";
 import { useProtocols, useProtocolItems, useDeleteProtocol, DbProtocol, DbProtocolItem } from "@/hooks/useProtocols";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useProjects } from "@/hooks/useProjects";
 import { useProtocolPermissions } from "@/hooks/useProtocolPermissions";
 import { proxySelect } from "@/lib/dbProxy";
