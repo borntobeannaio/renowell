@@ -19,7 +19,7 @@ export interface GoalItemData {
 
 interface GoalItemEditorProps {
   item: GoalItemData;
-  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null }[];
+  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null; description: string | null }[];
   projectDefaultResponsible: string | null;
   onUpdate: (updates: Partial<GoalItemData>) => void;
   onRemove: () => void;
