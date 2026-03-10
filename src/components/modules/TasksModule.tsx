@@ -626,21 +626,25 @@ export function TasksModule() {
                                   profileToEmployee={employeeProfileMaps.profileToEmployee}
                                   onDragStart={handleDragStart}
                                   onEdit={openEditModal}
-                                  onArchive={(id) => {
-                                    const isArchived = task.status === "archived";
-                                    const newStatus = isArchived ? "new" : "archived";
-                                    updateTask.mutate(
-                                      { id, status: newStatus },
-                                      {
-                                        onSuccess: () => {
-                                          toast.success(isArchived ? "Задача восстановлена" : "Задача архивирована");
-                                          if (!isArchived && !showArchived) {
-                                            setShowArchived(true);
-                                          }
-                                        },
-                                      }
-                                    );
-                                  }}
+                                    onArchive={(id) => {
+                                      const isArchived = task.status === "archived";
+                                      const newStatus = isArchived ? "new" : "archived";
+                                      updateTask.mutate(
+                                        { id, status: newStatus },
+                                        {
+                                          onSuccess: () => {
+                                            toast.success(isArchived ? "Задача восстановлена" : "Задача архивирована");
+                                            if (!isArchived && !showArchived) {
+                                              setShowArchived(true);
+                                            }
+                                          },
+                                          onError: (error) => {
+                                            console.error("Failed to archive task:", error);
+                                            toast.error("Ошибка при архивировании задачи");
+                                          },
+                                        }
+                                      );
+                                    }}
                                 />
                               ))}
                             </div>
@@ -701,21 +705,25 @@ export function TasksModule() {
                                   profileToEmployee={employeeProfileMaps.profileToEmployee}
                                   onDragStart={handleDragStart}
                                   onEdit={openEditModal}
-                                  onArchive={(id) => {
-                                    const isArchived = task.status === "archived";
-                                    const newStatus = isArchived ? "new" : "archived";
-                                    updateTask.mutate(
-                                      { id, status: newStatus },
-                                      {
-                                        onSuccess: () => {
-                                          toast.success(isArchived ? "Задача восстановлена" : "Задача архивирована");
-                                          if (!isArchived && !showArchived) {
-                                            setShowArchived(true);
-                                          }
-                                        },
-                                      }
-                                    );
-                                  }}
+                                    onArchive={(id) => {
+                                      const isArchived = task.status === "archived";
+                                      const newStatus = isArchived ? "new" : "archived";
+                                      updateTask.mutate(
+                                        { id, status: newStatus },
+                                        {
+                                          onSuccess: () => {
+                                            toast.success(isArchived ? "Задача восстановлена" : "Задача архивирована");
+                                            if (!isArchived && !showArchived) {
+                                              setShowArchived(true);
+                                            }
+                                          },
+                                          onError: (error) => {
+                                            console.error("Failed to archive task:", error);
+                                            toast.error("Ошибка при архивировании задачи");
+                                          },
+                                        }
+                                      );
+                                    }}
                                 />
                               ))}
                             </div>

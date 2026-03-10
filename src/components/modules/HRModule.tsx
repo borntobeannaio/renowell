@@ -10,6 +10,8 @@ import { formatDisplayDate } from "@/utils/dateFormat";
 import { useHRPermissions } from "@/hooks/useHRPermissions";
 import { AddEmployeeModal } from "@/components/modules/hr/AddEmployeeModal";
 import { EditEmployeeModal } from "@/components/modules/hr/EditEmployeeModal";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import {
   Users,
   Calendar,
@@ -20,6 +22,8 @@ import {
   User,
   UserPlus,
   Pencil,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 
 interface DbEmployee {
@@ -75,7 +79,9 @@ function EmployeesTab() {
   const [selectedEmployee, setSelectedEmployee] = useState<DbEmployee | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<DbEmployee | null>(null);
-  const { canAddEmployee, canEditEmployee } = useHRPermissions();
+  const [deletingEmployee, setDeletingEmployee] = useState<DbEmployee | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { canAddEmployee, canEditEmployee, canDeleteEmployee } = useHRPermissions();
   const queryClient = useQueryClient();
 
   const { data: employees = [], isLoading } = useQuery({
@@ -97,6 +103,32 @@ function EmployeesTab() {
   const handleEmployeeUpdated = () => {
     queryClient.invalidateQueries({ queryKey: ['employees'] });
     setSelectedEmployee(null);
+  };
+
+  const handleDeleteEmployee = async () => {
+    if (!deletingEmployee) return;
+    setIsDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const { data, error } = await supabase.functions.invoke("delete-employee", {
+        body: { employee_id: deletingEmployee.id },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success(`Сотрудник ${deletingEmployee.full_name} удалён`);
+      setDeletingEmployee(null);
+      setSelectedEmployee(null);
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+    } catch (err) {
+      console.error("Delete employee error:", err);
+      toast.error(`Ошибка удаления: ${err instanceof Error ? err.message : "Неизвестная ошибка"}`);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const openEmployeeCard = (emp: DbEmployee) => {
@@ -180,17 +212,29 @@ function EmployeesTab() {
                 )}
               </div>
               {canEditEmployee && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedEmployee(null);
-                    setEditingEmployee(selectedEmployee);
-                  }}
-                >
-                  <Pencil className="w-4 h-4 mr-2" />
-                  Редактировать
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedEmployee(null);
+                      setEditingEmployee(selectedEmployee);
+                    }}
+                  >
+                    <Pencil className="w-4 h-4 mr-2" />
+                    Редактировать
+                  </Button>
+                  {canDeleteEmployee && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setDeletingEmployee(selectedEmployee)}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Удалить
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
 
@@ -240,6 +284,42 @@ function EmployeesTab() {
         employee={editingEmployee}
         onSuccess={handleEmployeeUpdated}
       />
+
+      {/* Delete confirmation modal */}
+      <Modal
+        isOpen={!!deletingEmployee}
+        onClose={() => setDeletingEmployee(null)}
+        title="Удалить сотрудника"
+      >
+        {deletingEmployee && (
+          <div className="space-y-4">
+            <p className="text-foreground">
+              Вы уверены, что хотите удалить сотрудника{" "}
+              <strong>{deletingEmployee.full_name}</strong>?
+            </p>
+            <p className="text-sm text-destructive">
+              Это действие необратимо. Будут удалены: аккаунт пользователя, профиль и запись сотрудника.
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setDeletingEmployee(null)}
+                disabled={isDeleting}
+              >
+                Отмена
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteEmployee}
+                disabled={isDeleting}
+              >
+                {isDeleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Удалить
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </>
   );
 }
