@@ -69,14 +69,12 @@ export function DocsTab() {
     try {
       const ext = getFileExtension(file.name);
       const storagePath = `hr-docs/${Date.now()}_${file.name}`;
-      const base64 = await fileToBase64(file);
 
       const { error: uploadError } = await proxyUpload(
         "renowell",
         storagePath,
-        base64,
-        file.type,
-        true
+        file,
+        { upsert: true }
       );
       if (uploadError) throw new Error(uploadError.message);
 
