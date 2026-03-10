@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { proxySelect, proxyInsert, proxyDelete } from "@/lib/dbProxy";
-import { proxyUpload, proxyGetPublicUrl, fileToBase64 } from "@/lib/storageProxy";
+import { proxyUpload, proxyGetPublicUrl } from "@/lib/storageProxy";
 import { useHRPermissions } from "@/hooks/useHRPermissions";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
