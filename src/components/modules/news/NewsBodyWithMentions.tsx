@@ -1,4 +1,4 @@
-import { useEmployees } from "@/hooks/useEmployees";
+import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 
 interface NewsBodyWithMentionsProps {
   body: string;
