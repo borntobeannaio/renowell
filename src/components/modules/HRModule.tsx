@@ -190,10 +190,10 @@ function EmployeesTab() {
         {selectedEmployee && (
           <div className="space-y-6">
             <div className="flex items-center gap-4">
-              <ProxiedAvatar url={selectedEmployee.avatar_url} alt={selectedEmployee.full_name} size="md" />
+              <ProxiedAvatar url={selectedEmployee.avatar_url} alt={getEmployeeDisplayName(selectedEmployee)} size="md" />
               <div className="flex-1">
                 <h3 className="text-xl font-semibold text-foreground">
-                  {selectedEmployee.full_name}
+                  {getEmployeeFullDisplayName(selectedEmployee)}
                 </h3>
                 <p className="text-muted-foreground">{selectedEmployee.position}</p>
                 {selectedEmployee.department && (
