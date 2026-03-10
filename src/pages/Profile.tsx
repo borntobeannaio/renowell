@@ -423,7 +423,16 @@ export default function Profile() {
 
           {/* Form */}
           <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Фамилия</Label>
+                <Input
+                  id="lastName"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Иванов"
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="firstName">Имя</Label>
                 <Input
@@ -434,12 +443,12 @@ export default function Profile() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Фамилия</Label>
+                <Label htmlFor="middleName">Отчество</Label>
                 <Input
-                  id="lastName"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  placeholder="Иванов"
+                  id="middleName"
+                  value={middleName}
+                  onChange={(e) => setMiddleName(e.target.value)}
+                  placeholder="Иванович"
                 />
               </div>
             </div>
