@@ -268,6 +268,13 @@ function EmployeesTab() {
                   <span>{formatDisplayDate(selectedEmployee.birthday)}</span>
                 </div>
               )}
+              {selectedEmployee.description && (
+                <div className="pt-2 border-t border-border">
+                  <p className="text-sm text-muted-foreground whitespace-pre-line">
+                    {selectedEmployee.description}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
