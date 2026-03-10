@@ -1537,10 +1537,10 @@ export default function ProtocolEditor() {
     }
 
     const organizerName = form.organizer_id
-      ? employees.find((e) => e.id === form.organizer_id)?.full_name || null
+      ? (() => { const e = employees.find((e) => e.id === form.organizer_id); return e ? getEmployeeDisplayName(e) : null; })()
       : null;
     const attendeeNames = form.attendee_ids
-      .map((empId) => employees.find((e) => e.id === empId)?.full_name)
+      .map((empId) => { const e = employees.find((e) => e.id === empId); return e ? getEmployeeDisplayName(e) : null; })
       .filter(Boolean) as string[];
 
     isSavingRef.current = true;
