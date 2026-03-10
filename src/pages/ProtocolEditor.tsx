@@ -1986,10 +1986,12 @@ export default function ProtocolEditor() {
 
   // Computed
   const pageTitle = isEditMode
-    ? `Протокол №${existingProtocol?.number || ""}`
+    ? `${isTenderMode ? 'Тендер-протокол' : 'Протокол'} №${existingProtocol?.number || ""}`
     : isCopyMode
       ? "Копирование протокола"
-      : "Новый протокол";
+      : isTenderMode
+        ? "Новый тендер-протокол"
+        : "Новый протокол";
 
   const totalItems = sectionGroups.reduce((sum, g) => {
     if (g.sectionType === "tender" && g.companyGroups) {
