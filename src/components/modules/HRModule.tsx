@@ -105,6 +105,32 @@ function EmployeesTab() {
     setSelectedEmployee(null);
   };
 
+  const handleDeleteEmployee = async () => {
+    if (!deletingEmployee) return;
+    setIsDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const { data, error } = await supabase.functions.invoke("delete-employee", {
+        body: { employee_id: deletingEmployee.id },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success(`Сотрудник ${deletingEmployee.full_name} удалён`);
+      setDeletingEmployee(null);
+      setSelectedEmployee(null);
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+    } catch (err) {
+      console.error("Delete employee error:", err);
+      toast.error(`Ошибка удаления: ${err instanceof Error ? err.message : "Неизвестная ошибка"}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const openEmployeeCard = (emp: DbEmployee) => {
     setSelectedEmployee(emp);
   };
