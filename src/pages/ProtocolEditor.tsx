@@ -2091,10 +2091,17 @@ export default function ProtocolEditor() {
             >
               <ChevronsUpDown className="w-4 h-4" />
             </Button>
-            <Button onClick={() => setShowSectionModal(true)} variant="outline" size="sm" className="gap-2">
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Секция</span>
-            </Button>
+            {isTenderMode ? (
+              <Button onClick={() => setShowAddCompanyModal(true)} variant="outline" size="sm" className="gap-2">
+                <Building className="w-4 h-4" />
+                <span className="hidden sm:inline">Компания</span>
+              </Button>
+            ) : (
+              <Button onClick={() => setShowSectionModal(true)} variant="outline" size="sm" className="gap-2">
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Секция</span>
+              </Button>
+            )}
             {isEditMode && (
               <Button onClick={handleExportPdf} variant="outline" size="sm" className="gap-2">
                 <Download className="w-4 h-4" />
