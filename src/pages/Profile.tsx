@@ -344,8 +344,8 @@ export default function Profile() {
   };
 
   const proxiedAvatarUrl = useProxiedAvatarUrl(avatarUrl);
-  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || "U";
-  const fullName = [firstName, lastName].filter(Boolean).join(" ") || "Пользователь";
+  const initials = `${lastName.charAt(0)}${firstName.charAt(0)}`.toUpperCase() || "U";
+  const fullName = [lastName, firstName].filter(Boolean).join(" ") || "Пользователь";
 
   if (isLoading) {
     return (
