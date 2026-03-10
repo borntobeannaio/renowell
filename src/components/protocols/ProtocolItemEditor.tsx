@@ -1,6 +1,7 @@
 import { Trash2, CheckCircle2, Link2, Unlink, Archive, CheckSquare, Square, MessageCircle } from "lucide-react";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { ProtocolItemComments } from "./ProtocolItemComments";
+import { DbEmployee, getEmployeeDisplayName } from "@/hooks/useEmployees";
 
 export interface ProtocolItemData {
   id: string;
@@ -16,7 +17,7 @@ export interface ProtocolItemData {
 
 interface ProtocolItemEditorProps {
   item: ProtocolItemData;
-  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null; description: string | null; middle_name: string | null }[];
+  employees: DbEmployee[];
   projectDefaultResponsible: string | null;
   onUpdate: (updates: Partial<ProtocolItemData>) => void;
   onRemove: () => void;
