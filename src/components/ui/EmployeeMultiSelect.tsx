@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, X, User } from "lucide-react";
-import { DbEmployee } from "@/hooks/useEmployees";
+import { DbEmployee, getEmployeeDisplayName } from "@/hooks/useEmployees";
 
 interface EmployeeMultiSelectProps {
   employees: DbEmployee[];
@@ -74,7 +74,7 @@ export function EmployeeMultiSelect({
   }, []);
 
   const filteredEmployees = employees.filter((emp) =>
-    emp.full_name.toLowerCase().includes(search.toLowerCase()) ||
+    getEmployeeDisplayName(emp).toLowerCase().includes(search.toLowerCase()) ||
     emp.position.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -144,7 +144,7 @@ export function EmployeeMultiSelect({
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{emp.full_name}</p>
+                  <p className="text-sm font-medium text-foreground truncate">{getEmployeeDisplayName(emp)}</p>
                   <p className="text-xs text-muted-foreground truncate">{emp.position}</p>
                 </div>
                 {isSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
@@ -173,7 +173,7 @@ export function EmployeeMultiSelect({
                 key={emp.id}
                 className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full"
               >
-                {emp.full_name}
+                {getEmployeeDisplayName(emp)}
                 {!single && (
                   <button
                     type="button"

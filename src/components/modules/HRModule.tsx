@@ -12,6 +12,7 @@ import { AddEmployeeModal } from "@/components/modules/hr/AddEmployeeModal";
 import { EditEmployeeModal } from "@/components/modules/hr/EditEmployeeModal";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { DbEmployee, getEmployeeDisplayName, getEmployeeFullDisplayName } from "@/hooks/useEmployees";
 import {
   Users,
   Calendar,
@@ -25,20 +26,6 @@ import {
   Trash2,
   Loader2,
 } from "lucide-react";
-
-interface DbEmployee {
-  id: string;
-  full_name: string;
-  position: string;
-  phone: string | null;
-  email: string | null;
-  department: string | null;
-  avatar_url: string | null;
-  birthday: string | null;
-  profile_id: string | null;
-  description: string | null;
-  middle_name: string | null;
-}
 
 type HRTab = "employees" | "vacations" | "docs";
 
@@ -121,7 +108,7 @@ function EmployeesTab() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      toast.success(`Сотрудник ${deletingEmployee.full_name} удалён`);
+      toast.success(`Сотрудник ${getEmployeeDisplayName(deletingEmployee)} удалён`);
       setDeletingEmployee(null);
       setSelectedEmployee(null);
       queryClient.invalidateQueries({ queryKey: ["employees"] });
@@ -169,10 +156,10 @@ function EmployeesTab() {
             className="card-base p-4 text-left hover:border-primary/30 transition-colors"
           >
             <div className="flex items-center gap-3">
-              <ProxiedAvatar url={emp.avatar_url} alt={emp.full_name} size="sm" />
+              <ProxiedAvatar url={emp.avatar_url} alt={getEmployeeDisplayName(emp)} size="sm" />
               <div className="flex-1 min-w-0">
                 <h4 className="font-medium text-foreground truncate">
-                  {emp.full_name}
+                  {getEmployeeDisplayName(emp)}
                 </h4>
                 <p className="text-sm text-muted-foreground truncate">
                   {emp.position}
@@ -203,10 +190,10 @@ function EmployeesTab() {
         {selectedEmployee && (
           <div className="space-y-6">
             <div className="flex items-center gap-4">
-              <ProxiedAvatar url={selectedEmployee.avatar_url} alt={selectedEmployee.full_name} size="md" />
+              <ProxiedAvatar url={selectedEmployee.avatar_url} alt={getEmployeeDisplayName(selectedEmployee)} size="md" />
               <div className="flex-1">
                 <h3 className="text-xl font-semibold text-foreground">
-                  {selectedEmployee.full_name}
+                  {getEmployeeFullDisplayName(selectedEmployee)}
                 </h3>
                 <p className="text-muted-foreground">{selectedEmployee.position}</p>
                 {selectedEmployee.department && (
@@ -304,7 +291,7 @@ function EmployeesTab() {
           <div className="space-y-4">
             <p className="text-foreground">
               Вы уверены, что хотите удалить сотрудника{" "}
-              <strong>{deletingEmployee.full_name}</strong>?
+              <strong>{getEmployeeDisplayName(deletingEmployee)}</strong>?
             </p>
             <p className="text-sm text-destructive">
               Это действие необратимо. Будут удалены: аккаунт пользователя, профиль и запись сотрудника.

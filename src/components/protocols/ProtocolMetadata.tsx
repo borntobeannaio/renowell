@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, Info } from "lucide-react";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
+import { DbEmployee } from "@/hooks/useEmployees";
 
 interface ProtocolMetadataProps {
   form: {
@@ -10,7 +11,7 @@ interface ProtocolMetadataProps {
     attendee_ids: string[];
   };
   onChange: (updates: Partial<ProtocolMetadataProps["form"]>) => void;
-  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null; description: string | null; middle_name: string | null }[];
+  employees: DbEmployee[];
   protocolNumber: number;
   isEditMode?: boolean;
   defaultCollapsed?: boolean;

@@ -4,6 +4,9 @@ import { proxySelect } from "@/lib/dbProxy";
 export interface DbEmployee {
   id: string;
   full_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  middle_name: string | null;
   position: string;
   phone: string | null;
   email: string | null;
@@ -12,7 +15,22 @@ export interface DbEmployee {
   birthday: string | null;
   profile_id: string | null;
   description: string | null;
-  middle_name: string | null;
+}
+
+/** Returns "Фамилия Имя" display name */
+export function getEmployeeDisplayName(emp: Pick<DbEmployee, 'first_name' | 'last_name' | 'full_name'>): string {
+  if (emp.last_name || emp.first_name) {
+    return [emp.last_name, emp.first_name].filter(Boolean).join(" ");
+  }
+  return emp.full_name || "Сотрудник";
+}
+
+/** Returns full name with patronymic: "Фамилия Имя Отчество" */
+export function getEmployeeFullDisplayName(emp: Pick<DbEmployee, 'first_name' | 'last_name' | 'middle_name' | 'full_name'>): string {
+  if (emp.last_name || emp.first_name) {
+    return [emp.last_name, emp.first_name, emp.middle_name].filter(Boolean).join(" ");
+  }
+  return emp.full_name || "Сотрудник";
 }
 
 export function useEmployees() {

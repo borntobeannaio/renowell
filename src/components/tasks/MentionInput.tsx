@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Textarea } from "@/components/ui/textarea";
-import { useEmployees } from "@/hooks/useEmployees";
+import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
@@ -33,7 +33,7 @@ export function MentionInput({
 
   // Фильтрация сотрудников по запросу
   const filteredEmployees = employees.filter((emp) =>
-    emp.full_name.toLowerCase().includes(mentionQuery.toLowerCase())
+    getEmployeeDisplayName(emp).toLowerCase().includes(mentionQuery.toLowerCase())
   );
 
   // Обработка ввода текста
@@ -104,7 +104,7 @@ export function MentionInput({
         );
       } else if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        insertMention(filteredEmployees[selectedIndex].full_name);
+        insertMention(getEmployeeDisplayName(filteredEmployees[selectedIndex]));
       } else if (e.key === "Escape") {
         setShowSuggestions(false);
       }
@@ -160,7 +160,7 @@ export function MentionInput({
           {filteredEmployees.slice(0, 8).map((employee, index) => (
             <div
               key={employee.id}
-              onClick={() => insertMention(employee.full_name)}
+              onClick={() => insertMention(getEmployeeDisplayName(employee))}
               className={cn(
                 "flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors",
                 index === selectedIndex
@@ -171,11 +171,11 @@ export function MentionInput({
               <Avatar className="w-6 h-6">
                 <AvatarImage src={employee.avatar_url || undefined} />
                 <AvatarFallback className="text-xs">
-                  {getInitials(employee.full_name)}
+                  {getInitials(getEmployeeDisplayName(employee))}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{employee.full_name}</p>
+                <p className="text-sm font-medium truncate">{getEmployeeDisplayName(employee)}</p>
                 <p className="text-xs text-muted-foreground truncate">
                   {employee.position}
                 </p>

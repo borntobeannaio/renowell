@@ -3,7 +3,7 @@ import { MessageCircle, Send, Trash2, Loader2, Pencil, X, Check, Link2 } from "l
 import { useProtocolItemComments, useCreateProtocolItemComment, useUpdateProtocolItemComment, useDeleteProtocolItemComment } from "@/hooks/useProtocolItemComments";
 import { useTaskComments } from "@/hooks/useTaskComments";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
-import { useEmployees } from "@/hooks/useEmployees";
+import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -127,7 +127,7 @@ export function ProtocolItemComments({ itemId, taskId, profiles, protocolTitle, 
     // Извлечь упоминания для создания уведомлений
     const mentionedNames = extractMentions(newComment);
     const mentionedProfileIds = mentionedNames
-      .map((name) => employees.find((e) => e.full_name === name)?.profile_id)
+      .map((name) => employees.find((e) => getEmployeeDisplayName(e) === name)?.profile_id)
       .filter(Boolean) as string[];
 
     const authorName = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || "Пользователь";

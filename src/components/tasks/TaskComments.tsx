@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Send, Trash2, MessageSquare, Pencil, Check, X, Loader2 } from "lucide-react";
 import { useTaskComments, useCreateTaskComment, useDeleteTaskComment, useUpdateTaskComment, TaskComment } from "@/hooks/useTaskComments";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
-import { useEmployees } from "@/hooks/useEmployees";
+import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { toast } from "sonner";
@@ -38,7 +38,7 @@ export function TaskComments({ taskId, taskTitle }: TaskCommentsProps) {
     // Извлечь упоминания для создания уведомлений
     const mentionedNames = extractMentions(newComment);
     const mentionedProfileIds = mentionedNames
-      .map((name) => employees.find((e) => e.full_name === name)?.profile_id)
+      .map((name) => employees.find((e) => getEmployeeDisplayName(e) === name)?.profile_id)
       .filter(Boolean) as string[];
 
     createComment.mutate(

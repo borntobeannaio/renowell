@@ -158,6 +158,8 @@ serve(async (req) => {
       .from("employees")
       .insert({
         full_name,
+        first_name: firstName || null,
+        last_name: lastName || null,
         position,
         email,
         phone: phone || null,

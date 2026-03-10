@@ -43,7 +43,7 @@ import {
   getSectionDisplayName,
 } from "@/hooks/useProtocolSections";
 import { useProjects } from "@/hooks/useProjects";
-import { useEmployees } from "@/hooks/useEmployees";
+import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import { useCreateTask, useUpdateTask } from "@/hooks/useTasks";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useAuth } from "@/hooks/useAuth";
@@ -191,7 +191,7 @@ export default function ProtocolEditor() {
   useEffect(() => {
     if (isTenderMode && isNew && !isCopyMode && !tenderDefaultsApplied && employees.length > 0) {
       const oparinEmployee = employees.find(e => 
-        e.full_name.toLowerCase().includes("опарин") && e.full_name.toLowerCase().includes("андрей")
+        getEmployeeDisplayName(e).toLowerCase().includes("опарин") && getEmployeeDisplayName(e).toLowerCase().includes("андрей")
       );
       setForm(prev => ({
         ...prev,
@@ -278,7 +278,7 @@ export default function ProtocolEditor() {
     if (!responsible) return [];
     const names = responsible.split(", ").map(n => n.trim());
     return names
-      .map(name => employees.find(e => e.full_name === name)?.id)
+      .map(name => employees.find(e => getEmployeeDisplayName(e) === name)?.id)
       .filter(Boolean) as string[];
   }, [employees]);
 
@@ -287,7 +287,7 @@ export default function ProtocolEditor() {
     if (!responsible) return [];
     const names = responsible.split(", ").map(n => n.trim());
     return names
-      .map(name => employees.find(e => e.full_name === name)?.profile_id)
+      .map(name => employees.find(e => getEmployeeDisplayName(e) === name)?.profile_id)
       .filter(Boolean) as string[];
   }, [employees]);
 
@@ -295,11 +295,11 @@ export default function ProtocolEditor() {
   useEffect(() => {
     if (isEditMode && existingProtocol && !editInitialized && employees.length > 0 && !existingItemsLoading && !existingSectionsLoading) {
       const organizerEmployee = existingProtocol.organizer
-        ? employees.find((e) => e.full_name === existingProtocol.organizer)
+        ? employees.find((e) => getEmployeeDisplayName(e) === existingProtocol.organizer)
         : null;
 
       const attendeeIds = (existingProtocol.attendees || [])
-        .map((name) => employees.find((e) => e.full_name === name)?.id)
+        .map((name) => employees.find((e) => getEmployeeDisplayName(e) === name)?.id)
         .filter(Boolean) as string[];
 
       setForm({
@@ -380,11 +380,11 @@ export default function ProtocolEditor() {
   useEffect(() => {
     if (isCopyMode && sourceProtocol && !copyApplied && employees.length > 0 && !sourceItemsLoading && !sourceSectionsLoading) {
       const organizerEmployee = sourceProtocol.organizer
-        ? employees.find((e) => e.full_name === sourceProtocol.organizer)
+        ? employees.find((e) => getEmployeeDisplayName(e) === sourceProtocol.organizer)
         : null;
 
       const attendeeIds = (sourceProtocol.attendees || [])
-        .map((name) => employees.find((e) => e.full_name === name)?.id)
+        .map((name) => employees.find((e) => getEmployeeDisplayName(e) === name)?.id)
         .filter(Boolean) as string[];
 
       setForm({
@@ -1350,10 +1350,10 @@ export default function ProtocolEditor() {
     }
 
     const organizerName = form.organizer_id
-      ? employees.find((e) => e.id === form.organizer_id)?.full_name || null
+      ? (() => { const e = employees.find((e) => e.id === form.organizer_id); return e ? getEmployeeDisplayName(e) : null; })()
       : null;
     const attendeeNames = form.attendee_ids
-      .map((empId) => employees.find((e) => e.id === empId)?.full_name)
+      .map((empId) => { const e = employees.find((e) => e.id === empId); return e ? getEmployeeDisplayName(e) : null; })
       .filter(Boolean) as string[];
 
     isSavingRef.current = true;
@@ -1537,10 +1537,10 @@ export default function ProtocolEditor() {
     }
 
     const organizerName = form.organizer_id
-      ? employees.find((e) => e.id === form.organizer_id)?.full_name || null
+      ? (() => { const e = employees.find((e) => e.id === form.organizer_id); return e ? getEmployeeDisplayName(e) : null; })()
       : null;
     const attendeeNames = form.attendee_ids
-      .map((empId) => employees.find((e) => e.id === empId)?.full_name)
+      .map((empId) => { const e = employees.find((e) => e.id === empId); return e ? getEmployeeDisplayName(e) : null; })
       .filter(Boolean) as string[];
 
     isSavingRef.current = true;

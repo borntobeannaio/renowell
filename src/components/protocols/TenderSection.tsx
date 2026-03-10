@@ -15,6 +15,7 @@ import { ProtocolItemData } from "./ProtocolItemEditor";
 import { DroppableSection } from "./DroppableSection";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import type { SortableHandleProps } from "./SortableProtocolSection";
+import { DbEmployee, getEmployeeDisplayName } from "@/hooks/useEmployees";
 
 interface CompanyGroup {
   id: string;
@@ -25,19 +26,7 @@ interface CompanyGroup {
 interface TenderSectionProps {
   sectionId: string;
   companyGroups: CompanyGroup[];
-  employees: {
-    id: string;
-    full_name: string;
-    position: string;
-    avatar_url: string | null;
-    phone: string | null;
-    email: string | null;
-    department: string | null;
-    birthday: string | null;
-    profile_id: string | null;
-    description: string | null;
-    middle_name: string | null;
-  }[];
+  employees: DbEmployee[];
   defaultResponsible: string | null;
   onChangeDefaultResponsible: (responsible: string | null) => void;
   onUpdateItem: (companyId: string, itemId: string, updates: Partial<ProtocolItemData>) => void;
@@ -86,13 +75,13 @@ export function TenderSection({
     if (!responsible) return [];
     const names = responsible.split(", ").map((n) => n.trim());
     return names
-      .map((name) => employees.find((e) => e.full_name === name)?.id)
+      .map((name) => employees.find((e) => getEmployeeDisplayName(e) === name)?.id)
       .filter(Boolean) as string[];
   };
 
   const handleDefaultResponsibleChange = (ids: string[]) => {
     const responsibleNames = ids
-      .map((id) => employees.find((e) => e.id === id)?.full_name)
+      .map((id) => { const e = employees.find((e) => e.id === id); return e ? getEmployeeDisplayName(e) : null; })
       .filter(Boolean)
       .join(", ");
     onChangeDefaultResponsible(responsibleNames || null);
@@ -268,19 +257,7 @@ export function TenderSection({
 // Sub-component for each company
 interface CompanySubSectionProps {
   company: CompanyGroup;
-  employees: {
-    id: string;
-    full_name: string;
-    position: string;
-    avatar_url: string | null;
-    phone: string | null;
-    email: string | null;
-    department: string | null;
-    birthday: string | null;
-    profile_id: string | null;
-    description: string | null;
-    middle_name: string | null;
-  }[];
+  employees: DbEmployee[];
   defaultResponsible: string | null;
   isEditing: boolean;
   editingName: string;

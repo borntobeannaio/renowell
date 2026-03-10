@@ -6,7 +6,7 @@ import { TaskComments } from "@/components/tasks/TaskComments";
 import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight, Pencil, Users, Archive, ArchiveRestore, UserCheck, MoreVertical } from "lucide-react";
 import { useTasks, useCreateTask, useUpdateTask, DbTask, TaskStatus, TaskPriority, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS, TASK_PRIORITY_COLORS } from "@/hooks/useTasks";
 import { useProjects, useUpdateProject, Project } from "@/hooks/useProjects";
-import { useEmployees, DbEmployee } from "@/hooks/useEmployees";
+import { useEmployees, DbEmployee, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { formatDisplayDate } from "@/utils/dateFormat";
 import { toast } from "sonner";
@@ -399,7 +399,7 @@ export function TasksModule() {
     // Add employees that have tasks
     employees.forEach((emp) => {
       if (emp.profile_id && tasksByAssignee[emp.profile_id]?.length > 0) {
-        result.push({ id: emp.profile_id, name: emp.full_name });
+        result.push({ id: emp.profile_id, name: getEmployeeDisplayName(emp) });
       }
     });
 
@@ -411,7 +411,7 @@ export function TasksModule() {
     // Add employees without tasks at the end
     employees.forEach((emp) => {
       if (emp.profile_id && !tasksByAssignee[emp.profile_id]?.length) {
-        result.push({ id: emp.profile_id, name: emp.full_name });
+        result.push({ id: emp.profile_id, name: getEmployeeDisplayName(emp) });
       }
     });
 
@@ -1045,7 +1045,7 @@ function TaskCard({
       .map(pid => {
         const empId = profileToEmployee.get(pid);
         const emp = empId ? employees.find(e => e.id === empId) : null;
-        return emp?.full_name;
+        return emp ? getEmployeeDisplayName(emp) : undefined;
       })
       .filter(Boolean)
       .join(", ");

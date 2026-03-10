@@ -1,11 +1,12 @@
 import { Trash2, Target, Archive, CheckSquare, Square } from "lucide-react";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { ProtocolItemComments } from "./ProtocolItemComments";
+import { DbEmployee, getEmployeeDisplayName } from "@/hooks/useEmployees";
 
 export interface GoalItemData {
   id: string;
   section_id: string | null;
-  item_text: string;      // Goal/task text
+  item_text: string;
   responsible: string | null;
   due_date: string | null;
   kpi: string | null;
@@ -19,7 +20,7 @@ export interface GoalItemData {
 
 interface GoalItemEditorProps {
   item: GoalItemData;
-  employees: { id: string; full_name: string; position: string; avatar_url: string | null; phone: string | null; email: string | null; department: string | null; birthday: string | null; profile_id: string | null; description: string | null; middle_name: string | null }[];
+  employees: DbEmployee[];
   projectDefaultResponsible: string | null;
   onUpdate: (updates: Partial<GoalItemData>) => void;
   onRemove: () => void;
@@ -52,13 +53,13 @@ export function GoalItemEditor({
     if (!responsible) return [];
     const names = responsible.split(", ").map(n => n.trim());
     return names
-      .map(name => employees.find(e => e.full_name === name)?.id)
+      .map(name => employees.find(e => getEmployeeDisplayName(e) === name)?.id)
       .filter(Boolean) as string[];
   };
 
   const handleResponsibleChange = (ids: string[]) => {
     const responsibleNames = ids
-      .map(id => employees.find(e => e.id === id)?.full_name)
+      .map(id => { const e = employees.find(e => e.id === id); return e ? getEmployeeDisplayName(e) : null; })
       .filter(Boolean)
       .join(", ");
     onUpdate({ responsible: responsibleNames || null });

@@ -22,6 +22,7 @@ import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { SectionType } from "@/hooks/useProtocolSections";
 import { DeleteSectionModal } from "./DeleteSectionModal";
 import type { SortableHandleProps } from "./SortableProtocolSection";
+import { DbEmployee, getEmployeeDisplayName } from "@/hooks/useEmployees";
 
 interface UniversalSectionProps {
   sectionId: string;
@@ -30,19 +31,7 @@ interface UniversalSectionProps {
   entityId: string | null;
   entityName: string | null;
   items: (ProtocolItemData | GoalItemData)[];
-  employees: {
-    id: string;
-    full_name: string;
-    position: string;
-    avatar_url: string | null;
-    phone: string | null;
-    email: string | null;
-    department: string | null;
-    birthday: string | null;
-    profile_id: string | null;
-    description: string | null;
-    middle_name: string | null;
-  }[];
+  employees: DbEmployee[];
   projects: { id: string; name: string }[];
   defaultResponsible: string | null;
   onChangeDefaultResponsible: (responsible: string | null) => void;
@@ -161,13 +150,13 @@ export function UniversalSection({
     if (!responsible) return [];
     const names = responsible.split(", ").map((n) => n.trim());
     return names
-      .map((name) => employees.find((e) => e.full_name === name)?.id)
+      .map((name) => employees.find((e) => getEmployeeDisplayName(e) === name)?.id)
       .filter(Boolean) as string[];
   };
 
   const handleDefaultResponsibleChange = (ids: string[]) => {
     const responsibleNames = ids
-      .map((id) => employees.find((e) => e.id === id)?.full_name)
+      .map((id) => { const e = employees.find((e) => e.id === id); return e ? getEmployeeDisplayName(e) : null; })
       .filter(Boolean)
       .join(", ");
     onChangeDefaultResponsible(responsibleNames || null);
