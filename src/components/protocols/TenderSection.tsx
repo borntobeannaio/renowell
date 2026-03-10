@@ -15,6 +15,7 @@ import { ProtocolItemData } from "./ProtocolItemEditor";
 import { DroppableSection } from "./DroppableSection";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import type { SortableHandleProps } from "./SortableProtocolSection";
+import { DbEmployee, getEmployeeDisplayName } from "@/hooks/useEmployees";
 
 interface CompanyGroup {
   id: string;
@@ -25,19 +26,7 @@ interface CompanyGroup {
 interface TenderSectionProps {
   sectionId: string;
   companyGroups: CompanyGroup[];
-  employees: {
-    id: string;
-    full_name: string;
-    position: string;
-    avatar_url: string | null;
-    phone: string | null;
-    email: string | null;
-    department: string | null;
-    birthday: string | null;
-    profile_id: string | null;
-    description: string | null;
-    middle_name: string | null;
-  }[];
+  employees: DbEmployee[];
   defaultResponsible: string | null;
   onChangeDefaultResponsible: (responsible: string | null) => void;
   onUpdateItem: (companyId: string, itemId: string, updates: Partial<ProtocolItemData>) => void;
