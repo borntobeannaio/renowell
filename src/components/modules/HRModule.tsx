@@ -284,6 +284,42 @@ function EmployeesTab() {
         employee={editingEmployee}
         onSuccess={handleEmployeeUpdated}
       />
+
+      {/* Delete confirmation modal */}
+      <Modal
+        isOpen={!!deletingEmployee}
+        onClose={() => setDeletingEmployee(null)}
+        title="Удалить сотрудника"
+      >
+        {deletingEmployee && (
+          <div className="space-y-4">
+            <p className="text-foreground">
+              Вы уверены, что хотите удалить сотрудника{" "}
+              <strong>{deletingEmployee.full_name}</strong>?
+            </p>
+            <p className="text-sm text-destructive">
+              Это действие необратимо. Будут удалены: аккаунт пользователя, профиль и запись сотрудника.
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setDeletingEmployee(null)}
+                disabled={isDeleting}
+              >
+                Отмена
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteEmployee}
+                disabled={isDeleting}
+              >
+                {isDeleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Удалить
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </>
   );
 }
