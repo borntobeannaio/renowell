@@ -45,6 +45,7 @@ export default function Profile() {
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [middleName, setMiddleName] = useState("");
   const [position, setPosition] = useState("");
   const [birthday, setBirthday] = useState<Date | undefined>();
   const [description, setDescription] = useState("");
