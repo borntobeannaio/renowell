@@ -209,8 +209,7 @@ export default function ProtocolEditor() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [allSectionsCollapsed, setAllSectionsCollapsed] = useState(false);
 
-  // Detect tender mode: from URL param or existing protocol meeting_type
-  const isTenderMode = urlType === 'tender' || existingProtocol?.meeting_type === 'tender';
+  const [draftRestorePrompted, setDraftRestorePrompted] = useState(false);
   const [draftRestorePrompted, setDraftRestorePrompted] = useState(false);
   
   // Connection status state
