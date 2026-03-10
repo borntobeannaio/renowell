@@ -129,10 +129,12 @@ export function EditEmployeeModal({
       const employeeUpdateData: Record<string, unknown> = {
         phone: phone || null,
         middle_name: middleName.trim() || null,
+        first_name: firstName.trim() || null,
+        last_name: lastName.trim() || null,
+        full_name: fullName || "Пользователь",
       };
 
       if (!employee.profile_id) {
-        employeeUpdateData.full_name = fullName || "Пользователь";
         employeeUpdateData.position = position;
         employeeUpdateData.birthday = birthday || null;
       }
