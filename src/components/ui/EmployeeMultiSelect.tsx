@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, X, User } from "lucide-react";
-import { DbEmployee } from "@/hooks/useEmployees";
+import { DbEmployee, getEmployeeDisplayName } from "@/hooks/useEmployees";
 
 interface EmployeeMultiSelectProps {
   employees: DbEmployee[];
