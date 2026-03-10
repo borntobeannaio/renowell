@@ -175,7 +175,7 @@ export function MentionInput({
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{employee.full_name}</p>
+                <p className="text-sm font-medium truncate">{getEmployeeDisplayName(employee)}</p>
                 <p className="text-xs text-muted-foreground truncate">
                   {employee.position}
                 </p>
