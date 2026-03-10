@@ -139,13 +139,14 @@ export default function ProtocolEditor() {
   // Existing protocol data
   const existingProtocol = isEditMode ? protocols.find(p => p.id === id) : null;
   
-  // Detect tender mode: from URL param or existing protocol meeting_type
-  const isTenderMode = urlType === 'tender' || existingProtocol?.meeting_type === 'tender';
+  // Source protocol for copy mode
+  const sourceProtocol = isCopyMode ? protocols.find(p => p.id === copyFromId) : null;
+  
+  // Detect tender mode: from URL param, existing protocol, or source protocol (copy mode)
+  const isTenderMode = urlType === 'tender' || existingProtocol?.meeting_type === 'tender' || sourceProtocol?.meeting_type === 'tender';
   const { data: existingItems = [], isLoading: existingItemsLoading } = useProtocolItems(isEditMode ? id : null);
   const { data: existingSections = [], isLoading: existingSectionsLoading } = useProtocolSections(isEditMode ? id : null);
 
-  // Source protocol for copy mode
-  const sourceProtocol = isCopyMode ? protocols.find(p => p.id === copyFromId) : null;
   const { data: sourceItems = [], isLoading: sourceItemsLoading } = useProtocolItems(isCopyMode ? copyFromId : null);
   const { data: sourceSections = [], isLoading: sourceSectionsLoading } = useProtocolSections(isCopyMode ? copyFromId : null);
 
