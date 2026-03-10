@@ -1,33 +1,18 @@
 
 
-## Уведомления при добавлении во встречу
+## Fix: Task archiving blocked by DB constraint
 
-### Текущее поведение
+### Problem
+The `tasks_status_check` constraint only allows: `new`, `in_progress`, `review`, `done`, `on_hold`, `blocked`, `cancelled`. The status `archived` is missing.
 
-При создании или редактировании встречи участникам отправляется только ICS-приглашение на email. Внутренних уведомлений (колокольчик в приложении, Telegram, push) нет.
+### Solution
+Single migration: drop the old constraint and recreate it with `archived` added.
 
-### Что нужно сделать
+```sql
+ALTER TABLE public.tasks DROP CONSTRAINT tasks_status_check;
+ALTER TABLE public.tasks ADD CONSTRAINT tasks_status_check 
+  CHECK (status = ANY (ARRAY['new','in_progress','review','done','on_hold','blocked','cancelled','archived']));
+```
 
-Добавить создание записей в таблицу `notifications` при создании и обновлении встречи — аналогично тому, как это сделано для задач (`task_assigned`).
-
-### Файл для изменения
-
-**`src/hooks/useCalendarEvents.ts`**
-
-В мутации `createEvent` (в `onSuccess`):
-- Для каждого `participant_id` (кроме `creator_id`) создать уведомление:
-  - `type`: `"calendar_invite"`
-  - `title`: `"Вас добавили во встречу"`
-  - `body`: название встречи + дата/время
-  - `link`: `/calendar` (чтобы при клике открывался календарь на нужную дату)
-  - `recipient_id`: ID участника
-
-В мутации `updateEvent` (в `onSuccess`):
-- Аналогично, но с текстом `"Встреча обновлена"` для всех участников
-
-### Результат
-
-- Участники увидят уведомление в колокольчике приложения
-- Если включены Telegram/Email-уведомления — сработает существующий триггер `after_notification_insert`, который автоматически вызовет `send-external-notification`
-- Ссылка в уведомлении будет вести на календарь
+No code changes needed — the UI already sends `status: 'archived'`, the DB just rejects it.
 
