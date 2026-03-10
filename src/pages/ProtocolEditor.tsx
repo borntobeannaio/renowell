@@ -210,7 +210,6 @@ export default function ProtocolEditor() {
   const [allSectionsCollapsed, setAllSectionsCollapsed] = useState(false);
 
   const [draftRestorePrompted, setDraftRestorePrompted] = useState(false);
-  const [draftRestorePrompted, setDraftRestorePrompted] = useState(false);
   
   // Connection status state
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
