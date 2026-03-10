@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Plus, Loader2, Save, Download, Cloud, ChevronsUpDown, Archive, RotateCcw, History, WifiOff } from "lucide-react";
+import { ArrowLeft, Plus, Loader2, Save, Download, Cloud, ChevronsUpDown, Archive, RotateCcw, History, WifiOff, Building } from "lucide-react";
 import {
   DndContext,
   DragEndEvent,
