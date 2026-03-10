@@ -278,7 +278,7 @@ export default function ProtocolEditor() {
     if (!responsible) return [];
     const names = responsible.split(", ").map(n => n.trim());
     return names
-      .map(name => employees.find(e => e.full_name === name)?.id)
+      .map(name => employees.find(e => getEmployeeDisplayName(e) === name)?.id)
       .filter(Boolean) as string[];
   }, [employees]);
 
