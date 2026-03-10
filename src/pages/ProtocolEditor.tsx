@@ -183,9 +183,13 @@ export default function ProtocolEditor() {
   const [copyApplied, setCopyApplied] = useState(false);
   const [editInitialized, setEditInitialized] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
+  const [showAddCompanyModal, setShowAddCompanyModal] = useState(false);
   const [showHistoryPanel, setShowHistoryPanel] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [allSectionsCollapsed, setAllSectionsCollapsed] = useState(false);
+
+  // Detect tender mode: from URL param or existing protocol meeting_type
+  const isTenderMode = urlType === 'tender' || existingProtocol?.meeting_type === 'tender';
   const [draftRestorePrompted, setDraftRestorePrompted] = useState(false);
   
   // Connection status state
