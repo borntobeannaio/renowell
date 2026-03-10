@@ -1045,7 +1045,7 @@ function TaskCard({
       .map(pid => {
         const empId = profileToEmployee.get(pid);
         const emp = empId ? employees.find(e => e.id === empId) : null;
-        return emp?.full_name;
+        return emp ? getEmployeeDisplayName(emp) : undefined;
       })
       .filter(Boolean)
       .join(", ");
