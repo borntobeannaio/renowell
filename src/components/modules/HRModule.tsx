@@ -11,7 +11,7 @@ import { formatDisplayDate } from "@/utils/dateFormat";
 import { useHRPermissions } from "@/hooks/useHRPermissions";
 import { AddEmployeeModal } from "@/components/modules/hr/AddEmployeeModal";
 import { EditEmployeeModal } from "@/components/modules/hr/EditEmployeeModal";
-import { supabase } from "@/integrations/supabase/client";
+import { proxyEdgeFunction } from "@/lib/mediaProxy";
 import { toast } from "sonner";
 import { DbEmployee, getEmployeeDisplayName, getEmployeeFullDisplayName } from "@/hooks/useEmployees";
 import {
