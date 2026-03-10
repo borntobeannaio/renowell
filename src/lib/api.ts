@@ -172,7 +172,7 @@ export async function supabaseQuery<T>(
   return result;
 }
 
-// Wrapper for edge function calls with retry
+// Wrapper for edge function calls with retry (via Yandex proxy)
 export async function invokeEdgeFunction<T>(
   functionName: string,
   body: Record<string, unknown>,
@@ -180,12 +180,10 @@ export async function invokeEdgeFunction<T>(
 ): Promise<T> {
   return withRetry(
     async () => {
-      const { data, error } = await supabase.functions.invoke(functionName, { body });
-      if (error) throw error;
-      return data as T;
+      return await proxyEdgeFunction<T>(functionName, body);
     },
     `Edge Function: ${functionName}`,
-    { timeout: 30000, ...options } // Edge functions get longer timeout
+    { timeout: 30000, ...options }
   );
 }
 
