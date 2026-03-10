@@ -4,8 +4,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useConversations, useConversationMessages, useCreateConversation, useSendMessage, useAIMessages, useSaveAIMessage, useClearAIHistory } from "@/hooks/useChat";
 import { useCreateCall } from "@/hooks/useCalls";
 import { Modal } from "@/components/ui/Modal";
-import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { proxySelect } from "@/lib/dbProxy";
 import { useChatContext } from "@/context/ChatContext";
 import { useUnreadCounts, useMarkConversationRead, useChatNotificationSound, useTotalUnreadCount } from "@/hooks/useChatUnread";
 import { useChatAttachments, ChatAttachment } from "@/hooks/useChatAttachments";
@@ -81,11 +81,11 @@ export function FloatingChat() {
   const { data: profiles = [] } = useQuery({
     queryKey: ["profiles"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, avatar_url, user_id");
-      if (error) throw error;
-      return data;
+      const { data, error } = await proxySelect<{ id: string; first_name: string | null; last_name: string | null; avatar_url: string | null; user_id: string }>("profiles", {
+        select: "id, first_name, last_name, avatar_url, user_id",
+      });
+      if (error) throw new Error(error.message);
+      return data ?? [];
     },
   });
 
@@ -360,12 +360,12 @@ export function FloatingChat() {
     queryKey: ["conversation-participants", selectedConversationId],
     queryFn: async () => {
       if (!selectedConversationId) return [];
-      const { data, error } = await supabase
-        .from("chat_participants")
-        .select("user_id")
-        .eq("conversation_id", selectedConversationId);
-      if (error) throw error;
-      return data.map(p => p.user_id);
+      const { data, error } = await proxySelect<{ user_id: string }>("chat_participants", {
+        select: "user_id",
+        filters: [{ column: "conversation_id", operator: "eq", value: selectedConversationId }],
+      });
+      if (error) throw new Error(error.message);
+      return (data ?? []).map(p => p.user_id);
     },
     enabled: !!selectedConversationId,
   });
@@ -374,11 +374,27 @@ export function FloatingChat() {
   const { data: allConversationParticipants = [] } = useQuery({
     queryKey: ["all-conversation-participants"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("chat_participants")
-        .select("conversation_id, user_id, profiles:profiles!chat_participants_user_id_fkey(id, first_name, last_name)");
-      if (error) throw error;
-      return data;
+      // db-proxy doesn't support joins, so fetch participants and profiles separately
+      const { data: participants, error: pErr } = await proxySelect<{ conversation_id: string; user_id: string }>("chat_participants", {
+        select: "conversation_id, user_id",
+      });
+      if (pErr) throw new Error(pErr.message);
+
+      const uniqueUserIds = [...new Set((participants ?? []).map(p => p.user_id))];
+      if (uniqueUserIds.length === 0) return [];
+
+      const { data: profilesData, error: prErr } = await proxySelect<{ id: string; first_name: string | null; last_name: string | null }>("profiles", {
+        select: "id, first_name, last_name",
+        filters: [{ column: "id", operator: "in", value: uniqueUserIds }],
+      });
+      if (prErr) throw new Error(prErr.message);
+
+      const profileMap = new Map((profilesData ?? []).map(p => [p.id, p]));
+      return (participants ?? []).map(p => ({
+        conversation_id: p.conversation_id,
+        user_id: p.user_id,
+        profiles: profileMap.get(p.user_id) || null,
+      }));
     },
     enabled: conversations.length > 0,
   });

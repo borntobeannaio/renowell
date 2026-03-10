@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { proxySelect, proxyInsert, proxyUpdate, proxyDelete } from "@/lib/dbProxy";
-import { supabase } from "@/integrations/supabase/client";
+import { proxyEdgeFunction } from "@/lib/mediaProxy";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -91,16 +91,12 @@ export function useCalendarEvents() {
 
       // Send calendar invite in background
       if (newEvent?.id && newEvent.participant_ids?.length > 0) {
-        supabase.functions
-          .invoke("send-calendar-invite", {
-            body: { event_id: newEvent.id },
+        proxyEdgeFunction("send-calendar-invite", { event_id: newEvent.id })
+          .then(() => {
+            toast.success("Приглашения отправлены на email");
           })
-          .then(({ error }) => {
-            if (error) {
-              console.error("Failed to send invites:", error);
-            } else {
-              toast.success("Приглашения отправлены на email");
-            }
+          .catch((error) => {
+            console.error("Failed to send invites:", error);
           });
       }
     },
@@ -146,13 +142,12 @@ export function useCalendarEvents() {
       }
 
       if (updated.participant_ids?.length > 0) {
-        supabase.functions
-          .invoke("send-calendar-invite", {
-            body: { event_id: updated.id, update: true },
+        proxyEdgeFunction("send-calendar-invite", { event_id: updated.id, update: true })
+          .then(() => {
+            toast.success("Обновлённые приглашения отправлены");
           })
-          .then(({ error }) => {
-            if (error) console.error("Failed to send update invites:", error);
-            else toast.success("Обновлённые приглашения отправлены");
+          .catch((error) => {
+            console.error("Failed to send update invites:", error);
           });
       }
     },
@@ -179,9 +174,7 @@ export function useCalendarEvents() {
 
   const syncCalendars = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("sync-ics-calendar");
-      if (error) throw error;
-      return data;
+      return await proxyEdgeFunction<{ results?: { synced: number }[] }>("sync-ics-calendar", {});
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["calendar_events"] });

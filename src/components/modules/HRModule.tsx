@@ -11,7 +11,7 @@ import { formatDisplayDate } from "@/utils/dateFormat";
 import { useHRPermissions } from "@/hooks/useHRPermissions";
 import { AddEmployeeModal } from "@/components/modules/hr/AddEmployeeModal";
 import { EditEmployeeModal } from "@/components/modules/hr/EditEmployeeModal";
-import { supabase } from "@/integrations/supabase/client";
+import { proxyEdgeFunction } from "@/lib/mediaProxy";
 import { toast } from "sonner";
 import { DbEmployee, getEmployeeDisplayName, getEmployeeFullDisplayName } from "@/hooks/useEmployees";
 import {
@@ -99,14 +99,10 @@ function EmployeesTab() {
     if (!deletingEmployee) return;
     setIsDeleting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
-
-      const { data, error } = await supabase.functions.invoke("delete-employee", {
-        body: { employee_id: deletingEmployee.id },
+      const data = await proxyEdgeFunction<{ error?: string }>("delete-employee", {
+        employee_id: deletingEmployee.id,
       });
 
-      if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
       toast.success(`Сотрудник ${getEmployeeDisplayName(deletingEmployee)} удалён`);
