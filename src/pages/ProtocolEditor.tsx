@@ -108,6 +108,7 @@ export default function ProtocolEditor() {
   const { id } = useParams<{ id?: string }>();
   const [searchParams] = useSearchParams();
   const copyFromId = searchParams.get("copy");
+  const urlType = searchParams.get("type");
 
   const isNew = !id || id === "new";
   const isEditMode = !!id && id !== "new";
