@@ -138,6 +138,9 @@ export default function ProtocolEditor() {
 
   // Existing protocol data
   const existingProtocol = isEditMode ? protocols.find(p => p.id === id) : null;
+  
+  // Detect tender mode: from URL param or existing protocol meeting_type
+  const isTenderMode = urlType === 'tender' || existingProtocol?.meeting_type === 'tender';
   const { data: existingItems = [], isLoading: existingItemsLoading } = useProtocolItems(isEditMode ? id : null);
   const { data: existingSections = [], isLoading: existingSectionsLoading } = useProtocolSections(isEditMode ? id : null);
 
