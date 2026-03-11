@@ -70,7 +70,7 @@ function AuthorAvatar({ url, name }: { url: string | null; name: string }) {
   );
 }
 
-export function TaskHistory() {
+export function TaskHistory({ onTaskClick }: { onTaskClick?: (taskId: string) => void }) {
   const { data: employees = [] } = useEmployees();
   const { data: projects = [] } = useProjects({ includeArchived: true });
 
@@ -284,7 +284,7 @@ export function TaskHistory() {
                   {/* Body */}
                   {item.type === "create" && (
                     <p className="text-sm text-foreground">
-                      Создал задачу <span className="font-medium">«{item.taskTitle}»</span>
+                      Создал задачу <button onClick={() => onTaskClick?.(item.taskId)} className="font-medium hover:underline text-primary cursor-pointer">«{item.taskTitle}»</button>
                     </p>
                   )}
 
@@ -297,7 +297,7 @@ export function TaskHistory() {
                   {item.type === "update" && (
                     <div className="space-y-1">
                       <p className="text-sm text-muted-foreground">
-                        Изменил задачу <span className="font-medium text-foreground">«{item.taskTitle}»</span>
+                      Изменил задачу <button onClick={() => onTaskClick?.(item.taskId)} className="font-medium text-primary hover:underline cursor-pointer">«{item.taskTitle}»</button>
                       </p>
                       {item.changes?.map((ch, i) => (
                         <div key={i} className="text-sm pl-2 border-l-2 border-blue-500/30">

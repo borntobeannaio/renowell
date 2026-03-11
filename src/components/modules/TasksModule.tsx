@@ -84,6 +84,7 @@ export function TasksModule() {
   const [expandedAssignees, setExpandedAssignees] = useState<Set<string>>(new Set(["no-assignee"]));
   const [groupBy, setGroupBy] = useState<GroupByMode>("project");
   const [showArchived, setShowArchived] = useState(false);
+  const [activeTab, setActiveTab] = useState("board");
   const [form, setForm] = useState({
     title: "",
     assignee_ids: [] as string[],
@@ -435,7 +436,7 @@ export function TasksModule() {
   }
 
   return (
-    <Tabs defaultValue="board" className="space-y-4 md:space-y-6">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
       <TabsList>
         <TabsTrigger value="board">Доска</TabsTrigger>
         <TabsTrigger value="history" className="gap-1.5">
@@ -1030,7 +1031,10 @@ export function TasksModule() {
       </TabsContent>
 
       <TabsContent value="history" className="mt-0">
-        <TaskHistory />
+        <TaskHistory onTaskClick={(taskId) => {
+          setSearchParams({ task: taskId });
+          setActiveTab("board");
+        }} />
       </TabsContent>
     </Tabs>
   );
