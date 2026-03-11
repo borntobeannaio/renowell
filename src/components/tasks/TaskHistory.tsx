@@ -232,7 +232,7 @@ export function TaskHistory({ onTaskClick }: { onTaskClick?: (taskId: string) =>
         type: "comment",
         timestamp: c.created_at,
         authorId: c.author_id,
-        taskTitle: "",
+        taskTitle: taskTitleMap.get(c.task_id) || "Задача",
         taskId: c.task_id,
         commentText: c.content,
       });
