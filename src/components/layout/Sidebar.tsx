@@ -15,7 +15,7 @@ import {
   Info,
 } from "lucide-react";
 import renowellLogo from "@/assets/renowell-logo-text.png";
-import { useProtocolPermissions } from "@/hooks/useProtocolPermissions";
+
 
 const allNavItems: { id: NavigationSection; path: string; label: string; icon: React.ElementType }[] = [
   { id: "brandhub", path: "/brandhub", label: "О нас", icon: Sparkles },
