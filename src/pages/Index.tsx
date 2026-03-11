@@ -1,4 +1,4 @@
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams, Navigate } from "react-router-dom";
 import { useEffect, useMemo } from "react";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { ChatProvider, useChatContext } from "@/context/ChatContext";
