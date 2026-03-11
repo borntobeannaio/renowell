@@ -2306,12 +2306,12 @@ export default function ProtocolEditor() {
                               onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
                               onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
                               onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
-                              onArchiveItem={(itemId) => handleArchiveItem(index, itemId)}
-                              onPersistTempItem={(itemId) => handlePersistTempItem(index, itemId)}
-                              onAddItem={() => handleAddItemToSection(index)}
-                              onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
-                              onRemoveSection={() => handleRemoveSection(index)}
-                              onArchiveSection={() => handleRestoreSection(index)}
+                               onArchiveItem={canArchive ? (itemId) => handleArchiveItem(index, itemId) : undefined}
+                               onPersistTempItem={(itemId) => handlePersistTempItem(index, itemId)}
+                               onAddItem={() => handleAddItemToSection(index)}
+                               onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
+                               onRemoveSection={() => handleRemoveSection(index)}
+                               onArchiveSection={canArchive ? () => handleRestoreSection(index) : undefined}
                               onMoveItemsToSection={(targetSectionId) => handleMoveItemsToSection(index, targetSectionId)}
                               otherSections={getOtherSections(index)}
                               canEdit={!isEditMode || group.id.startsWith("temp-")}
