@@ -116,7 +116,7 @@ export default function ProtocolEditor() {
 
   // Auth and permissions
   const { user } = useAuth();
-  const { canEditProtocols } = useProtocolPermissions();
+  const { canEditProtocols, canArchive } = useProtocolPermissions();
   
   // Data hooks
   const { data: protocols = [], isLoading: protocolsLoading } = useProtocols();
