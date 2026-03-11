@@ -116,7 +116,14 @@ export default function ProtocolEditor() {
 
   // Auth and permissions
   const { user } = useAuth();
-  const { canEditProtocols, canArchive } = useProtocolPermissions();
+  const { canEditProtocols, canArchive, canViewProtocols } = useProtocolPermissions();
+  
+  // Redirect if user has no protocol access
+  useEffect(() => {
+    if (canViewProtocols === false) {
+      navigate('/news', { replace: true });
+    }
+  }, [canViewProtocols, navigate]);
   
   // Data hooks
   const { data: protocols = [], isLoading: protocolsLoading } = useProtocols();
