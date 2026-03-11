@@ -731,7 +731,7 @@ export function TasksModule() {
                                   profileToEmployee={employeeProfileMaps.profileToEmployee}
                                   onDragStart={handleDragStart}
                                   onEdit={openEditModal}
-                                    onArchive={(id) => {
+                                    onArchive={canArchiveTask ? (id) => {
                                       const isArchived = task.status === "archived";
                                       const newStatus = isArchived ? "new" : "archived";
                                       updateTask.mutate(
@@ -746,7 +746,7 @@ export function TasksModule() {
                                           },
                                         }
                                       );
-                                    }}
+                                    } : undefined}
                                 />
                               ))}
                             </div>
