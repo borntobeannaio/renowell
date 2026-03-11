@@ -3,7 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { TaskComments } from "@/components/tasks/TaskComments";
-import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight, Pencil, Users, Archive, ArchiveRestore, UserCheck, MoreVertical } from "lucide-react";
+import { TaskHistory } from "@/components/tasks/TaskHistory";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Plus, Calendar, User, GripVertical, FolderOpen, ChevronDown, ChevronRight, Pencil, Users, Archive, ArchiveRestore, UserCheck, MoreVertical, History } from "lucide-react";
 import { useTasks, useCreateTask, useUpdateTask, DbTask, TaskStatus, TaskPriority, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS, TASK_PRIORITY_COLORS } from "@/hooks/useTasks";
 import { useProjects, useUpdateProject, Project } from "@/hooks/useProjects";
 import { useEmployees, DbEmployee, getEmployeeDisplayName } from "@/hooks/useEmployees";
@@ -427,7 +429,17 @@ export function TasksModule() {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6">
+    <Tabs defaultValue="board" className="space-y-4 md:space-y-6">
+      <TabsList>
+        <TabsTrigger value="board">Доска</TabsTrigger>
+        <TabsTrigger value="history" className="gap-1.5">
+          <History className="w-3.5 h-3.5" />
+          История
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="board" className="mt-0">
+      <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col gap-3">
         {/* Top row: count and add button */}
         <div className="flex items-center justify-between">
@@ -1009,6 +1021,12 @@ export function TasksModule() {
         )}
       </Modal>
     </div>
+      </TabsContent>
+
+      <TabsContent value="history" className="mt-0">
+        <TaskHistory />
+      </TabsContent>
+    </Tabs>
   );
 }
 
