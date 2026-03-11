@@ -1098,11 +1098,14 @@ function TaskCard({
   const responsibleNames = getEmployeeNames(task.responsible_ids || []);
   const observerNames = getEmployeeNames(task.observer_ids || []);
 
+  const isDone = task.status === "done";
+  const borderClass = isDone ? "border-green-500" : style.border;
+
   return (
     <div
       draggable
       onDragStart={(e) => onDragStart(e, task.id)}
-      className={`relative bg-card border-2 ${style.border} rounded-lg p-3 pt-5 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow`}
+      className={`relative bg-card border-2 ${borderClass} rounded-lg p-3 pt-5 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow`}
     >
       {/* Priority bookmark */}
       <div className={`absolute -top-2 left-3 px-2 py-0.5 rounded text-xs font-semibold ${style.bg} ${style.text} shadow-sm`}>
