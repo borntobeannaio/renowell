@@ -1,5 +1,8 @@
 import { useApp } from "@/context/AppContext";
-import { Search, ArrowRight } from "lucide-react";
+import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
+import { useProtocols } from "@/hooks/useProtocols";
+import { useTasks } from "@/hooks/useTasks";
+import { Search, ArrowRight, Loader2 } from "lucide-react";
 import { NavigationSection } from "@/types";
 
 interface SearchResult {
@@ -11,125 +14,82 @@ interface SearchResult {
 }
 
 export function SearchModule() {
-  const {
-    searchQuery,
-    setCurrentSection,
-    news,
-    protocols,
-    tasks,
-    employees,
-    kbRubrics,
-    chats,
-    getEmployeeById,
-  } = useApp();
+  const { searchQuery, setCurrentSection } = useApp();
+  const { data: employees = [], isLoading: loadingEmp } = useEmployees();
+  const { data: protocols = [], isLoading: loadingProt } = useProtocols();
+  const { data: tasks = [], isLoading: loadingTasks } = useTasks();
 
   const query = searchQuery.toLowerCase();
+  const isLoading = loadingEmp || loadingProt || loadingTasks;
 
   const results: SearchResult[] = [];
 
-  // Search news
-  news.forEach((item) => {
-    if (
-      item.title.toLowerCase().includes(query) ||
-      item.body.toLowerCase().includes(query) ||
-      item.tags.some((t) => t.toLowerCase().includes(query))
-    ) {
-      results.push({
-        id: item.id,
-        type: "news",
-        title: item.title,
-        description: item.body.slice(0, 100) + "...",
-        section: "Новости",
-      });
-    }
-  });
-
-  // Search protocols
-  protocols.forEach((item) => {
-    if (
-      item.title.toLowerCase().includes(query) ||
-      item.attendees.some((a) => a.toLowerCase().includes(query)) ||
-      item.decisions.some((d) => d.text.toLowerCase().includes(query))
-    ) {
-      results.push({
-        id: item.id,
-        type: "protocols",
-        title: item.title,
-        description: `${item.date} • ${item.attendees.length} участников`,
-        section: "Протоколы",
-      });
-    }
-  });
-
-  // Search tasks
-  tasks.forEach((item) => {
-    const assignee = getEmployeeById(item.assignee);
-    if (
-      item.title.toLowerCase().includes(query) ||
-      item.labels.some((l) => l.toLowerCase().includes(query)) ||
-      assignee?.name.toLowerCase().includes(query)
-    ) {
-      results.push({
-        id: item.id,
-        type: "tasks",
-        title: item.title,
-        description: `${assignee?.name || "—"} • ${item.due}`,
-        section: "Задачи",
-      });
-    }
-  });
-
-  // Search employees
-  employees.forEach((item) => {
-    if (
-      item.name.toLowerCase().includes(query) ||
-      item.role.toLowerCase().includes(query) ||
-      item.dept.toLowerCase().includes(query) ||
-      item.email.toLowerCase().includes(query)
-    ) {
-      results.push({
-        id: item.id,
-        type: "hr",
-        title: item.name,
-        description: `${item.role} • ${item.dept}`,
-        section: "HR и Офис",
-      });
-    }
-  });
-
-  // Search knowledge base
-  kbRubrics.forEach((rubric) => {
-    rubric.docs.forEach((doc) => {
+  if (query) {
+    // Search employees
+    employees.forEach((emp) => {
       if (
-        doc.title.toLowerCase().includes(query) ||
-        doc.body.toLowerCase().includes(query)
+        emp.full_name?.toLowerCase().includes(query) ||
+        emp.position?.toLowerCase().includes(query) ||
+        emp.department?.toLowerCase().includes(query) ||
+        emp.email?.toLowerCase().includes(query) ||
+        emp.first_name?.toLowerCase().includes(query) ||
+        emp.last_name?.toLowerCase().includes(query)
       ) {
         results.push({
-          id: doc.id,
-          type: "knowledge",
-          title: doc.title,
-          description: `${rubric.title} • ${doc.type.toUpperCase()}`,
-          section: "База знаний",
+          id: emp.id,
+          type: "hr",
+          title: getEmployeeDisplayName(emp),
+          description: [emp.position, emp.department].filter(Boolean).join(" • "),
+          section: "HR и Офис",
         });
       }
     });
-  });
 
-  // Search chats
-  chats.forEach((chat) => {
-    if (
-      chat.title.toLowerCase().includes(query) ||
-      chat.messages.some((m) => m.text.toLowerCase().includes(query))
-    ) {
-      results.push({
-        id: chat.id,
-        type: "chats",
-        title: chat.title,
-        description: `${chat.messages.length} сообщений`,
-        section: "Чаты",
-      });
-    }
-  });
+    // Search protocols
+    protocols.forEach((p) => {
+      if (
+        p.title.toLowerCase().includes(query) ||
+        p.attendees?.some((a) => a.toLowerCase().includes(query)) ||
+        p.organizer?.toLowerCase().includes(query) ||
+        String(p.number).includes(query)
+      ) {
+        results.push({
+          id: p.id,
+          type: "protocols",
+          title: `№${p.number} — ${p.title}`,
+          description: `${p.date} • ${p.attendees?.length || 0} участников`,
+          section: "Протоколы",
+        });
+      }
+    });
+
+    // Search tasks
+    tasks.forEach((task) => {
+      const assigneeNames = (task.assignee_ids || [])
+        .map((aid) => employees.find((e) => e.profile_id === aid || e.id === aid))
+        .filter(Boolean)
+        .map((e) => getEmployeeDisplayName(e!));
+
+      if (
+        task.title.toLowerCase().includes(query) ||
+        task.labels?.some((l) => l.toLowerCase().includes(query)) ||
+        assigneeNames.some((n) => n.toLowerCase().includes(query))
+      ) {
+        results.push({
+          id: task.id,
+          type: "tasks",
+          title: task.title,
+          description: [
+            assigneeNames.length ? assigneeNames.join(", ") : "—",
+            task.due_date || "",
+          ]
+            .filter(Boolean)
+            .join(" • "),
+          section: "Задачи",
+        });
+      }
+    });
+  }
 
   const handleOpen = (result: SearchResult) => {
     setCurrentSection(result.type);
@@ -143,10 +103,15 @@ export function SearchModule() {
           Результаты поиска по запросу:{" "}
           <span className="font-medium text-foreground">"{searchQuery}"</span>
         </span>
-        <span className="chip">{results.length}</span>
+        {!isLoading && <span className="chip">{results.length}</span>}
       </div>
 
-      {results.length > 0 ? (
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <span>Поиск...</span>
+        </div>
+      ) : results.length > 0 ? (
         <div className="space-y-3">
           {results.map((result) => (
             <div
