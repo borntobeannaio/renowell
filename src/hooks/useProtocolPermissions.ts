@@ -63,11 +63,12 @@ export function useProtocolPermissions() {
       const organizer = p.organizer?.toLowerCase() || "";
 
       return attendees.some(a => {
+        if (!a) return false;
         for (const variant of nameVariants) {
           if (a.includes(variant) || variant.includes(a)) return true;
         }
         return false;
-      }) || [...nameVariants].some(v => organizer.includes(v) || v.includes(organizer));
+      }) || (organizer.length > 0 && [...nameVariants].some(v => organizer.includes(v) || v.includes(organizer)));
     });
   }, [canEditProtocols, profile?.id, employees, protocols]);
 
