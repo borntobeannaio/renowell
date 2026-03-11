@@ -20,15 +20,9 @@ const allNavItems: { id: NavigationSection; path: string; label: string; icon: R
 
 export function MobileNav() {
   const location = useLocation();
-  const { canViewProtocols } = useProtocolPermissions();
   const isActive = (path: string) => location.pathname === path;
 
-  const navItems = useMemo(() =>
-    allNavItems.filter(item => {
-      if (item.id === "protocols" && !canViewProtocols) return false;
-      return true;
-    }), [canViewProtocols]
-  );
+  const navItems = allNavItems;
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t border-border/50 z-40 safe-area-pb">

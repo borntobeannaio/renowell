@@ -61,14 +61,7 @@ export function Sidebar() {
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || 'U';
   const fullName = [firstName, lastName].filter(Boolean).join(' ') || 'Пользователь';
 
-  const { canViewProtocols } = useProtocolPermissions();
-
-  const navItems = useMemo(() => 
-    allNavItems.filter(item => {
-      if (item.id === "protocols" && !canViewProtocols) return false;
-      return true;
-    }), [canViewProtocols]
-  );
+  const navItems = allNavItems;
 
   const isActive = (path: string) => location.pathname === path;
 
