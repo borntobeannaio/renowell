@@ -10,8 +10,16 @@ import { useTasks, useCreateTask, useUpdateTask, DbTask, TaskStatus, TaskPriorit
 import { useProjects, useUpdateProject, Project } from "@/hooks/useProjects";
 import { useEmployees, DbEmployee, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
+import { useAuth } from "@/hooks/useAuth";
 import { formatDisplayDate } from "@/utils/dateFormat";
 import { toast } from "sonner";
+
+const TASK_ADMINS = [
+  "sonya369@gmail.com",
+  "anna.rum91@gmail.com",
+  "astashkina495@gmail.com",
+  "oparin@renowell.ru",
+];
 
 const columns: { id: TaskStatus; label: string }[] = [
   { id: "new", label: "Новая" },
