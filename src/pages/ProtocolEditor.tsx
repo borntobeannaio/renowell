@@ -116,7 +116,14 @@ export default function ProtocolEditor() {
 
   // Auth and permissions
   const { user } = useAuth();
-  const { canEditProtocols } = useProtocolPermissions();
+  const { canEditProtocols, canArchive, canViewProtocols } = useProtocolPermissions();
+  
+  // Redirect if user has no protocol access
+  useEffect(() => {
+    if (canViewProtocols === false) {
+      navigate('/news', { replace: true });
+    }
+  }, [canViewProtocols, navigate]);
   
   // Data hooks
   const { data: protocols = [], isLoading: protocolsLoading } = useProtocols();
@@ -2210,12 +2217,12 @@ export default function ProtocolEditor() {
                               onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
                               onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
                               onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
-                              onArchiveItem={(itemId) => handleArchiveItem(index, itemId)}
-                              onPersistTempItem={(itemId) => handlePersistTempItem(index, itemId)}
-                              onAddItem={() => handleAddItemToSection(index)}
-                              onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
-                              onRemoveSection={sectionGroups.filter(g => !g.archived).length > 1 ? () => handleRemoveSection(index) : undefined}
-                              onArchiveSection={() => handleArchiveSection(index)}
+                               onArchiveItem={canArchive ? (itemId) => handleArchiveItem(index, itemId) : undefined}
+                               onPersistTempItem={(itemId) => handlePersistTempItem(index, itemId)}
+                               onAddItem={() => handleAddItemToSection(index)}
+                               onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
+                               onRemoveSection={sectionGroups.filter(g => !g.archived).length > 1 ? () => handleRemoveSection(index) : undefined}
+                               onArchiveSection={canArchive ? () => handleArchiveSection(index) : undefined}
                               onMoveItemsToSection={(targetSectionId) => handleMoveItemsToSection(index, targetSectionId)}
                               otherSections={getOtherSections(index)}
                               canEdit={!isEditMode || group.id.startsWith("temp-")}
@@ -2306,12 +2313,12 @@ export default function ProtocolEditor() {
                               onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
                               onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
                               onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
-                              onArchiveItem={(itemId) => handleArchiveItem(index, itemId)}
-                              onPersistTempItem={(itemId) => handlePersistTempItem(index, itemId)}
-                              onAddItem={() => handleAddItemToSection(index)}
-                              onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
-                              onRemoveSection={() => handleRemoveSection(index)}
-                              onArchiveSection={() => handleRestoreSection(index)}
+                               onArchiveItem={canArchive ? (itemId) => handleArchiveItem(index, itemId) : undefined}
+                               onPersistTempItem={(itemId) => handlePersistTempItem(index, itemId)}
+                               onAddItem={() => handleAddItemToSection(index)}
+                               onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
+                               onRemoveSection={() => handleRemoveSection(index)}
+                               onArchiveSection={canArchive ? () => handleRestoreSection(index) : undefined}
                               onMoveItemsToSection={(targetSectionId) => handleMoveItemsToSection(index, targetSectionId)}
                               otherSections={getOtherSections(index)}
                               canEdit={!isEditMode || group.id.startsWith("temp-")}

@@ -1,4 +1,4 @@
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams, Navigate } from "react-router-dom";
 import { useEffect, useMemo } from "react";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { ChatProvider, useChatContext } from "@/context/ChatContext";
@@ -17,6 +17,7 @@ import { BrandHubModule } from "@/components/modules/BrandHubModule";
 import { AboutPlatformModule } from "@/components/modules/AboutPlatformModule";
 import { FloatingChat } from "@/components/chat/FloatingChat";
 import { useDbProxyWarmup } from "@/hooks/useDbProxyWarmup";
+import { useProtocolPermissions } from "@/hooks/useProtocolPermissions";
 import { NavigationSection } from "@/types";
 
 const sectionFromPath = (pathname: string): NavigationSection => {
@@ -32,6 +33,7 @@ function PortalContent() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { currentSection, setCurrentSection, setSearchQuery, searchQuery } = useApp();
   const { openChat } = useChatContext();
+  const { canViewProtocols } = useProtocolPermissions();
 
   const sectionFromUrl = useMemo(() => sectionFromPath(location.pathname), [location.pathname]);
 
@@ -65,6 +67,7 @@ function PortalContent() {
       case "news":
         return <NewsModule />;
       case "protocols":
+        if (!canViewProtocols) return <Navigate to="/news" replace />;
         return <ProtocolsModule />;
       case "tasks":
         return <TasksModule />;
