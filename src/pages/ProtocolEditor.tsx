@@ -1972,7 +1972,7 @@ export default function ProtocolEditor() {
           protocol_id: existingProtocol.id,
           section_type: group.sectionType,
           entity_id: group.entityId,
-          entity_name: group.entityName,
+          entity_name: group.sectionType === 'tender' ? 'Тендеры' : (group.entityName || null),
           default_responsible: group.defaultResponsible,
           sort_order: index,
         }));
