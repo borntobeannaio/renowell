@@ -76,12 +76,12 @@ function PortalContent() {
     }
   }, [sectionFromUrl, currentSection, setCurrentSection]);
 
-  // Sync context -> URL (for search navigation)
+  // When navigating away from search, clear search context
   useEffect(() => {
-    if (currentSection === "search" && location.pathname !== "/search") {
-      navigate("/search");
+    if (sectionFromUrl !== "search" && currentSection === "search") {
+      setCurrentSection(sectionFromUrl);
     }
-  }, [currentSection, location.pathname, navigate]);
+  }, [sectionFromUrl, currentSection, setCurrentSection]);
 
   const renderModule = () => {
     switch (sectionFromUrl) {
