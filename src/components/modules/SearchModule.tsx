@@ -15,6 +15,7 @@ interface SearchResult {
 }
 
 export function SearchModule() {
+  const navigate = useNavigate();
   const { searchQuery, setCurrentSection } = useApp();
   const { data: employees = [], isLoading: loadingEmp } = useEmployees();
   const { data: protocols = [], isLoading: loadingProt } = useProtocols();
