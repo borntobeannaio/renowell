@@ -426,21 +426,25 @@ export function TasksModule() {
 
   // Build assignees with tasks list
   const assigneesWithTasks = useMemo(() => {
-    const result: { id: string; name: string; isNoAssignee?: boolean }[] = [];
+    const nonArchivedCount = (id: string) =>
+      (tasksByAssignee[id] || []).filter(t => t.status !== "archived").length;
+
+    const withTasks: { id: string; name: string; isNoAssignee?: boolean }[] = [];
     
-    // Add employees that have tasks
     employees.forEach((emp) => {
       if (emp.profile_id && tasksByAssignee[emp.profile_id]?.length > 0) {
-        result.push({ id: emp.profile_id, name: getEmployeeDisplayName(emp) });
+        withTasks.push({ id: emp.profile_id, name: getEmployeeDisplayName(emp) });
       }
     });
 
-    // Add "no assignee" if there are tasks without assignee
     if (tasksByAssignee["no-assignee"]?.length > 0) {
-      result.push({ id: "no-assignee", name: "Не назначен", isNoAssignee: true });
+      withTasks.push({ id: "no-assignee", name: "Не назначен", isNoAssignee: true });
     }
 
-    // Add employees without tasks at the end
+    withTasks.sort((a, b) => nonArchivedCount(b.id) - nonArchivedCount(a.id));
+
+    const result = [...withTasks];
+
     employees.forEach((emp) => {
       if (emp.profile_id && !tasksByAssignee[emp.profile_id]?.length) {
         result.push({ id: emp.profile_id, name: getEmployeeDisplayName(emp) });
