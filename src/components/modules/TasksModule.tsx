@@ -1031,7 +1031,10 @@ export function TasksModule() {
       </TabsContent>
 
       <TabsContent value="history" className="mt-0">
-        <TaskHistory />
+        <TaskHistory onTaskClick={(taskId) => {
+          setSearchParams({ task: taskId });
+          setActiveTab("board");
+        }} />
       </TabsContent>
     </Tabs>
   );
