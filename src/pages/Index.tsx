@@ -17,6 +17,7 @@ import { BrandHubModule } from "@/components/modules/BrandHubModule";
 import { AboutPlatformModule } from "@/components/modules/AboutPlatformModule";
 import { FloatingChat } from "@/components/chat/FloatingChat";
 import { useDbProxyWarmup } from "@/hooks/useDbProxyWarmup";
+import { useProtocolPermissions } from "@/hooks/useProtocolPermissions";
 import { NavigationSection } from "@/types";
 
 const sectionFromPath = (pathname: string): NavigationSection => {
