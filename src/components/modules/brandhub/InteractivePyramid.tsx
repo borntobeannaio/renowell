@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { ChevronRight, Sparkles } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { brandData } from "./BrandHubData";
 
 interface InteractivePyramidProps {
