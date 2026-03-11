@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { NavigationSection } from "@/types";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -8,7 +7,6 @@ import {
   Users,
   Calendar,
 } from "lucide-react";
-import { useProtocolPermissions } from "@/hooks/useProtocolPermissions";
 
 const allNavItems: { id: NavigationSection; path: string; label: string; icon: React.ElementType }[] = [
   { id: "news", path: "/news", label: "Новости", icon: Newspaper },
