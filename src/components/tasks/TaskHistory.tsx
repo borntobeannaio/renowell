@@ -284,7 +284,7 @@ export function TaskHistory({ onTaskClick }: { onTaskClick?: (taskId: string) =>
                   {/* Body */}
                   {item.type === "create" && (
                     <p className="text-sm text-foreground">
-                      Создал задачу <span className="font-medium">«{item.taskTitle}»</span>
+                      Создал задачу <button onClick={() => onTaskClick?.(item.taskId)} className="font-medium hover:underline text-primary cursor-pointer">«{item.taskTitle}»</button>
                     </p>
                   )}
 
