@@ -119,8 +119,14 @@ export default function ProtocolEditor() {
   const { canEditProtocols, canArchive, canViewProtocols } = useProtocolPermissions();
   
   // Redirect if user has no protocol access
+  const accessDeniedShown = useRef(false);
   useEffect(() => {
-    if (canViewProtocols === false) {
+    if (canViewProtocols === false && !accessDeniedShown.current) {
+      accessDeniedShown.current = true;
+      toast.error("Доступ к протоколам ограничён 🔒", {
+        description: "У вас недостаточно прав. Напишите в чат техподдержки 💬",
+        duration: 6000,
+      });
       navigate('/news', { replace: true });
     }
   }, [canViewProtocols, navigate]);
