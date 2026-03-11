@@ -11,6 +11,7 @@ interface InteractivePyramidProps {
 export function InteractivePyramid({ onLayerSelect, selectedLevel }: InteractivePyramidProps) {
   const [mounted, setMounted] = useState(false);
   const [hoveredLayer, setHoveredLayer] = useState<number | null>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     setMounted(true);
