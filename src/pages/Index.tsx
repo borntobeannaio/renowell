@@ -67,7 +67,9 @@ function PortalContent() {
       case "news":
         return <NewsModule />;
       case "protocols":
-        if (!canViewProtocols) return <Navigate to="/news" replace />;
+        if (!canViewProtocols) {
+          return <ProtocolAccessDenied />;
+        }
         return <ProtocolsModule />;
       case "tasks":
         return <TasksModule />;
