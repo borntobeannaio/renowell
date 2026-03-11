@@ -297,7 +297,7 @@ export function TaskHistory({ onTaskClick }: { onTaskClick?: (taskId: string) =>
                   {item.type === "update" && (
                     <div className="space-y-1">
                       <p className="text-sm text-muted-foreground">
-                        Изменил задачу <span className="font-medium text-foreground">«{item.taskTitle}»</span>
+                      Изменил задачу <button onClick={() => onTaskClick?.(item.taskId)} className="font-medium text-primary hover:underline cursor-pointer">«{item.taskTitle}»</button>
                       </p>
                       {item.changes?.map((ch, i) => (
                         <div key={i} className="text-sm pl-2 border-l-2 border-blue-500/30">
