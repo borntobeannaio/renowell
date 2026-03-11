@@ -113,7 +113,7 @@ export function TaskHistory({ onTaskClick }: { onTaskClick?: (taskId: string) =>
       if (commentTaskIds.length === 0) return [];
       const { data, error } = await proxySelect<{ id: string; title: string }>("tasks", {
         select: "id, title",
-        filters: [{ column: "id", operator: "in", value: `(${commentTaskIds.join(",")})` }],
+        filters: [{ column: "id", operator: "in", value: commentTaskIds }],
       });
       if (error) throw new Error(error.message);
       return data || [];
