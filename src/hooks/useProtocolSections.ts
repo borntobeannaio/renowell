@@ -132,7 +132,7 @@ export function getSectionDisplayName(
       }
       return 'Без проекта (общие вопросы)';
     case 'tender':
-      return section.entity_name ? `Тендер: ${section.entity_name}` : 'Тендер';
+      return section.entity_name || 'Тендеры';
     case 'hr':
       return section.entity_name || 'Подбор персонала';
     case 'business':
