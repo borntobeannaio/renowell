@@ -1106,20 +1106,22 @@ function TaskCard({
 
       {/* Edit and Archive buttons */}
       <div className="absolute top-1 right-1 flex items-center gap-0.5">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onArchive(task.id);
-          }}
-          className="p-1 hover:bg-muted rounded transition-colors"
-          title={task.status === "archived" ? "Восстановить из архива" : "Архивировать"}
-        >
-          {task.status === "archived" ? (
-            <ArchiveRestore className="w-3.5 h-3.5 text-amber-500" />
-          ) : (
-            <Archive className="w-3.5 h-3.5 text-muted-foreground hover:text-amber-500" />
-          )}
-        </button>
+        {onArchive && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onArchive(task.id);
+            }}
+            className="p-1 hover:bg-muted rounded transition-colors"
+            title={task.status === "archived" ? "Восстановить из архива" : "Архивировать"}
+          >
+            {task.status === "archived" ? (
+              <ArchiveRestore className="w-3.5 h-3.5 text-amber-500" />
+            ) : (
+              <Archive className="w-3.5 h-3.5 text-muted-foreground hover:text-amber-500" />
+            )}
+          </button>
+        )}
         <button
           onClick={() => onEdit(task)}
           className="p-1 hover:bg-muted rounded transition-colors"
