@@ -338,9 +338,14 @@ export function TaskHistory({ onTaskClick }: { onTaskClick?: (taskId: string) =>
                   )}
 
                   {item.type === "comment" && (
-                    <p className="text-sm text-foreground whitespace-pre-wrap">
-                      {item.commentText}
-                    </p>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">
+                        Комментарий к задаче <button onClick={() => onTaskClick?.(item.taskId)} className="font-medium text-primary hover:underline cursor-pointer">«{item.taskTitle}»</button>
+                      </p>
+                      <p className="text-sm text-foreground whitespace-pre-wrap">
+                        {item.commentText}
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>
