@@ -394,17 +394,25 @@ export function TasksModule() {
   const projectsWithTasks = useMemo(() => {
     const result: (Project | { id: "no-project"; name: string })[] = [];
     
-    // Add projects that have tasks
+    // Count non-archived tasks per project
+    const nonArchivedCount = (projectId: string) =>
+      (tasksByProject[projectId] || []).filter(t => t.status !== "archived").length;
+
+    // Add projects that have tasks, sorted by non-archived task count desc
+    const withTasks: (Project | { id: "no-project"; name: string })[] = [];
+    
     projects.forEach((p) => {
       if (tasksByProject[p.id]?.length > 0) {
-        result.push(p);
+        withTasks.push(p);
       }
     });
 
-    // Add "no project" if there are tasks without project
     if (tasksByProject["no-project"]?.length > 0) {
-      result.push({ id: "no-project", name: "Без проекта" });
+      withTasks.push({ id: "no-project", name: "Без проекта" });
     }
+
+    withTasks.sort((a, b) => nonArchivedCount(b.id) - nonArchivedCount(a.id));
+    result.push(...withTasks);
 
     // Add projects without tasks at the end
     projects.forEach((p) => {
