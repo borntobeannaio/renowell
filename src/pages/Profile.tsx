@@ -490,11 +490,12 @@ export default function Profile() {
                     disabled={(date) =>
                       date > new Date() || date < new Date("1900-01-01")
                     }
-                    captionLayout="dropdown-buttons"
+                    captionLayout="dropdown"
                     fromYear={1950}
                     toYear={new Date().getFullYear()}
                     initialFocus
                     className={cn("p-3 pointer-events-auto")}
+                    classNames={{ caption_label: "hidden" }}
                     locale={ru}
                   />
                 </PopoverContent>
