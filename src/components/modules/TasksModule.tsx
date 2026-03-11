@@ -429,7 +429,17 @@ export function TasksModule() {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6">
+    <Tabs defaultValue="board" className="space-y-4 md:space-y-6">
+      <TabsList>
+        <TabsTrigger value="board">Доска</TabsTrigger>
+        <TabsTrigger value="history" className="gap-1.5">
+          <History className="w-3.5 h-3.5" />
+          История
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="board" className="mt-0">
+      <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col gap-3">
         {/* Top row: count and add button */}
         <div className="flex items-center justify-between">
