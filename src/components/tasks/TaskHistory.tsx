@@ -263,7 +263,7 @@ export function TaskHistory() {
                 <div className="rounded-lg border border-border bg-card p-3 shadow-sm">
                   {/* Header */}
                   <div className="flex items-center gap-2 mb-1">
-                    <ProxiedAvatar src={author.avatar} fallbackText={author.name} className="w-5 h-5 text-[10px]" />
+                    <AuthorAvatar url={author.avatar} name={author.name} />
                     <span className="text-sm font-medium text-foreground">{author.name}</span>
                     {actionIcon[item.type]}
                     <span className="ml-auto text-xs text-muted-foreground">
