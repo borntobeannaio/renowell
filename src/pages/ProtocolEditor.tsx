@@ -1752,7 +1752,7 @@ export default function ProtocolEditor() {
             protocol_id: id,
             section_type: group.sectionType,
             entity_id: group.entityId,
-            entity_name: group.entityName,
+            entity_name: group.sectionType === 'tender' ? 'Тендеры' : (group.entityName || null),
             default_responsible: group.defaultResponsible,
             sort_order: sectionSortOrder++,
           });
@@ -1763,7 +1763,7 @@ export default function ProtocolEditor() {
             id: group.id,
             protocol_id: id,
             entity_id: group.entityId,
-            entity_name: group.entityName,
+            entity_name: group.sectionType === 'tender' ? 'Тендеры' : (group.entityName || null),
             default_responsible: group.defaultResponsible,
             sort_order: sectionSortOrder++,
             archived: group.archived || false,
