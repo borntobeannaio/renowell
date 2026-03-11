@@ -1056,7 +1056,7 @@ interface TaskCardProps {
   profileToEmployee: Map<string, string>;
   onDragStart: (e: DragEvent, id: string) => void;
   onEdit: (task: DbTask) => void;
-  onArchive: (id: string) => void;
+  onArchive?: (id: string) => void;
 }
 
 function TaskCard({
