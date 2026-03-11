@@ -328,7 +328,7 @@ export function TasksModule() {
   const getTasksByStatusAndProject = (status: TaskStatus, projectId: string) =>
     (tasksByProject[projectId] || []).filter((t) => t.status === status);
 
-  // Group tasks by assignee
+  // Group tasks by assignee (using assignee_ids array)
   const tasksByAssignee = useMemo(() => {
     const grouped: Record<string, DbTask[]> = { "no-assignee": [] };
     
@@ -340,9 +340,15 @@ export function TasksModule() {
     });
 
     filteredTasks.forEach((task) => {
-      const key = task.assignee_id || "no-assignee";
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(task);
+      const ids = task.assignee_ids;
+      if (!ids || ids.length === 0) {
+        grouped["no-assignee"].push(task);
+      } else {
+        ids.forEach((profileId) => {
+          if (!grouped[profileId]) grouped[profileId] = [];
+          grouped[profileId].push(task);
+        });
+      }
     });
 
     return grouped;
