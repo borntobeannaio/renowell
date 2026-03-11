@@ -174,6 +174,11 @@ export function TasksModule() {
   const handleDrop = (e: DragEvent, status: TaskStatus) => {
     e.preventDefault();
     if (draggedTaskId) {
+      if (status === "archived" && !canArchiveTask) {
+        toast.error("Только администратор может архивировать задачи");
+        setDraggedTaskId(null);
+        return;
+      }
       updateTask.mutate({ id: draggedTaskId, status });
       setDraggedTaskId(null);
     }
