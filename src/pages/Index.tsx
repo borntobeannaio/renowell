@@ -1,5 +1,5 @@
 import { useLocation, useNavigate, useSearchParams, Navigate } from "react-router-dom";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { ChatProvider, useChatContext } from "@/context/ChatContext";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -19,6 +19,27 @@ import { FloatingChat } from "@/components/chat/FloatingChat";
 import { useDbProxyWarmup } from "@/hooks/useDbProxyWarmup";
 import { useProtocolPermissions } from "@/hooks/useProtocolPermissions";
 import { NavigationSection } from "@/types";
+import { toast } from "sonner";
+import { ShieldAlert } from "lucide-react";
+
+function ProtocolAccessDenied() {
+  const navigate = useNavigate();
+  const shown = useRef(false);
+
+  useEffect(() => {
+    if (!shown.current) {
+      shown.current = true;
+      toast("Доступ к протоколам ограничён 🔒", {
+        description: "У вас недостаточно прав для просмотра этого раздела. Напишите в чат техподдержки, если считаете, что это ошибка 💬",
+        duration: 6000,
+        icon: <ShieldAlert className="w-5 h-5 text-amber-500" />,
+      });
+      navigate("/news", { replace: true });
+    }
+  }, [navigate]);
+
+  return null;
+}
 
 const sectionFromPath = (pathname: string): NavigationSection => {
   const path = pathname.slice(1) || "news";
@@ -67,7 +88,9 @@ function PortalContent() {
       case "news":
         return <NewsModule />;
       case "protocols":
-        if (!canViewProtocols) return <Navigate to="/news" replace />;
+        if (!canViewProtocols) {
+          return <ProtocolAccessDenied />;
+        }
         return <ProtocolsModule />;
       case "tasks":
         return <TasksModule />;
