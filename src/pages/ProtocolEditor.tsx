@@ -832,7 +832,7 @@ export default function ProtocolEditor() {
           protocol_id: id,
           section_type: 'tender',
           entity_id: group.entityId,
-          entity_name: group.entityName || "Тендеры",
+          entity_name: 'Тендеры',
           default_responsible: group.defaultResponsible,
           sort_order: groupIndex,
         });
