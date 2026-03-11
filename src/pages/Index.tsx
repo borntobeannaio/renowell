@@ -33,6 +33,7 @@ function PortalContent() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { currentSection, setCurrentSection, setSearchQuery, searchQuery } = useApp();
   const { openChat } = useChatContext();
+  const { canViewProtocols } = useProtocolPermissions();
 
   const sectionFromUrl = useMemo(() => sectionFromPath(location.pathname), [location.pathname]);
 
