@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { ChevronRight, Sparkles } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { brandData } from "./BrandHubData";
 
 interface InteractivePyramidProps {
@@ -10,6 +11,7 @@ interface InteractivePyramidProps {
 export function InteractivePyramid({ onLayerSelect, selectedLevel }: InteractivePyramidProps) {
   const [mounted, setMounted] = useState(false);
   const [hoveredLayer, setHoveredLayer] = useState<number | null>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     setMounted(true);
@@ -137,7 +139,7 @@ export function InteractivePyramid({ onLayerSelect, selectedLevel }: Interactive
                 animationDelay: `${delay}ms`
               }}
               className={`
-                ${layer.width} py-4 md:py-5 px-5 md:px-8
+                ${isMobile ? "w-full" : layer.width} py-4 md:py-5 px-5 md:px-8
                 rounded-xl md:rounded-2xl
                 bg-gradient-to-r ${layer.gradient}
                 text-white font-medium
