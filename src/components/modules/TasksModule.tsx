@@ -394,17 +394,25 @@ export function TasksModule() {
   const projectsWithTasks = useMemo(() => {
     const result: (Project | { id: "no-project"; name: string })[] = [];
     
-    // Add projects that have tasks
+    // Count non-archived tasks per project
+    const nonArchivedCount = (projectId: string) =>
+      (tasksByProject[projectId] || []).filter(t => t.status !== "archived").length;
+
+    // Add projects that have tasks, sorted by non-archived task count desc
+    const withTasks: (Project | { id: "no-project"; name: string })[] = [];
+    
     projects.forEach((p) => {
       if (tasksByProject[p.id]?.length > 0) {
-        result.push(p);
+        withTasks.push(p);
       }
     });
 
-    // Add "no project" if there are tasks without project
     if (tasksByProject["no-project"]?.length > 0) {
-      result.push({ id: "no-project", name: "Без проекта" });
+      withTasks.push({ id: "no-project", name: "Без проекта" });
     }
+
+    withTasks.sort((a, b) => nonArchivedCount(b.id) - nonArchivedCount(a.id));
+    result.push(...withTasks);
 
     // Add projects without tasks at the end
     projects.forEach((p) => {
@@ -418,21 +426,25 @@ export function TasksModule() {
 
   // Build assignees with tasks list
   const assigneesWithTasks = useMemo(() => {
-    const result: { id: string; name: string; isNoAssignee?: boolean }[] = [];
+    const nonArchivedCount = (id: string) =>
+      (tasksByAssignee[id] || []).filter(t => t.status !== "archived").length;
+
+    const withTasks: { id: string; name: string; isNoAssignee?: boolean }[] = [];
     
-    // Add employees that have tasks
     employees.forEach((emp) => {
       if (emp.profile_id && tasksByAssignee[emp.profile_id]?.length > 0) {
-        result.push({ id: emp.profile_id, name: getEmployeeDisplayName(emp) });
+        withTasks.push({ id: emp.profile_id, name: getEmployeeDisplayName(emp) });
       }
     });
 
-    // Add "no assignee" if there are tasks without assignee
     if (tasksByAssignee["no-assignee"]?.length > 0) {
-      result.push({ id: "no-assignee", name: "Не назначен", isNoAssignee: true });
+      withTasks.push({ id: "no-assignee", name: "Не назначен", isNoAssignee: true });
     }
 
-    // Add employees without tasks at the end
+    withTasks.sort((a, b) => nonArchivedCount(b.id) - nonArchivedCount(a.id));
+
+    const result = [...withTasks];
+
     employees.forEach((emp) => {
       if (emp.profile_id && !tasksByAssignee[emp.profile_id]?.length) {
         result.push({ id: emp.profile_id, name: getEmployeeDisplayName(emp) });
@@ -1098,11 +1110,14 @@ function TaskCard({
   const responsibleNames = getEmployeeNames(task.responsible_ids || []);
   const observerNames = getEmployeeNames(task.observer_ids || []);
 
+  const isDone = task.status === "done";
+  const borderClass = isDone ? "border-green-500" : style.border;
+
   return (
     <div
       draggable
       onDragStart={(e) => onDragStart(e, task.id)}
-      className={`relative bg-card border-2 ${style.border} rounded-lg p-3 pt-5 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow`}
+      className={`relative bg-card border-2 ${borderClass} rounded-lg p-3 pt-5 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow`}
     >
       {/* Priority bookmark */}
       <div className={`absolute -top-2 left-3 px-2 py-0.5 rounded text-xs font-semibold ${style.bg} ${style.text} shadow-sm`}>
