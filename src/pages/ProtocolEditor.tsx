@@ -2210,12 +2210,12 @@ export default function ProtocolEditor() {
                               onChangeDefaultResponsible={(responsible) => handleChangeDefaultResponsible(index, responsible)}
                               onUpdateItem={(itemId, updates) => handleUpdateItem(index, itemId, updates)}
                               onRemoveItem={(itemId) => handleRemoveItem(index, itemId)}
-                              onArchiveItem={(itemId) => handleArchiveItem(index, itemId)}
-                              onPersistTempItem={(itemId) => handlePersistTempItem(index, itemId)}
-                              onAddItem={() => handleAddItemToSection(index)}
-                              onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
-                              onRemoveSection={sectionGroups.filter(g => !g.archived).length > 1 ? () => handleRemoveSection(index) : undefined}
-                              onArchiveSection={() => handleArchiveSection(index)}
+                               onArchiveItem={canArchive ? (itemId) => handleArchiveItem(index, itemId) : undefined}
+                               onPersistTempItem={(itemId) => handlePersistTempItem(index, itemId)}
+                               onAddItem={() => handleAddItemToSection(index)}
+                               onChangeEntity={(entityId, entityName) => handleChangeEntity(index, entityId, entityName)}
+                               onRemoveSection={sectionGroups.filter(g => !g.archived).length > 1 ? () => handleRemoveSection(index) : undefined}
+                               onArchiveSection={canArchive ? () => handleArchiveSection(index) : undefined}
                               onMoveItemsToSection={(targetSectionId) => handleMoveItemsToSection(index, targetSectionId)}
                               otherSections={getOtherSections(index)}
                               canEdit={!isEditMode || group.id.startsWith("temp-")}
