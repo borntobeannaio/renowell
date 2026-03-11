@@ -42,6 +42,8 @@ export function TasksModule() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: employees = [] } = useEmployees();
   const { data: currentProfile } = useCurrentProfile();
+  const { user } = useAuth();
+  const canArchiveTask = user?.email ? TASK_ADMINS.includes(user.email.toLowerCase()) : false;
 
   // Filter tasks by assignee (employee -> profile_id)
   const [assigneeEmployeeFilterId, setAssigneeEmployeeFilterId] = useState<string>("");
