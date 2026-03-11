@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { NavigationSection } from "@/types";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -8,7 +7,6 @@ import {
   Users,
   Calendar,
 } from "lucide-react";
-import { useProtocolPermissions } from "@/hooks/useProtocolPermissions";
 
 const allNavItems: { id: NavigationSection; path: string; label: string; icon: React.ElementType }[] = [
   { id: "news", path: "/news", label: "Новости", icon: Newspaper },
@@ -20,15 +18,9 @@ const allNavItems: { id: NavigationSection; path: string; label: string; icon: R
 
 export function MobileNav() {
   const location = useLocation();
-  const { canViewProtocols } = useProtocolPermissions();
   const isActive = (path: string) => location.pathname === path;
 
-  const navItems = useMemo(() =>
-    allNavItems.filter(item => {
-      if (item.id === "protocols" && !canViewProtocols) return false;
-      return true;
-    }), [canViewProtocols]
-  );
+  const navItems = allNavItems;
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t border-border/50 z-40 safe-area-pb">
