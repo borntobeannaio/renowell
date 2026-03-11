@@ -10,8 +10,16 @@ import { useTasks, useCreateTask, useUpdateTask, DbTask, TaskStatus, TaskPriorit
 import { useProjects, useUpdateProject, Project } from "@/hooks/useProjects";
 import { useEmployees, DbEmployee, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
+import { useAuth } from "@/hooks/useAuth";
 import { formatDisplayDate } from "@/utils/dateFormat";
 import { toast } from "sonner";
+
+const TASK_ADMINS = [
+  "sonya369@gmail.com",
+  "anna.rum91@gmail.com",
+  "astashkina495@gmail.com",
+  "oparin@renowell.ru",
+];
 
 const columns: { id: TaskStatus; label: string }[] = [
   { id: "new", label: "Новая" },
@@ -34,6 +42,8 @@ export function TasksModule() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: employees = [] } = useEmployees();
   const { data: currentProfile } = useCurrentProfile();
+  const { user } = useAuth();
+  const canArchiveTask = user?.email ? TASK_ADMINS.includes(user.email.toLowerCase()) : false;
 
   // Filter tasks by assignee (employee -> profile_id)
   const [assigneeEmployeeFilterId, setAssigneeEmployeeFilterId] = useState<string>("");
@@ -164,6 +174,11 @@ export function TasksModule() {
   const handleDrop = (e: DragEvent, status: TaskStatus) => {
     e.preventDefault();
     if (draggedTaskId) {
+      if (status === "archived" && !canArchiveTask) {
+        toast.error("Только администратор может архивировать задачи");
+        setDraggedTaskId(null);
+        return;
+      }
       updateTask.mutate({ id: draggedTaskId, status });
       setDraggedTaskId(null);
     }
@@ -645,7 +660,7 @@ export function TasksModule() {
                                   profileToEmployee={employeeProfileMaps.profileToEmployee}
                                   onDragStart={handleDragStart}
                                   onEdit={openEditModal}
-                                    onArchive={(id) => {
+                                    onArchive={canArchiveTask ? (id) => {
                                       const isArchived = task.status === "archived";
                                       const newStatus = isArchived ? "new" : "archived";
                                       updateTask.mutate(
@@ -660,7 +675,7 @@ export function TasksModule() {
                                           },
                                         }
                                       );
-                                    }}
+                                    } : undefined}
                                 />
                               ))}
                             </div>
@@ -721,7 +736,7 @@ export function TasksModule() {
                                   profileToEmployee={employeeProfileMaps.profileToEmployee}
                                   onDragStart={handleDragStart}
                                   onEdit={openEditModal}
-                                    onArchive={(id) => {
+                                    onArchive={canArchiveTask ? (id) => {
                                       const isArchived = task.status === "archived";
                                       const newStatus = isArchived ? "new" : "archived";
                                       updateTask.mutate(
@@ -736,7 +751,7 @@ export function TasksModule() {
                                           },
                                         }
                                       );
-                                    }}
+                                    } : undefined}
                                 />
                               ))}
                             </div>
@@ -1046,7 +1061,7 @@ interface TaskCardProps {
   profileToEmployee: Map<string, string>;
   onDragStart: (e: DragEvent, id: string) => void;
   onEdit: (task: DbTask) => void;
-  onArchive: (id: string) => void;
+  onArchive?: (id: string) => void;
 }
 
 function TaskCard({
@@ -1096,20 +1111,22 @@ function TaskCard({
 
       {/* Edit and Archive buttons */}
       <div className="absolute top-1 right-1 flex items-center gap-0.5">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onArchive(task.id);
-          }}
-          className="p-1 hover:bg-muted rounded transition-colors"
-          title={task.status === "archived" ? "Восстановить из архива" : "Архивировать"}
-        >
-          {task.status === "archived" ? (
-            <ArchiveRestore className="w-3.5 h-3.5 text-amber-500" />
-          ) : (
-            <Archive className="w-3.5 h-3.5 text-muted-foreground hover:text-amber-500" />
-          )}
-        </button>
+        {onArchive && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onArchive(task.id);
+            }}
+            className="p-1 hover:bg-muted rounded transition-colors"
+            title={task.status === "archived" ? "Восстановить из архива" : "Архивировать"}
+          >
+            {task.status === "archived" ? (
+              <ArchiveRestore className="w-3.5 h-3.5 text-amber-500" />
+            ) : (
+              <Archive className="w-3.5 h-3.5 text-muted-foreground hover:text-amber-500" />
+            )}
+          </button>
+        )}
         <button
           onClick={() => onEdit(task)}
           className="p-1 hover:bg-muted rounded transition-colors"
