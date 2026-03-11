@@ -1021,6 +1021,12 @@ export function TasksModule() {
         )}
       </Modal>
     </div>
+      </TabsContent>
+
+      <TabsContent value="history" className="mt-0">
+        <TaskHistory />
+      </TabsContent>
+    </Tabs>
   );
 }
 
