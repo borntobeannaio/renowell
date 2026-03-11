@@ -100,6 +100,33 @@ export function TaskHistory({ onTaskClick }: { onTaskClick?: (taskId: string) =>
     },
   });
 
+  // Fetch tasks to resolve titles for comments
+  const commentTaskIds = useMemo(() => {
+    const ids = new Set<string>();
+    comments.forEach(c => ids.add(c.task_id));
+    return [...ids];
+  }, [comments]);
+
+  const { data: commentTasks = [] } = useQuery({
+    queryKey: ["task-titles-for-history", commentTaskIds],
+    queryFn: async () => {
+      if (commentTaskIds.length === 0) return [];
+      const { data, error } = await proxySelect<{ id: string; title: string }>("tasks", {
+        select: "id, title",
+        filters: [{ column: "id", operator: "in", value: `(${commentTaskIds.join(",")})` }],
+      });
+      if (error) throw new Error(error.message);
+      return data || [];
+    },
+    enabled: commentTaskIds.length > 0,
+  });
+
+  const taskTitleMap = useMemo(() => {
+    const map = new Map<string, string>();
+    commentTasks.forEach(t => map.set(t.id, t.title));
+    return map;
+  }, [commentTasks]);
+
   // Build lookup maps
   const profileToEmployee = useMemo(() => {
     const map = new Map<string, typeof employees[0]>();
