@@ -93,8 +93,22 @@ export function SearchModule() {
     });
   }
 
+  const sectionPaths: Record<NavigationSection, string> = {
+    news: "/news",
+    protocols: "/protocols",
+    tasks: "/tasks",
+    hr: "/hr",
+    knowledge: "/knowledge",
+    calendar: "/calendar",
+    chats: "/chats",
+    search: "/search",
+    brandhub: "/brandhub",
+    about: "/about",
+  };
+
   const handleOpen = (result: SearchResult) => {
     setCurrentSection(result.type);
+    navigate(sectionPaths[result.type] || `/${result.type}`);
   };
 
   return (
