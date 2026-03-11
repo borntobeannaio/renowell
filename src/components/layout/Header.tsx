@@ -44,6 +44,9 @@ export function Header() {
   const clearSearch = () => {
     setLocalQuery("");
     setSearchQuery("");
+    if (location.pathname === "/search") {
+      navigate(-1);
+    }
   };
 
   const sectionTitles: Record<string, string> = {

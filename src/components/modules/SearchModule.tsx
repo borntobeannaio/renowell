@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useApp } from "@/context/AppContext";
 import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import { useProtocols } from "@/hooks/useProtocols";
@@ -14,6 +15,7 @@ interface SearchResult {
 }
 
 export function SearchModule() {
+  const navigate = useNavigate();
   const { searchQuery, setCurrentSection } = useApp();
   const { data: employees = [], isLoading: loadingEmp } = useEmployees();
   const { data: protocols = [], isLoading: loadingProt } = useProtocols();
@@ -91,8 +93,22 @@ export function SearchModule() {
     });
   }
 
+  const sectionPaths: Record<NavigationSection, string> = {
+    news: "/news",
+    protocols: "/protocols",
+    tasks: "/tasks",
+    hr: "/hr",
+    knowledge: "/knowledge",
+    calendar: "/calendar",
+    chats: "/chats",
+    search: "/search",
+    brandhub: "/brandhub",
+    about: "/about",
+  };
+
   const handleOpen = (result: SearchResult) => {
     setCurrentSection(result.type);
+    navigate(sectionPaths[result.type] || `/${result.type}`);
   };
 
   return (
