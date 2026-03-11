@@ -427,7 +427,7 @@ function ProtocolCard({
         }
         return "Без проекта";
       case 'tender':
-        return section.entity_name || 'Без названия';
+        return `Тендер: ${section.entity_name || 'Без названия'}`;
       case 'hr':
         return section.entity_name || 'Подбор персонала';
       case 'business':
