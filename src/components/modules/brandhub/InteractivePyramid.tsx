@@ -139,7 +139,7 @@ export function InteractivePyramid({ onLayerSelect, selectedLevel }: Interactive
                 animationDelay: `${delay}ms`
               }}
               className={`
-                ${layer.width} py-4 md:py-5 px-5 md:px-8
+                ${isMobile ? "w-full" : layer.width} py-4 md:py-5 px-5 md:px-8
                 rounded-xl md:rounded-2xl
                 bg-gradient-to-r ${layer.gradient}
                 text-white font-medium
