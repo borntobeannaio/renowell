@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+
 import { useAuth } from "@/hooks/useAuth";
 import { NavigationSection } from "@/types";
 import { proxySelect } from "@/lib/dbProxy";
