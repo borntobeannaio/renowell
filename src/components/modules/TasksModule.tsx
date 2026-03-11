@@ -436,7 +436,7 @@ export function TasksModule() {
   }
 
   return (
-    <Tabs defaultValue="board" className="space-y-4 md:space-y-6">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
       <TabsList>
         <TabsTrigger value="board">Доска</TabsTrigger>
         <TabsTrigger value="history" className="gap-1.5">
