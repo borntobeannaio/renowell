@@ -60,6 +60,16 @@ const FIELD_LABELS: Record<string, string> = {
 
 const TRACKED_FIELDS = Object.keys(FIELD_LABELS);
 
+function AuthorAvatar({ url, name }: { url: string | null; name: string }) {
+  const proxied = useProxiedAvatarUrl(url);
+  return (
+    <Avatar className="w-5 h-5">
+      {proxied && <AvatarImage src={proxied} alt={name} />}
+      <AvatarFallback className="text-[10px]">{name.charAt(0)}</AvatarFallback>
+    </Avatar>
+  );
+}
+
 export function TaskHistory() {
   const { data: employees = [] } = useEmployees();
   const { data: projects = [] } = useProjects({ includeArchived: true });
