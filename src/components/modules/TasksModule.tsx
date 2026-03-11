@@ -84,6 +84,7 @@ export function TasksModule() {
   const [expandedAssignees, setExpandedAssignees] = useState<Set<string>>(new Set(["no-assignee"]));
   const [groupBy, setGroupBy] = useState<GroupByMode>("project");
   const [showArchived, setShowArchived] = useState(false);
+  const [activeTab, setActiveTab] = useState("board");
   const [form, setForm] = useState({
     title: "",
     assignee_ids: [] as string[],

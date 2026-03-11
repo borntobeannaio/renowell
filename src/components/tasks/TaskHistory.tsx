@@ -70,7 +70,7 @@ function AuthorAvatar({ url, name }: { url: string | null; name: string }) {
   );
 }
 
-export function TaskHistory() {
+export function TaskHistory({ onTaskClick }: { onTaskClick?: (taskId: string) => void }) {
   const { data: employees = [] } = useEmployees();
   const { data: projects = [] } = useProjects({ includeArchived: true });
 
