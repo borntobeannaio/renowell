@@ -1728,8 +1728,9 @@ export default function ProtocolEditor() {
         isTender: boolean,
         companyName?: string
       ): Promise<ItemProcessResult[]> => {
-        const itemPromises = items
-          .filter((item) => item.item_text.trim())
+        // For tenders, don't filter empty items — [CompanyName] prefix makes them valid
+        const filteredItems = isTender ? items : items.filter((item) => item.item_text.trim());
+        const itemPromises = filteredItems
           .map((item) => processSingleItem(
             item,
             sectionId,
