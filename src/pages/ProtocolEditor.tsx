@@ -1408,8 +1408,11 @@ export default function ProtocolEditor() {
 
         if (group.sectionType === "tender" && group.companyGroups) {
           for (const company of group.companyGroups) {
-            for (const item of company.items) {
-              if (!item.item_text.trim()) continue;
+            // If company has no items, create a placeholder so the company is preserved
+            const itemsToSave = company.items.length > 0
+              ? company.items
+              : [{ id: generateTempId(), item_text: "", responsible: null, due_date: null, project_id: null, task_id: null } as ProtocolItemData];
+            for (const item of itemsToSave) {
 
               const effectiveResponsible = item.responsible ?? group.defaultResponsible;
 
@@ -1430,7 +1433,7 @@ export default function ProtocolEditor() {
 
               idMapping[item.id] = createdItem.id;
 
-              if (!item.task_id) {
+              if (!item.task_id && item.item_text.trim()) {
                 const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
                 const taskResult = await createTask.mutateAsync({
@@ -1616,8 +1619,8 @@ export default function ProtocolEditor() {
 
             let taskId: string | undefined;
 
-            // Always create task for new items (unless already has task from copy)
-            if (!item.task_id) {
+            // Always create task for new items (unless placeholder or already has task from copy)
+            if (!item.task_id && item.item_text.trim()) {
               const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
               const taskResult = await createTask.mutateAsync({
@@ -1668,8 +1671,8 @@ export default function ProtocolEditor() {
 
             let taskId: string | undefined = item.task_id || undefined;
 
-            // Create task if no task exists yet, update if exists
-            if (!item.task_id) {
+            // Create task if no task exists yet and item has text, update if exists
+            if (!item.task_id && item.item_text.trim()) {
               const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
               const taskResult = await createTask.mutateAsync({
@@ -1725,8 +1728,9 @@ export default function ProtocolEditor() {
         isTender: boolean,
         companyName?: string
       ): Promise<ItemProcessResult[]> => {
-        const itemPromises = items
-          .filter((item) => item.item_text.trim())
+        // For tenders, don't filter empty items — [CompanyName] prefix makes them valid
+        const filteredItems = isTender ? items : items.filter((item) => item.item_text.trim());
+        const itemPromises = filteredItems
           .map((item) => processSingleItem(
             item,
             sectionId,
@@ -1743,7 +1747,7 @@ export default function ProtocolEditor() {
           if (result.status === 'fulfilled') {
             return result.value;
           } else {
-            const item = items.filter(i => i.item_text.trim())[idx];
+            const item = filteredItems[idx];
             return {
               success: false,
               itemId: item?.id || 'unknown',
@@ -1790,17 +1794,22 @@ export default function ProtocolEditor() {
 
         if (group.sectionType === "tender" && group.companyGroups) {
           // Process all company groups in parallel
-          const companyPromises = group.companyGroups.map((company) =>
-            processItemsInParallel(
-              company.items,
+          const companyPromises = group.companyGroups.map((company) => {
+            // If company has no items, create a placeholder so the company is preserved
+            const itemsToSave = company.items.length > 0
+              ? company.items
+              : [{ id: generateTempId(), item_text: "", responsible: null, due_date: null, project_id: null, task_id: null } as ProtocolItemData];
+            return processItemsInParallel(
+              itemsToSave,
               sectionId,
               projectId,
               group.defaultResponsible,
               false,
               true,
               company.companyName
-            )
-          );
+            );
+          });
+
           const companyResults = await Promise.all(companyPromises);
           
           // Collect results
