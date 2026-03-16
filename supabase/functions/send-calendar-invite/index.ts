@@ -178,7 +178,8 @@ Deno.serve(async (req) => {
 
     // Send emails via Resend — one per recipient with personalized ICS
     let sentCount = 0;
-    for (const recipient of emails) {
+    for (let i = 0; i < emails.length; i++) {
+      const recipient = emails[i];
       try {
         const ics = generateICS({
           id: event.id,
@@ -196,44 +197,64 @@ Deno.serve(async (req) => {
 
         const icsBase64 = btoa(unescape(encodeURIComponent(ics)));
 
-        const res = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${resendKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            from: "Реновель Портал <account@renowell.silkagro.ru>",
-            to: [recipient.email],
-            subject: `${subjectPrefix}: ${event.title}`,
-            html: `
-              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #333;">📅 ${event.title}</h2>
-                ${isUpdate ? '<p style="color: #e67e22; font-weight: bold;">⚡ Встреча обновлена</p>' : ""}
-                <p><strong>Когда:</strong> ${formattedDate}</p>
-                ${event.location ? `<p><strong>Где:</strong> ${event.location}</p>` : ""}
-                ${event.is_online ? "<p><strong>Формат:</strong> Онлайн</p>" : ""}
-                ${event.description ? `<p>${event.description}</p>` : ""}
-                <p style="color: #666;">Организатор: ${organizerName}</p>
-              </div>
-            `,
-            attachments: [
-              {
-                filename: "invite.ics",
-                content: icsBase64,
-                content_type: "text/calendar; method=REQUEST; charset=UTF-8",
-                headers: {
-                  "Content-Disposition": 'inline; filename="invite.ics"',
-                },
-              },
-            ],
-          }),
-        });
+        const emailPayload = {
+          from: "Реновель Портал <account@renowell.silkagro.ru>",
+          to: [recipient.email],
+          subject: `${subjectPrefix}: ${event.title}`,
+          html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #333;">📅 ${event.title}</h2>
+              ${isUpdate ? '<p style="color: #e67e22; font-weight: bold;">⚡ Встреча обновлена</p>' : ""}
+              <p><strong>Когда:</strong> ${formattedDate}</p>
+              ${event.location ? `<p><strong>Где:</strong> ${event.location}</p>` : ""}
+              ${event.is_online ? "<p><strong>Формат:</strong> Онлайн</p>" : ""}
+              ${event.description ? `<p>${event.description}</p>` : ""}
+              <p style="color: #666;">Организатор: ${organizerName}</p>
+            </div>
+          `,
+          attachments: [
+            {
+              filename: "invite.ics",
+              content: icsBase64,
+              content_type: "text/calendar; method=REQUEST; charset=UTF-8",
+              headers: { "Content-Disposition": 'inline; filename="invite.ics"' },
+            },
+          ],
+        };
 
-        if (res.ok) sentCount++;
-        else console.error(`Resend error for ${recipient.email}:`, await res.text());
+        const sendEmail = () =>
+          fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${resendKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(emailPayload),
+          });
+
+        let res = await sendEmail();
+
+        // Retry once on rate limit (429)
+        if (res.status === 429) {
+          console.warn(`Rate limited for ${recipient.email}, retrying in 1.5s...`);
+          await res.text();
+          await delay(1500);
+          res = await sendEmail();
+        }
+
+        if (res.ok) {
+          sentCount++;
+          await res.text();
+        } else {
+          console.error(`Resend error for ${recipient.email}:`, await res.text());
+        }
       } catch (e) {
         console.error(`Failed to send to ${recipient.email}:`, e);
+      }
+
+      // Throttle: 600ms pause between sends to stay under 2 req/s
+      if (i < emails.length - 1) {
+        await delay(600);
       }
     }
 
