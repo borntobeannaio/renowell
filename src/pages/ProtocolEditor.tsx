@@ -1671,8 +1671,8 @@ export default function ProtocolEditor() {
 
             let taskId: string | undefined = item.task_id || undefined;
 
-            // Create task if no task exists yet, update if exists
-            if (!item.task_id) {
+            // Create task if no task exists yet and item has text, update if exists
+            if (!item.task_id && item.item_text.trim()) {
               const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
               const taskResult = await createTask.mutateAsync({
