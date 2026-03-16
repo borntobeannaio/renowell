@@ -70,28 +70,39 @@ export function useCalendarEvents() {
       if (error) throw new Error(error.message);
       return data?.[0];
     },
-    onSuccess: (newEvent) => {
+    onSuccess: (newEvent, variables) => {
       queryClient.invalidateQueries({ queryKey: ["calendar_events"] });
       toast.success("Встреча создана");
 
+      // Use variables as fallback if newEvent is undefined
+      const title = newEvent?.title || variables.title;
+      const startTime = newEvent?.start_time || variables.start_time;
+      const creatorId = newEvent?.creator_id || variables.creator_id;
+      const participantIds = newEvent?.participant_ids || variables.participant_ids;
+      const eventId = newEvent?.id;
+
       // Send in-app notifications to participants
-      if (newEvent && newEvent.participant_ids?.length > 0) {
-        const startFormatted = format(new Date(newEvent.start_time), "d MMMM, HH:mm", { locale: ru });
-        const recipients = newEvent.participant_ids.filter((id: string) => id !== newEvent.creator_id);
+      if (participantIds?.length > 0) {
+        const startFormatted = format(new Date(startTime), "d MMMM, HH:mm", { locale: ru });
+        const recipients = participantIds.filter((id: string) => id !== creatorId);
+        console.log("[calendar] Sending notifications to", recipients.length, "recipients");
         for (const recipientId of recipients) {
           proxyInsert("notifications", {
             recipient_id: recipientId,
             type: "calendar_invite",
             title: "Вас добавили во встречу",
-            body: `${newEvent.title} — ${startFormatted}`,
+            body: `${title} — ${startFormatted}`,
             link: "/calendar",
-          }).catch((err) => console.error("Failed to create calendar notification:", err));
+          }).then((res) => {
+            if (res.error) console.error("[calendar] Notification insert error:", res.error);
+            else console.log("[calendar] Notification sent to", recipientId);
+          }).catch((err) => console.error("[calendar] Failed to create calendar notification:", err));
         }
       }
 
       // Send calendar invite in background
-      if (newEvent?.id && newEvent.participant_ids?.length > 0) {
-        proxyEdgeFunction("send-calendar-invite", { event_id: newEvent.id })
+      if (eventId && participantIds?.length > 0) {
+        proxyEdgeFunction("send-calendar-invite", { event_id: eventId })
           .then(() => {
             toast.success("Приглашения отправлены на email");
           })
