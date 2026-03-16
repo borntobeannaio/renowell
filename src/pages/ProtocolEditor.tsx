@@ -1619,8 +1619,8 @@ export default function ProtocolEditor() {
 
             let taskId: string | undefined;
 
-            // Always create task for new items (unless already has task from copy)
-            if (!item.task_id) {
+            // Always create task for new items (unless placeholder or already has task from copy)
+            if (!item.task_id && item.item_text.trim()) {
               const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
               const taskResult = await createTask.mutateAsync({
