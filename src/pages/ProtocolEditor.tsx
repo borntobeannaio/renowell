@@ -1794,9 +1794,13 @@ export default function ProtocolEditor() {
 
         if (group.sectionType === "tender" && group.companyGroups) {
           // Process all company groups in parallel
-          const companyPromises = group.companyGroups.map((company) =>
-            processItemsInParallel(
-              company.items,
+          const companyPromises = group.companyGroups.map((company) => {
+            // If company has no items, create a placeholder so the company is preserved
+            const itemsToSave = company.items.length > 0
+              ? company.items
+              : [{ id: generateTempId(), item_text: "", responsible: null, due_date: null, project_id: null, task_id: null } as ProtocolItemData];
+            return processItemsInParallel(
+              itemsToSave,
               sectionId,
               projectId,
               group.defaultResponsible,
