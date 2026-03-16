@@ -1433,7 +1433,7 @@ export default function ProtocolEditor() {
 
               idMapping[item.id] = createdItem.id;
 
-              if (!item.task_id) {
+              if (!item.task_id && item.item_text.trim()) {
                 const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
 
                 const taskResult = await createTask.mutateAsync({
