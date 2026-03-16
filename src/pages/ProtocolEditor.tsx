@@ -1408,8 +1408,11 @@ export default function ProtocolEditor() {
 
         if (group.sectionType === "tender" && group.companyGroups) {
           for (const company of group.companyGroups) {
-            for (const item of company.items) {
-              if (!item.item_text.trim()) continue;
+            // If company has no items, create a placeholder so the company is preserved
+            const itemsToSave = company.items.length > 0
+              ? company.items
+              : [{ id: generateTempId(), item_text: "", responsible: null, due_date: null, project_id: null, task_id: null } as ProtocolItemData];
+            for (const item of itemsToSave) {
 
               const effectiveResponsible = item.responsible ?? group.defaultResponsible;
 
