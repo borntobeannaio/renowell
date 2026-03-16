@@ -1747,7 +1747,7 @@ export default function ProtocolEditor() {
           if (result.status === 'fulfilled') {
             return result.value;
           } else {
-            const item = items.filter(i => i.item_text.trim())[idx];
+            const item = filteredItems[idx];
             return {
               success: false,
               itemId: item?.id || 'unknown',
