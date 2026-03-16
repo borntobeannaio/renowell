@@ -1,0 +1,2 @@
+ALTER TABLE public.notifications DROP CONSTRAINT notifications_type_check;
+ALTER TABLE public.notifications ADD CONSTRAINT notifications_type_check CHECK (type = ANY (ARRAY['task_assigned', 'deadline_week', 'deadline_day', 'mention', 'chat_message', 'chat_created', 'calendar_invite']));
