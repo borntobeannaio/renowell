@@ -62,6 +62,8 @@ END:VCALENDAR`;
   return ics;
 }
 
+const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
