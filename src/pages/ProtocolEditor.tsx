@@ -1807,8 +1807,9 @@ export default function ProtocolEditor() {
               false,
               true,
               company.companyName
-            )
-          );
+            );
+          });
+
           const companyResults = await Promise.all(companyPromises);
           
           // Collect results
