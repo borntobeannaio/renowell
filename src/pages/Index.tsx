@@ -107,6 +107,8 @@ function PortalContent() {
         return <SearchModule />;
       case "brandhub":
         return <BrandHubModule />;
+      case "tenders":
+        return <TendersKanbanModule />;
       case "about":
         return <AboutPlatformModule />;
       default:

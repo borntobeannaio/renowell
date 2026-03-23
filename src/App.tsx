@@ -165,6 +165,14 @@ const App = () => (
                   }
                 />
                 <Route
+                  path="/tenders"
+                  element={
+                    <ProtectedRoute>
+                      <Index />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/about"
                   element={
                     <ProtectedRoute>
