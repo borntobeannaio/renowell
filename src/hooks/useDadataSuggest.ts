@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { proxyEdgeFunction } from "@/lib/dbProxy";
+import { proxyEdgeFunction } from "@/lib/mediaProxy";
 
 export interface DadataSuggestion {
   inn: string | null;
