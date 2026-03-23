@@ -47,7 +47,28 @@ export function useConversations() {
     queryKey: ["conversations", user?.id],
     queryFn: async () => {
       if (!user) return [];
+
+      // 1. Get current user's profile ID
+      const { data: profiles } = await proxySelect<{ id: string }>('profiles', {
+        select: 'id',
+        filters: [{ column: 'user_id', operator: 'eq', value: user.id }],
+        limit: 1,
+      });
+      const profileId = profiles?.[0]?.id;
+      if (!profileId) return [];
+
+      // 2. Get conversation IDs where user is a participant
+      const { data: participations } = await proxySelect<{ conversation_id: string }>('chat_participants', {
+        select: 'conversation_id',
+        filters: [{ column: 'user_id', operator: 'eq', value: profileId }],
+      });
+      if (!participations?.length) return [];
+
+      const convIds = participations.map(p => p.conversation_id);
+
+      // 3. Fetch only those conversations
       const { data, error } = await proxySelect<ChatConversation>('chat_conversations', {
+        filters: [{ column: 'id', operator: 'in', value: convIds }],
         order: [{ column: 'updated_at', ascending: false }],
       });
       if (error) throw new Error(error.message);
