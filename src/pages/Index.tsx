@@ -44,7 +44,7 @@ function ProtocolAccessDenied() {
 
 const sectionFromPath = (pathname: string): NavigationSection => {
   const path = pathname.slice(1) || "news";
-  const validSections: NavigationSection[] = ["news", "protocols", "tasks", "hr", "knowledge", "calendar", "chats", "search", "brandhub", "about"];
+  const validSections: NavigationSection[] = ["news", "protocols", "tasks", "hr", "knowledge", "calendar", "chats", "search", "brandhub", "about", "tenders"];
   return validSections.includes(path as NavigationSection) ? (path as NavigationSection) : "news";
 };
 
