@@ -61,7 +61,9 @@ export function useCreateProtocolSection() {
       );
 
       if (error) throw new Error(error.message);
-      return data?.[0] as DbProtocolSection;
+      const result = data?.[0];
+      if (!result) throw new Error('Сервер не вернул данные секции (проверьте соединение)');
+      return result as DbProtocolSection;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["protocol_sections", variables.protocol_id] });

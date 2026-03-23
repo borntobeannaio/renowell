@@ -91,6 +91,7 @@ export function useCreateTask() {
       if (error) throw new Error(error.message);
       
       const newTask = data?.[0];
+      if (!newTask) throw new Error('Сервер не вернул данные задачи (проверьте соединение)');
       
       // Создаём уведомления о назначении задачи для всех исполнителей
       if (newTask && task.assignee_ids && task.assignee_ids.length > 0) {
