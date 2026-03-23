@@ -15,6 +15,7 @@ import { ChatModule } from "@/components/modules/ChatModule";
 import { SearchModule } from "@/components/modules/SearchModule";
 import { BrandHubModule } from "@/components/modules/BrandHubModule";
 import { AboutPlatformModule } from "@/components/modules/AboutPlatformModule";
+import { TendersKanbanModule } from "@/components/modules/TendersKanbanModule";
 import { FloatingChat } from "@/components/chat/FloatingChat";
 import { useDbProxyWarmup } from "@/hooks/useDbProxyWarmup";
 import { useProtocolPermissions } from "@/hooks/useProtocolPermissions";
