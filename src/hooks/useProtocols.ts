@@ -99,7 +99,9 @@ export function useCreateProtocol() {
       );
 
       if (error) throw new Error(error.message);
-      return data?.[0] as DbProtocol;
+      const result = data?.[0];
+      if (!result) throw new Error('Сервер не вернул данные протокола (проверьте соединение)');
+      return result as DbProtocol;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["protocols"] });
