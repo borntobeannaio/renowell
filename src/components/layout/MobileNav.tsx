@@ -6,12 +6,14 @@ import {
   CheckSquare,
   Users,
   Calendar,
+  Building,
 } from "lucide-react";
 
 const allNavItems: { id: NavigationSection; path: string; label: string; icon: React.ElementType }[] = [
   { id: "news", path: "/news", label: "Новости", icon: Newspaper },
   { id: "protocols", path: "/protocols", label: "Протоколы", icon: FileText },
   { id: "tasks", path: "/tasks", label: "Задачи", icon: CheckSquare },
+  { id: "tenders", path: "/tenders", label: "Тендеры", icon: Building },
   { id: "hr", path: "/hr", label: "HR", icon: Users },
   { id: "calendar", path: "/calendar", label: "Календарь", icon: Calendar },
 ];

@@ -123,4 +123,5 @@ export type NavigationSection =
   | "chats"
   | "search"
   | "brandhub"
-  | "about";
+  | "about"
+  | "tenders";

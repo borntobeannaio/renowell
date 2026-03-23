@@ -104,6 +104,7 @@ export function SearchModule() {
     search: "/search",
     brandhub: "/brandhub",
     about: "/about",
+    tenders: "/tenders",
   };
 
   const handleOpen = (result: SearchResult) => {
