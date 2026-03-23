@@ -13,6 +13,7 @@ import {
   Calendar,
   Sparkles,
   Info,
+  Building,
 } from "lucide-react";
 import renowellLogo from "@/assets/renowell-logo-text.png";
 
