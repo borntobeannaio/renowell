@@ -20,11 +20,10 @@ export function useDadataSuggest() {
     }
     setLoading(true);
     try {
-      const { data, error } = await proxyEdgeFunction("dadata-suggest", {
-        body: { query: query.trim() },
+      const result = await proxyEdgeFunction<{ suggestions: DadataSuggestion[] }>("dadata-suggest", {
+        query: query.trim(),
       });
-      if (error) throw error;
-      setSuggestions(data?.suggestions || []);
+      setSuggestions(result?.suggestions || []);
     } catch (e) {
       console.error("DaData search error:", e);
       setSuggestions([]);
