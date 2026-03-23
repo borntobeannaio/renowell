@@ -6,6 +6,7 @@ import {
   CheckSquare,
   Users,
   Calendar,
+  Building,
 } from "lucide-react";
 
 const allNavItems: { id: NavigationSection; path: string; label: string; icon: React.ElementType }[] = [
