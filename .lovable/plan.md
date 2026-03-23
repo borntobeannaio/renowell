@@ -1,40 +1,68 @@
 
 
-## Исправление ошибки "Cannot read properties of undefined (reading 'id')" при создании протокола
+## Проблема: все пользователи видят все чаты и сообщения
 
-### Причина
+### Корневая причина
 
-Функции `useCreateProtocol`, `useCreateTask`, `useCreateProtocolItem` возвращают `data?.[0]` — результат INSERT через db-proxy. Если прокси вернул пустой массив (транзиентная ошибка сети, таймаут, или data = null), результат будет `undefined`. Затем код обращается к `.id` на `undefined` и падает.
+Все запросы к БД идут через `dbProxy` → Yandex Cloud → `db-proxy` edge function, которая использует `SERVICE_ROLE_KEY` и **полностью обходит RLS**. При этом в `useConversations()` нет фильтра по текущему пользователю — запрос возвращает ВСЕ чаты из таблицы `chat_conversations`.
 
-Три точки падения в `handleCreate`:
-1. `result.id` (строка ~1398) — после `createProtocol.mutateAsync`
-2. `createdItem.id` (строка ~1434) — после `createProtocolItem.mutateAsync`  
-3. `taskResult.id` (строка ~1508) — после `createTask.mutateAsync`
+Результат: Софья видит чат Войченко с Морозом, и наоборот — все видят всё.
 
 ### Решение
 
-**Файл `src/hooks/useProtocols.ts`** — добавить проверку после каждого insert:
+Добавить фильтрацию по участнику в хуки чатов, поскольку RLS не работает через прокси:
+
+**Файл: `src/hooks/useChat.ts`**
+
+1. **`useConversations()`** — подгружать только те чаты, где текущий пользователь является участником:
+   - Сначала получить `profile.id` текущего юзера
+   - Запросить `chat_participants` с фильтром `user_id = profile.id` → список `conversation_id`
+   - Запросить `chat_conversations` с фильтром `id in [conversation_ids]`
+
+2. **`useConversationMessages()`** — добавить проверку, что текущий пользователь является участником разговора (опционально, но для безопасности)
+
+**Файл: `src/hooks/useChat.ts` — изменения в `useConversations`:**
 
 ```typescript
-// useCreateProtocol
-const result = data?.[0];
-if (!result) throw new Error('Сервер не вернул данные протокола');
-return result;
+export function useConversations() {
+  const { user } = useAuth();
 
-// useCreateProtocolItem  
-const result = data?.[0];
-if (!result) throw new Error('Сервер не вернул данные пункта');
-return result;
+  return useQuery({
+    queryKey: ["conversations", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      // 1. Get current user's profile ID
+      const { data: profiles } = await proxySelect<{ id: string }>('profiles', {
+        select: 'id',
+        filters: [{ column: 'user_id', operator: 'eq', value: user.id }],
+        limit: 1,
+      });
+      const profileId = profiles?.[0]?.id;
+      if (!profileId) return [];
+      
+      // 2. Get conversation IDs where user is a participant
+      const { data: participations } = await proxySelect<{ conversation_id: string }>('chat_participants', {
+        select: 'conversation_id',
+        filters: [{ column: 'user_id', operator: 'eq', value: profileId }],
+      });
+      if (!participations?.length) return [];
+      
+      const convIds = participations.map(p => p.conversation_id);
+      
+      // 3. Fetch only those conversations
+      const { data, error } = await proxySelect<ChatConversation>('chat_conversations', {
+        filters: [{ column: 'id', operator: 'in', value: convIds }],
+        order: [{ column: 'updated_at', ascending: false }],
+      });
+      if (error) throw new Error(error.message);
+      return data || [];
+    },
+    enabled: !!user,
+  });
+}
 ```
 
-**Файл `src/hooks/useTasks.ts`** — аналогично:
-
-```typescript
-const newTask = data?.[0];
-if (!newTask) throw new Error('Сервер не вернул данные задачи');
-```
-
-**Файл `src/hooks/useProtocolSections.ts`** — проверить `useCreateProtocolSection` на тот же паттерн.
-
-Итого: 3-4 файла, добавление null-guard после каждого `data?.[0]` чтобы выбрасывать понятную ошибку вместо TypeError.
+### Масштаб
+Один файл (`src/hooks/useChat.ts`), одна функция `useConversations` — добавить 2 промежуточных запроса для фильтрации по участнику.
 
