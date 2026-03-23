@@ -1282,6 +1282,110 @@ export type Database = {
         }
         Relationships: []
       }
+      tender_companies: {
+        Row: {
+          address: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          inn: string | null
+          name: string
+          ogrn: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          inn?: string | null
+          name: string
+          ogrn?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          inn?: string | null
+          name?: string
+          ogrn?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tenders: {
+        Row: {
+          area_address: string | null
+          budget: string | null
+          color_label: string | null
+          company_id: string | null
+          contact_info: string | null
+          created_at: string
+          duration_months: number | null
+          id: string
+          interaction_history: string | null
+          lead_grade: string | null
+          manager: string | null
+          notes: string | null
+          project_name: string
+          sort_order: number | null
+          source: string | null
+          status: string
+          tender_start_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          area_address?: string | null
+          budget?: string | null
+          color_label?: string | null
+          company_id?: string | null
+          contact_info?: string | null
+          created_at?: string
+          duration_months?: number | null
+          id?: string
+          interaction_history?: string | null
+          lead_grade?: string | null
+          manager?: string | null
+          notes?: string | null
+          project_name: string
+          sort_order?: number | null
+          source?: string | null
+          status?: string
+          tender_start_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          area_address?: string | null
+          budget?: string | null
+          color_label?: string | null
+          company_id?: string | null
+          contact_info?: string | null
+          created_at?: string
+          duration_months?: number | null
+          id?: string
+          interaction_history?: string | null
+          lead_grade?: string | null
+          manager?: string | null
+          notes?: string | null
+          project_name?: string
+          sort_order?: number | null
+          source?: string | null
+          status?: string
+          tender_start_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "tender_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
