@@ -13,6 +13,7 @@ const allNavItems: { id: NavigationSection; path: string; label: string; icon: R
   { id: "news", path: "/news", label: "Новости", icon: Newspaper },
   { id: "protocols", path: "/protocols", label: "Протоколы", icon: FileText },
   { id: "tasks", path: "/tasks", label: "Задачи", icon: CheckSquare },
+  { id: "tenders", path: "/tenders", label: "Тендеры", icon: Building },
   { id: "hr", path: "/hr", label: "HR", icon: Users },
   { id: "calendar", path: "/calendar", label: "Календарь", icon: Calendar },
 ];
