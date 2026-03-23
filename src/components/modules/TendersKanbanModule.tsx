@@ -301,7 +301,7 @@ function CreateTenderModal({
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const createCompany = useCreateTenderCompany();
-  const searchTimeoutRef = useRef<NodeJS.Timeout>();
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   const handleCompanySearch = (val: string) => {
     setCompanyQuery(val);
