@@ -182,7 +182,9 @@ export function useCreateProtocolItem() {
       );
 
       if (error) throw new Error(error.message);
-      return data?.[0] as DbProtocolItem;
+      const result = data?.[0];
+      if (!result) throw new Error('Сервер не вернул данные пункта протокола (проверьте соединение)');
+      return result as DbProtocolItem;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["protocol_items", variables.protocol_id] });
