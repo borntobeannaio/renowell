@@ -1282,6 +1282,41 @@ export type Database = {
         }
         Relationships: []
       }
+      tender_comments: {
+        Row: {
+          author_id: string
+          content: string
+          created_at: string
+          id: string
+          tender_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          content: string
+          created_at?: string
+          id?: string
+          tender_id: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          tender_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_comments_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tender_companies: {
         Row: {
           address: string | null

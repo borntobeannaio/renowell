@@ -1,5 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Plus, Building, Search, Loader2, Trash2, Edit2, X, ChevronDown, ChevronUp, GripVertical, Phone, MapPin, Calendar, Clock, DollarSign, MessageSquare, Tag } from "lucide-react";
+import { TenderComments } from "@/components/tenders/TenderComments";
+import { proxySelect } from "@/lib/dbProxy";
 import {
   useTenders,
   useCreateTender,
@@ -554,6 +556,12 @@ function TenderDetailModal({
   onDelete: () => void;
   onStatusChange: (s: TenderStatus) => void;
 }) {
+  const [profiles, setProfiles] = useState<{ id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[]>([]);
+  useEffect(() => {
+    proxySelect<{ id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }>("profiles", {
+      select: "id,first_name,last_name,avatar_url",
+    }).then(({ data }) => setProfiles(data || []));
+  }, []);
   return (
     <Modal isOpen onClose={onClose} title={tender.project_name}>
       <div className="space-y-4 max-h-[70vh] overflow-y-auto">
@@ -606,6 +614,11 @@ function TenderDetailModal({
             <div className="bg-muted/30 rounded-lg p-3 text-sm text-foreground whitespace-pre-wrap">{tender.notes}</div>
           </div>
         )}
+
+        {/* Comments */}
+        <div className="pt-3 border-t border-border">
+          <TenderComments tenderId={tender.id} profiles={profiles} />
+        </div>
       </div>
 
       {/* Actions */}
