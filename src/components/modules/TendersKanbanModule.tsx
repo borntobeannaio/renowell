@@ -246,8 +246,8 @@ function TenderCard({
       )}
 
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/30">
-        {tender.manager && (
-          <span className="text-xs text-muted-foreground truncate">{tender.manager}</span>
+        {managerName && (
+          <span className="text-xs text-muted-foreground truncate">{managerName}</span>
         )}
         {tender.source && (
           <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground truncate max-w-[120px]">
