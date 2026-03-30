@@ -24,12 +24,12 @@ import { Modal } from "@/components/ui/Modal";
 
 // ── Status column colors ──
 const STATUS_COLORS: Record<TenderStatus, string> = {
-  first_contact: "border-t-amber-400",
-  in_progress: "border-t-blue-500",
-  meeting: "border-t-purple-500",
-  won: "border-t-green-500",
-  lost: "border-t-red-400",
-  cancelled: "border-t-gray-400",
+  first_contact: "from-amber-400 to-amber-500",
+  in_progress: "from-blue-500 to-indigo-500",
+  meeting: "from-violet-500 to-purple-500",
+  won: "from-emerald-400 to-green-500",
+  lost: "from-rose-400 to-red-500",
+  cancelled: "from-slate-400 to-gray-500",
 };
 
 const STATUS_BG: Record<TenderStatus, string> = {
@@ -39,6 +39,15 @@ const STATUS_BG: Record<TenderStatus, string> = {
   won: "bg-green-500/10 text-green-700 dark:text-green-400",
   lost: "bg-red-500/10 text-red-700 dark:text-red-400",
   cancelled: "bg-gray-500/10 text-gray-600 dark:text-gray-400",
+};
+
+const STATUS_ICON: Record<TenderStatus, string> = {
+  first_contact: "🔥",
+  in_progress: "⚡",
+  meeting: "🤝",
+  won: "🏆",
+  lost: "💔",
+  cancelled: "⛔",
 };
 
 export function TendersKanbanModule() {
