@@ -211,6 +211,12 @@ function TenderCard({
   onClick: () => void;
   onStatusChange: (id: string, status: TenderStatus) => void;
 }) {
+  const { data: employees = [] } = useEmployees();
+  const managerName = useMemo(() => {
+    if (!tender.manager) return null;
+    const emp = employees.find(e => e.profile_id === tender.manager);
+    return emp ? getEmployeeDisplayName(emp) : tender.manager;
+  }, [tender.manager, employees]);
   return (
     <div
       onClick={onClick}
