@@ -1282,6 +1282,41 @@ export type Database = {
         }
         Relationships: []
       }
+      tender_checklist_items: {
+        Row: {
+          completed: boolean
+          created_at: string
+          id: string
+          sort_order: number
+          tender_id: string
+          text: string
+        }
+        Insert: {
+          completed?: boolean
+          created_at?: string
+          id?: string
+          sort_order?: number
+          tender_id: string
+          text?: string
+        }
+        Update: {
+          completed?: boolean
+          created_at?: string
+          id?: string
+          sort_order?: number
+          tender_id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_checklist_items_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tender_comments: {
         Row: {
           author_id: string
