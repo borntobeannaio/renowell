@@ -4,6 +4,7 @@ import { TenderInteractionsList } from "@/components/tenders/TenderInteractionsL
 import { TenderContactsList } from "@/components/tenders/TenderContactsList";
 import { TenderComments } from "@/components/tenders/TenderComments";
 import { TenderChecklist } from "@/components/tenders/TenderChecklist";
+import { TenderAttachments } from "@/components/tenders/TenderAttachments";
 import { proxySelect } from "@/lib/dbProxy";
 import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import {
@@ -706,6 +707,10 @@ function TenderDetailModal({
 
               <div className="p-4 rounded-xl bg-card border border-border/50">
                 <TenderChecklist tenderId={tender.id} />
+              </div>
+
+              <div className="p-4 rounded-xl bg-card border border-border/50">
+                <TenderAttachments tenderId={tender.id} />
               </div>
             </div>
 

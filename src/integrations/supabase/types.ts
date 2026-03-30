@@ -1282,6 +1282,57 @@ export type Database = {
         }
         Relationships: []
       }
+      tender_attachments: {
+        Row: {
+          content_type: string
+          created_at: string
+          file_name: string
+          file_size: number
+          file_url: string
+          id: string
+          storage_path: string
+          tender_id: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          content_type?: string
+          created_at?: string
+          file_name: string
+          file_size?: number
+          file_url: string
+          id?: string
+          storage_path: string
+          tender_id: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          content_type?: string
+          created_at?: string
+          file_name?: string
+          file_size?: number
+          file_url?: string
+          id?: string
+          storage_path?: string
+          tender_id?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_attachments_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_attachments_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tender_checklist_items: {
         Row: {
           completed: boolean
