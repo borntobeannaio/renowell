@@ -611,109 +611,112 @@ function TenderDetailModal({
     return emp ? getEmployeeDisplayName(emp) : tender.manager;
   }, [tender.manager, employees]);
   return (
-    <Modal isOpen onClose={onClose} title={tender.project_name} size="xl">
-      <div className="max-h-[75vh] overflow-y-auto">
-        {/* Status selector */}
-        <div className="flex items-center gap-2 flex-wrap p-1.5 mb-5">
-          {TENDER_STATUS_COLUMNS.map((s) => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
+      <div
+        className="bg-card rounded-2xl shadow-2xl w-full max-w-4xl mx-4 overflow-hidden animate-scale-in"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header with actions */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h3 className="text-lg font-bold text-foreground truncate">{tender.project_name}</h3>
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
-              key={s}
-              onClick={() => onStatusChange(s)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
-                tender.status === s
-                  ? STATUS_BG[s] + " shadow-sm ring-2 ring-offset-2 ring-offset-background ring-current scale-105"
-                  : "bg-muted/60 text-muted-foreground hover:bg-muted hover:scale-105"
-              }`}
+              onClick={onEdit}
+              className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+              title="Редактировать"
             >
-              {STATUS_ICON[s]} {TENDER_STATUS_LABELS[s]}
+              <Edit2 className="w-4 h-4" />
             </button>
-          ))}
+            <button
+              onClick={onDelete}
+              className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+              title="Удалить"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* Two-column layout on desktop */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* Left column — Info */}
-          <div className="space-y-4">
-            {/* Company card */}
-            {tender.company && (
-              <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/[0.02] border border-primary/10">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                    <Building className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-foreground">{tender.company.name}</div>
-                    {tender.company.inn && (
-                      <div className="text-xs text-muted-foreground">ИНН {tender.company.inn}</div>
-                    )}
+        {/* Body */}
+        <div className="px-6 py-5 max-h-[75vh] overflow-y-auto">
+          {/* Status selector */}
+          <div className="flex items-center gap-2 flex-wrap mb-5">
+            {TENDER_STATUS_COLUMNS.map((s) => (
+              <button
+                key={s}
+                onClick={() => onStatusChange(s)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
+                  tender.status === s
+                    ? STATUS_BG[s] + " shadow-sm ring-2 ring-offset-2 ring-offset-background ring-current scale-105"
+                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:scale-105"
+                }`}
+              >
+                {STATUS_ICON[s]} {TENDER_STATUS_LABELS[s]}
+              </button>
+            ))}
+          </div>
+
+          {/* Two-column layout on desktop */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Left column — Info */}
+            <div className="space-y-4">
+              {tender.company && (
+                <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/[0.02] border border-primary/10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                      <Building className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-foreground">{tender.company.name}</div>
+                      {tender.company.inn && (
+                        <div className="text-xs text-muted-foreground">ИНН {tender.company.inn}</div>
+                      )}
+                    </div>
                   </div>
                 </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                {managerName && <DetailCard icon={Tag} label="Менеджер" value={managerName} />}
+                {tender.source && <DetailCard icon={Tag} label="Источник" value={tender.source} />}
+                {tender.area_address && <DetailCard icon={MapPin} label="Площадь / Адрес" value={tender.area_address} />}
+                {tender.budget && <DetailCard icon={DollarSign} label="Бюджет" value={tender.budget} />}
+                {tender.tender_start_date && <DetailCard icon={Calendar} label="Дата начала" value={tender.tender_start_date} />}
+                {tender.duration_months && <DetailCard icon={Clock} label="Срок" value={`${tender.duration_months} мес.`} />}
+                {tender.lead_grade && <DetailCard icon={Tag} label="Степень лида" value={tender.lead_grade} />}
               </div>
-            )}
 
-            {/* Details grid */}
-            <div className="grid grid-cols-2 gap-3">
-              {managerName && <DetailCard icon={Tag} label="Менеджер" value={managerName} />}
-              {tender.source && <DetailCard icon={Tag} label="Источник" value={tender.source} />}
-              {tender.area_address && <DetailCard icon={MapPin} label="Площадь / Адрес" value={tender.area_address} />}
-              {tender.budget && <DetailCard icon={DollarSign} label="Бюджет" value={tender.budget} />}
-              {tender.tender_start_date && <DetailCard icon={Calendar} label="Дата начала" value={tender.tender_start_date} />}
-              {tender.duration_months && <DetailCard icon={Clock} label="Срок" value={`${tender.duration_months} мес.`} />}
-              {tender.lead_grade && <DetailCard icon={Tag} label="Степень лида" value={tender.lead_grade} />}
-            </div>
+              {tender.notes && (
+                <div className="p-3 rounded-xl bg-muted/30 border border-border/30">
+                  <div className="text-xs font-medium text-muted-foreground mb-1.5">Примечание</div>
+                  <div className="text-sm text-foreground whitespace-pre-wrap">{tender.notes}</div>
+                </div>
+              )}
 
-            {/* Notes */}
-            {tender.notes && (
-              <div className="p-3 rounded-xl bg-muted/30 border border-border/30">
-                <div className="text-xs font-medium text-muted-foreground mb-1.5">Примечание</div>
-                <div className="text-sm text-foreground whitespace-pre-wrap">{tender.notes}</div>
+              <div className="p-4 rounded-xl bg-card border border-border/50">
+                <TenderContactsList tenderId={tender.id} />
               </div>
-            )}
-
-            {/* Contacts */}
-            <div className="p-4 rounded-xl bg-card border border-border/50">
-              <TenderContactsList tenderId={tender.id} />
-            </div>
-          </div>
-
-          {/* Right column — Interactions & Comments */}
-          <div className="space-y-4">
-            {/* Interactions */}
-            <div className="p-4 rounded-xl bg-card border border-border/50">
-              <TenderInteractionsList tenderId={tender.id} />
             </div>
 
-            {/* Comments */}
-            <div className="p-4 rounded-xl bg-card border border-border/50">
-              <TenderComments tenderId={tender.id} profiles={profiles} />
+            {/* Right column */}
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-card border border-border/50">
+                <TenderInteractionsList tenderId={tender.id} />
+              </div>
+              <div className="p-4 rounded-xl bg-card border border-border/50">
+                <TenderComments tenderId={tender.id} profiles={profiles} />
+              </div>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Actions */}
-      <div className="flex justify-between mt-5 pt-4 border-t border-border">
-        <button
-          onClick={onDelete}
-          className="px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors flex items-center gap-1.5"
-        >
-          <Trash2 className="w-4 h-4" />
-          Удалить
-        </button>
-        <div className="flex gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-muted-foreground hover:bg-secondary rounded-lg transition-colors">
-            Закрыть
-          </button>
-          <button
-            onClick={onEdit}
-            className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
-          >
-            <Edit2 className="w-4 h-4" />
-            Редактировать
-          </button>
-        </div>
-      </div>
-    </Modal>
+    </div>
   );
 }
 
