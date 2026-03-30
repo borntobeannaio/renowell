@@ -4,6 +4,7 @@ import { TenderInteractionsList } from "@/components/tenders/TenderInteractionsL
 import { TenderContactsList } from "@/components/tenders/TenderContactsList";
 import { TenderComments } from "@/components/tenders/TenderComments";
 import { TenderChecklist } from "@/components/tenders/TenderChecklist";
+import { TenderAttachments } from "@/components/tenders/TenderAttachments";
 import { proxySelect } from "@/lib/dbProxy";
 import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import {
