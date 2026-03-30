@@ -110,7 +110,7 @@ export function TendersKanbanModule() {
       </div>
 
       {/* Kanban Board */}
-      <div className="flex gap-4 overflow-x-auto pb-4 -mx-3 px-3 md:-mx-6 md:px-6">
+      <div className="flex gap-4 overflow-x-auto pb-4">
         {TENDER_STATUS_COLUMNS.map((status) => (
           <KanbanColumn
             key={status}
