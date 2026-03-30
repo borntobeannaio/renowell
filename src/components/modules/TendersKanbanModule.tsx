@@ -708,6 +708,10 @@ function TenderDetailModal({
               <div className="p-4 rounded-xl bg-card border border-border/50">
                 <TenderChecklist tenderId={tender.id} />
               </div>
+
+              <div className="p-4 rounded-xl bg-card border border-border/50">
+                <TenderAttachments tenderId={tender.id} />
+              </div>
             </div>
 
             {/* Right column */}
