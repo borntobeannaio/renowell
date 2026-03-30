@@ -289,7 +289,7 @@ function CreateTenderModal({
   const [notes, setNotes] = useState(initialData?.notes || "");
   const [leadGrade, setLeadGrade] = useState(initialData?.lead_grade || "");
   const [saving, setSaving] = useState(false);
-
+  const { data: employees = [] } = useEmployees();
   // Company search
   const { suggestions, loading: searchLoading, search, clear } = useDadataSuggest();
   const [companyQuery, setCompanyQuery] = useState(initialData?.company?.name || "");
