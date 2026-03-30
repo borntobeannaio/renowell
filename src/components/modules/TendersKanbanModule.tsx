@@ -297,9 +297,6 @@ function TenderCard({
       </div>
     </div>
   );
-      )}
-    </div>
-  );
 }
 
 // ── Create/Edit Modal ──
