@@ -448,7 +448,15 @@ function CreateTenderModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Менеджер</label>
-            <input type="text" value={manager} onChange={(e) => setManager(e.target.value)} className="input-base w-full" placeholder="Фамилия И" />
+            <select value={manager} onChange={(e) => setManager(e.target.value)} className="input-base w-full">
+              <option value="">Не выбран</option>
+              {employees.map((emp) => {
+                const name = getEmployeeDisplayName(emp);
+                return (
+                  <option key={emp.id} value={emp.profile_id || emp.id}>{name}</option>
+                );
+              })}
+            </select>
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Источник</label>
