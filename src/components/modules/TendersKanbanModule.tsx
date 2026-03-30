@@ -241,53 +241,62 @@ function TenderCard({
   return (
     <div
       onClick={onClick}
-      className="bg-background rounded-lg border border-border/50 p-3 cursor-pointer hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
+      className="bg-background rounded-xl border border-border/40 p-3.5 cursor-pointer hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20 hover:-translate-y-0.5 transition-all duration-300 group relative overflow-hidden"
     >
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <h4 className="text-sm font-semibold text-foreground line-clamp-2 group-hover:text-primary transition-colors">
-          {tender.project_name}
-        </h4>
-      </div>
-
-      {tender.company && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-          <Building className="w-3 h-3 shrink-0" />
-          <span className="truncate">{tender.company.name}</span>
-          {tender.company.inn && (
-            <span className="text-muted-foreground/60 shrink-0">ИНН {tender.company.inn}</span>
+      {/* Subtle gradient overlay on hover */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+      
+      <div className="relative">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <h4 className="text-sm font-bold text-foreground line-clamp-2 group-hover:text-primary transition-colors duration-200">
+            {tender.project_name}
+          </h4>
+          {tender.lead_grade && (
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap shrink-0 ${
+              tender.lead_grade === "горячие" ? "bg-gradient-to-r from-red-500/15 to-orange-500/15 text-red-600 dark:text-red-400" :
+              tender.lead_grade === "теплые/подогретые" ? "bg-gradient-to-r from-orange-500/15 to-amber-500/15 text-orange-600 dark:text-orange-400" :
+              tender.lead_grade === "в процессе.." ? "bg-gradient-to-r from-blue-500/15 to-indigo-500/15 text-blue-600 dark:text-blue-400" :
+              "bg-muted text-muted-foreground"
+            }`}>
+              {tender.lead_grade === "горячие" ? "🔥" : tender.lead_grade === "теплые/подогретые" ? "🌡️" : "⏳"} {tender.lead_grade}
+            </span>
           )}
         </div>
-      )}
 
-      {tender.area_address && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-          <MapPin className="w-3 h-3 shrink-0" />
-          <span className="truncate">{tender.area_address}</span>
+        {tender.company && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+            <div className="w-5 h-5 rounded-md bg-primary/8 flex items-center justify-center shrink-0">
+              <Building className="w-3 h-3 text-primary/70" />
+            </div>
+            <span className="truncate font-medium">{tender.company.name}</span>
+          </div>
+        )}
+
+        {tender.area_address && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+            <MapPin className="w-3 h-3 shrink-0 text-muted-foreground/60" />
+            <span className="truncate">{tender.area_address}</span>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-border/20">
+          {managerName ? (
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                {managerName.charAt(0)}
+              </div>
+              <span className="text-xs text-muted-foreground truncate">{managerName}</span>
+            </div>
+          ) : <div />}
+          {tender.source && (
+            <span className="text-[10px] bg-secondary/80 px-2 py-0.5 rounded-full text-muted-foreground truncate max-w-[120px] font-medium">
+              {tender.source}
+            </span>
+          )}
         </div>
-      )}
-
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/30">
-        {managerName && (
-          <span className="text-xs text-muted-foreground truncate">{managerName}</span>
-        )}
-        {tender.source && (
-          <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground truncate max-w-[120px]">
-            {tender.source}
-          </span>
-        )}
       </div>
-
-      {tender.lead_grade && (
-        <div className="mt-1.5">
-          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-            tender.lead_grade === "горячие" ? "bg-red-500/10 text-red-600" :
-            tender.lead_grade === "теплые/подогретые" ? "bg-orange-500/10 text-orange-600" :
-            tender.lead_grade === "в процессе.." ? "bg-blue-500/10 text-blue-600" :
-            "bg-muted text-muted-foreground"
-          }`}>
-            {tender.lead_grade}
-          </span>
-        </div>
+    </div>
+  );
       )}
     </div>
   );
