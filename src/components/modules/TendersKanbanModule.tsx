@@ -1,5 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Plus, Building, Search, Loader2, Trash2, Edit2, X, ChevronDown, ChevronUp, GripVertical, Phone, MapPin, Calendar, Clock, DollarSign, MessageSquare, Tag } from "lucide-react";
+import { TenderInteractionsList } from "@/components/tenders/TenderInteractionsList";
+import { TenderContactsList } from "@/components/tenders/TenderContactsList";
 import { TenderComments } from "@/components/tenders/TenderComments";
 import { proxySelect } from "@/lib/dbProxy";
 import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
@@ -610,24 +612,22 @@ function TenderDetailModal({
 
         {managerName && <InfoRow icon={Tag} label="Менеджер" value={managerName} />}
         {tender.source && <InfoRow icon={Tag} label="Источник" value={tender.source} />}
-        {tender.contact_info && <InfoRow icon={Phone} label="Контакты ЛПР" value={tender.contact_info} multiline />}
+
+        {/* Contacts block */}
+        <div className="pt-2 border-t border-border/50">
+          <TenderContactsList tenderId={tender.id} />
+        </div>
+
         {tender.area_address && <InfoRow icon={MapPin} label="Площадь / Адрес" value={tender.area_address} />}
         {tender.tender_start_date && <InfoRow icon={Calendar} label="Дата начала" value={tender.tender_start_date} />}
         {tender.duration_months && <InfoRow icon={Clock} label="Срок реализации" value={`${tender.duration_months} мес.`} />}
         {tender.budget && <InfoRow icon={DollarSign} label="Бюджет" value={tender.budget} />}
         {tender.lead_grade && <InfoRow icon={Tag} label="Степень лида" value={tender.lead_grade} />}
 
-        {tender.interaction_history && (
-          <div>
-            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-1">
-              <MessageSquare className="w-3.5 h-3.5" />
-              История взаимодействий
-            </div>
-            <div className="bg-muted/30 rounded-lg p-3 text-sm text-foreground whitespace-pre-wrap">
-              {tender.interaction_history}
-            </div>
-          </div>
-        )}
+        {/* Interactions block */}
+        <div className="pt-2 border-t border-border/50">
+          <TenderInteractionsList tenderId={tender.id} />
+        </div>
 
         {tender.notes && (
           <div>

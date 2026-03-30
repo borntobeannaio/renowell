@@ -1350,6 +1350,80 @@ export type Database = {
         }
         Relationships: []
       }
+      tender_contacts: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string | null
+          phone: string | null
+          tender_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string | null
+          phone?: string | null
+          tender_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string | null
+          phone?: string | null
+          tender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_contacts_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_interactions: {
+        Row: {
+          author_id: string | null
+          content: string
+          created_at: string
+          id: string
+          tender_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          tender_id: string
+        }
+        Update: {
+          author_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          tender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_interactions_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_interactions_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenders: {
         Row: {
           area_address: string | null
