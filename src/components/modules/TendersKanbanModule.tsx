@@ -1,5 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Plus, Building, Search, Loader2, Trash2, Edit2, X, ChevronDown, ChevronUp, GripVertical, Phone, MapPin, Calendar, Clock, DollarSign, MessageSquare, Tag } from "lucide-react";
+import { TenderComments } from "@/components/tenders/TenderComments";
+import { proxySelect } from "@/lib/dbProxy";
 import {
   useTenders,
   useCreateTender,
