@@ -587,7 +587,7 @@ function TenderDetailModal({
     <Modal isOpen onClose={onClose} title={tender.project_name}>
       <div className="space-y-4 max-h-[70vh] overflow-y-auto">
         {/* Status selector */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap p-1 -m-1">
           {TENDER_STATUS_COLUMNS.map((s) => (
             <button
               key={s}
