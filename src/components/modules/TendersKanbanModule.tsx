@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { Plus, Building, Search, Loader2, Trash2, Edit2, X, ChevronDown, ChevronUp, GripVertical, Phone, MapPin, Calendar, Clock, DollarSign, MessageSquare, Tag } from "lucide-react";
 import { TenderComments } from "@/components/tenders/TenderComments";
 import { proxySelect } from "@/lib/dbProxy";
+import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import {
   useTenders,
   useCreateTender,
@@ -210,6 +211,12 @@ function TenderCard({
   onClick: () => void;
   onStatusChange: (id: string, status: TenderStatus) => void;
 }) {
+  const { data: employees = [] } = useEmployees();
+  const managerName = useMemo(() => {
+    if (!tender.manager) return null;
+    const emp = employees.find(e => e.profile_id === tender.manager);
+    return emp ? getEmployeeDisplayName(emp) : tender.manager;
+  }, [tender.manager, employees]);
   return (
     <div
       onClick={onClick}
@@ -239,8 +246,8 @@ function TenderCard({
       )}
 
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/30">
-        {tender.manager && (
-          <span className="text-xs text-muted-foreground truncate">{tender.manager}</span>
+        {managerName && (
+          <span className="text-xs text-muted-foreground truncate">{managerName}</span>
         )}
         {tender.source && (
           <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground truncate max-w-[120px]">
@@ -288,7 +295,7 @@ function CreateTenderModal({
   const [notes, setNotes] = useState(initialData?.notes || "");
   const [leadGrade, setLeadGrade] = useState(initialData?.lead_grade || "");
   const [saving, setSaving] = useState(false);
-
+  const { data: employees = [] } = useEmployees();
   // Company search
   const { suggestions, loading: searchLoading, search, clear } = useDadataSuggest();
   const [companyQuery, setCompanyQuery] = useState(initialData?.company?.name || "");
@@ -447,7 +454,15 @@ function CreateTenderModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Менеджер</label>
-            <input type="text" value={manager} onChange={(e) => setManager(e.target.value)} className="input-base w-full" placeholder="Фамилия И" />
+            <select value={manager} onChange={(e) => setManager(e.target.value)} className="input-base w-full">
+              <option value="">Не выбран</option>
+              {employees.map((emp) => {
+                const name = getEmployeeDisplayName(emp);
+                return (
+                  <option key={emp.id} value={emp.profile_id || emp.id}>{name}</option>
+                );
+              })}
+            </select>
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Источник</label>
@@ -557,11 +572,17 @@ function TenderDetailModal({
   onStatusChange: (s: TenderStatus) => void;
 }) {
   const [profiles, setProfiles] = useState<{ id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[]>([]);
+  const { data: employees = [] } = useEmployees();
   useEffect(() => {
     proxySelect<{ id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }>("profiles", {
       select: "id,first_name,last_name,avatar_url",
     }).then(({ data }) => setProfiles(data || []));
   }, []);
+  const managerName = useMemo(() => {
+    if (!tender.manager) return null;
+    const emp = employees.find(e => e.profile_id === tender.manager);
+    return emp ? getEmployeeDisplayName(emp) : tender.manager;
+  }, [tender.manager, employees]);
   return (
     <Modal isOpen onClose={onClose} title={tender.project_name}>
       <div className="space-y-4 max-h-[70vh] overflow-y-auto">
@@ -587,7 +608,7 @@ function TenderDetailModal({
           <InfoRow icon={Building} label="Компания" value={`${tender.company.name}${tender.company.inn ? ` (ИНН ${tender.company.inn})` : ""}`} />
         )}
 
-        {tender.manager && <InfoRow icon={Tag} label="Менеджер" value={tender.manager} />}
+        {managerName && <InfoRow icon={Tag} label="Менеджер" value={managerName} />}
         {tender.source && <InfoRow icon={Tag} label="Источник" value={tender.source} />}
         {tender.contact_info && <InfoRow icon={Phone} label="Контакты ЛПР" value={tender.contact_info} multiline />}
         {tender.area_address && <InfoRow icon={MapPin} label="Площадь / Адрес" value={tender.area_address} />}
