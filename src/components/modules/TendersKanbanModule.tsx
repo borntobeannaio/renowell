@@ -614,6 +614,11 @@ function TenderDetailModal({
             <div className="bg-muted/30 rounded-lg p-3 text-sm text-foreground whitespace-pre-wrap">{tender.notes}</div>
           </div>
         )}
+
+        {/* Comments */}
+        <div className="pt-3 border-t border-border">
+          <TenderComments tenderId={tender.id} profiles={profiles} />
+        </div>
       </div>
 
       {/* Actions */}
