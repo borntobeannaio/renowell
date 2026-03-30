@@ -614,18 +614,18 @@ function TenderDetailModal({
     <Modal isOpen onClose={onClose} title={tender.project_name}>
       <div className="space-y-4 max-h-[70vh] overflow-y-auto">
         {/* Status selector */}
-        <div className="flex items-center gap-2 flex-wrap p-1 -m-1">
+        <div className="flex items-center gap-2 flex-wrap p-1.5 -m-1.5">
           {TENDER_STATUS_COLUMNS.map((s) => (
             <button
               key={s}
               onClick={() => onStatusChange(s)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
                 tender.status === s
-                  ? STATUS_BG[s] + " ring-2 ring-offset-1 ring-current"
-                  : "bg-muted text-muted-foreground hover:bg-accent"
+                  ? STATUS_BG[s] + " shadow-sm ring-2 ring-offset-2 ring-offset-background ring-current scale-105"
+                  : "bg-muted/60 text-muted-foreground hover:bg-muted hover:scale-105"
               }`}
             >
-              {TENDER_STATUS_LABELS[s]}
+              {STATUS_ICON[s]} {TENDER_STATUS_LABELS[s]}
             </button>
           ))}
         </div>
