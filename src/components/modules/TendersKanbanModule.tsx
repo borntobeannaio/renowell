@@ -110,7 +110,7 @@ export function TendersKanbanModule() {
       </div>
 
       {/* Kanban Board */}
-      <div className="flex gap-4 overflow-x-auto pb-4 -mx-3 px-3 md:-mx-6 md:px-6">
+      <div className="flex gap-4 overflow-x-auto pb-4">
         {TENDER_STATUS_COLUMNS.map((status) => (
           <KanbanColumn
             key={status}
@@ -611,15 +611,15 @@ function TenderDetailModal({
     return emp ? getEmployeeDisplayName(emp) : tender.manager;
   }, [tender.manager, employees]);
   return (
-    <Modal isOpen onClose={onClose} title={tender.project_name}>
-      <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+    <Modal isOpen onClose={onClose} title={tender.project_name} size="xl">
+      <div className="max-h-[75vh] overflow-y-auto">
         {/* Status selector */}
-        <div className="flex items-center gap-2 flex-wrap p-1.5 -m-1.5">
+        <div className="flex items-center gap-2 flex-wrap p-1.5 mb-5">
           {TENDER_STATUS_COLUMNS.map((s) => (
             <button
               key={s}
               onClick={() => onStatusChange(s)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
                 tender.status === s
                   ? STATUS_BG[s] + " shadow-sm ring-2 ring-offset-2 ring-offset-background ring-current scale-105"
                   : "bg-muted/60 text-muted-foreground hover:bg-muted hover:scale-105"
@@ -630,45 +630,69 @@ function TenderDetailModal({
           ))}
         </div>
 
-        {/* Company */}
-        {tender.company && (
-          <InfoRow icon={Building} label="Компания" value={`${tender.company.name}${tender.company.inn ? ` (ИНН ${tender.company.inn})` : ""}`} />
-        )}
+        {/* Two-column layout on desktop */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Left column — Info */}
+          <div className="space-y-4">
+            {/* Company card */}
+            {tender.company && (
+              <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/[0.02] border border-primary/10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                    <Building className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-foreground">{tender.company.name}</div>
+                    {tender.company.inn && (
+                      <div className="text-xs text-muted-foreground">ИНН {tender.company.inn}</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
-        {managerName && <InfoRow icon={Tag} label="Менеджер" value={managerName} />}
-        {tender.source && <InfoRow icon={Tag} label="Источник" value={tender.source} />}
+            {/* Details grid */}
+            <div className="grid grid-cols-2 gap-3">
+              {managerName && <DetailCard icon={Tag} label="Менеджер" value={managerName} />}
+              {tender.source && <DetailCard icon={Tag} label="Источник" value={tender.source} />}
+              {tender.area_address && <DetailCard icon={MapPin} label="Площадь / Адрес" value={tender.area_address} />}
+              {tender.budget && <DetailCard icon={DollarSign} label="Бюджет" value={tender.budget} />}
+              {tender.tender_start_date && <DetailCard icon={Calendar} label="Дата начала" value={tender.tender_start_date} />}
+              {tender.duration_months && <DetailCard icon={Clock} label="Срок" value={`${tender.duration_months} мес.`} />}
+              {tender.lead_grade && <DetailCard icon={Tag} label="Степень лида" value={tender.lead_grade} />}
+            </div>
 
-        {/* Contacts block */}
-        <div className="pt-2 border-t border-border/50">
-          <TenderContactsList tenderId={tender.id} />
-        </div>
+            {/* Notes */}
+            {tender.notes && (
+              <div className="p-3 rounded-xl bg-muted/30 border border-border/30">
+                <div className="text-xs font-medium text-muted-foreground mb-1.5">Примечание</div>
+                <div className="text-sm text-foreground whitespace-pre-wrap">{tender.notes}</div>
+              </div>
+            )}
 
-        {tender.area_address && <InfoRow icon={MapPin} label="Площадь / Адрес" value={tender.area_address} />}
-        {tender.tender_start_date && <InfoRow icon={Calendar} label="Дата начала" value={tender.tender_start_date} />}
-        {tender.duration_months && <InfoRow icon={Clock} label="Срок реализации" value={`${tender.duration_months} мес.`} />}
-        {tender.budget && <InfoRow icon={DollarSign} label="Бюджет" value={tender.budget} />}
-        {tender.lead_grade && <InfoRow icon={Tag} label="Степень лида" value={tender.lead_grade} />}
-
-        {/* Interactions block */}
-        <div className="pt-2 border-t border-border/50">
-          <TenderInteractionsList tenderId={tender.id} />
-        </div>
-
-        {tender.notes && (
-          <div>
-            <div className="text-xs font-medium text-muted-foreground mb-1">Примечание</div>
-            <div className="bg-muted/30 rounded-lg p-3 text-sm text-foreground whitespace-pre-wrap">{tender.notes}</div>
+            {/* Contacts */}
+            <div className="p-4 rounded-xl bg-card border border-border/50">
+              <TenderContactsList tenderId={tender.id} />
+            </div>
           </div>
-        )}
 
-        {/* Comments */}
-        <div className="pt-3 border-t border-border">
-          <TenderComments tenderId={tender.id} profiles={profiles} />
+          {/* Right column — Interactions & Comments */}
+          <div className="space-y-4">
+            {/* Interactions */}
+            <div className="p-4 rounded-xl bg-card border border-border/50">
+              <TenderInteractionsList tenderId={tender.id} />
+            </div>
+
+            {/* Comments */}
+            <div className="p-4 rounded-xl bg-card border border-border/50">
+              <TenderComments tenderId={tender.id} profiles={profiles} />
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Actions */}
-      <div className="flex justify-between mt-4 pt-4 border-t border-border">
+      <div className="flex justify-between mt-5 pt-4 border-t border-border">
         <button
           onClick={onDelete}
           className="px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors flex items-center gap-1.5"
@@ -682,7 +706,7 @@ function TenderDetailModal({
           </button>
           <button
             onClick={onEdit}
-            className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
+            className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
           >
             <Edit2 className="w-4 h-4" />
             Редактировать
@@ -693,14 +717,14 @@ function TenderDetailModal({
   );
 }
 
-function InfoRow({ icon: Icon, label, value, multiline }: { icon: any; label: string; value: string; multiline?: boolean }) {
+function DetailCard({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
   return (
-    <div className="flex items-start gap-2">
-      <Icon className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-      <div>
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className={`text-sm text-foreground ${multiline ? "whitespace-pre-wrap" : ""}`}>{value}</div>
+    <div className="p-3 rounded-xl bg-muted/20 border border-border/30">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+        <Icon className="w-3.5 h-3.5" />
+        {label}
       </div>
+      <div className="text-sm font-medium text-foreground">{value}</div>
     </div>
   );
 }
