@@ -24,12 +24,12 @@ import { Modal } from "@/components/ui/Modal";
 
 // ── Status column colors ──
 const STATUS_COLORS: Record<TenderStatus, string> = {
-  first_contact: "border-t-amber-400",
-  in_progress: "border-t-blue-500",
-  meeting: "border-t-purple-500",
-  won: "border-t-green-500",
-  lost: "border-t-red-400",
-  cancelled: "border-t-gray-400",
+  first_contact: "from-amber-400 to-amber-500",
+  in_progress: "from-blue-500 to-indigo-500",
+  meeting: "from-violet-500 to-purple-500",
+  won: "from-emerald-400 to-green-500",
+  lost: "from-rose-400 to-red-500",
+  cancelled: "from-slate-400 to-gray-500",
 };
 
 const STATUS_BG: Record<TenderStatus, string> = {
@@ -39,6 +39,15 @@ const STATUS_BG: Record<TenderStatus, string> = {
   won: "bg-green-500/10 text-green-700 dark:text-green-400",
   lost: "bg-red-500/10 text-red-700 dark:text-red-400",
   cancelled: "bg-gray-500/10 text-gray-600 dark:text-gray-400",
+};
+
+const STATUS_ICON: Record<TenderStatus, string> = {
+  first_contact: "🔥",
+  in_progress: "⚡",
+  meeting: "🤝",
+  won: "🏆",
+  lost: "💔",
+  cancelled: "⛔",
 };
 
 export function TendersKanbanModule() {
@@ -82,16 +91,18 @@ export function TendersKanbanModule() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Тендеры</h1>
-          <p className="text-sm text-muted-foreground mt-1">{tenders.length} проектов</p>
+          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+            Тендеры
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">{tenders.length} проектов в работе</p>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-accent to-accent/80 text-accent-foreground rounded-xl text-sm font-semibold hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all duration-200"
         >
           <Plus className="w-4 h-4" />
           Новый тендер
@@ -173,21 +184,29 @@ function KanbanColumn({
 }) {
   return (
     <div className="flex-shrink-0 w-72 md:w-80">
-      <div className={`rounded-xl border-t-4 ${STATUS_COLORS[status]} bg-card border border-border/50 overflow-hidden`}>
+      <div className="rounded-2xl bg-card/80 backdrop-blur-sm border border-border/40 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300">
+        {/* Gradient top bar */}
+        <div className={`h-1.5 bg-gradient-to-r ${STATUS_COLORS[status]}`} />
         {/* Column Header */}
-        <div className="p-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${STATUS_BG[status]}`}>
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="text-lg">{STATUS_ICON[status]}</span>
+            <span className="font-semibold text-sm text-foreground">
               {TENDER_STATUS_LABELS[status]}
             </span>
-            <span className="text-xs text-muted-foreground font-medium">{tenders.length}</span>
           </div>
+          <span className="text-xs font-bold bg-muted text-muted-foreground px-2 py-0.5 rounded-full min-w-[24px] text-center">
+            {tenders.length}
+          </span>
         </div>
 
         {/* Cards */}
-        <div className="px-3 pb-3 space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto">
+        <div className="px-3 pb-3 space-y-2.5 max-h-[calc(100vh-280px)] overflow-y-auto">
           {tenders.length === 0 && (
-            <p className="text-xs text-muted-foreground text-center py-6">Нет тендеров</p>
+            <div className="flex flex-col items-center py-8 text-muted-foreground/50">
+              <div className="text-3xl mb-2 opacity-50">{STATUS_ICON[status]}</div>
+              <p className="text-xs">Нет тендеров</p>
+            </div>
           )}
           {tenders.map((tender) => (
             <TenderCard
@@ -222,54 +241,60 @@ function TenderCard({
   return (
     <div
       onClick={onClick}
-      className="bg-background rounded-lg border border-border/50 p-3 cursor-pointer hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
+      className="bg-background rounded-xl border border-border/40 p-3.5 cursor-pointer hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20 hover:-translate-y-0.5 transition-all duration-300 group relative overflow-hidden"
     >
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <h4 className="text-sm font-semibold text-foreground line-clamp-2 group-hover:text-primary transition-colors">
-          {tender.project_name}
-        </h4>
-      </div>
-
-      {tender.company && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-          <Building className="w-3 h-3 shrink-0" />
-          <span className="truncate">{tender.company.name}</span>
-          {tender.company.inn && (
-            <span className="text-muted-foreground/60 shrink-0">ИНН {tender.company.inn}</span>
+      {/* Subtle gradient overlay on hover */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+      
+      <div className="relative">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <h4 className="text-sm font-bold text-foreground line-clamp-2 group-hover:text-primary transition-colors duration-200">
+            {tender.project_name}
+          </h4>
+          {tender.lead_grade && (
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap shrink-0 ${
+              tender.lead_grade === "горячие" ? "bg-gradient-to-r from-red-500/15 to-orange-500/15 text-red-600 dark:text-red-400" :
+              tender.lead_grade === "теплые/подогретые" ? "bg-gradient-to-r from-orange-500/15 to-amber-500/15 text-orange-600 dark:text-orange-400" :
+              tender.lead_grade === "в процессе.." ? "bg-gradient-to-r from-blue-500/15 to-indigo-500/15 text-blue-600 dark:text-blue-400" :
+              "bg-muted text-muted-foreground"
+            }`}>
+              {tender.lead_grade === "горячие" ? "🔥" : tender.lead_grade === "теплые/подогретые" ? "🌡️" : "⏳"} {tender.lead_grade}
+            </span>
           )}
         </div>
-      )}
 
-      {tender.area_address && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-          <MapPin className="w-3 h-3 shrink-0" />
-          <span className="truncate">{tender.area_address}</span>
+        {tender.company && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+            <div className="w-5 h-5 rounded-md bg-primary/8 flex items-center justify-center shrink-0">
+              <Building className="w-3 h-3 text-primary/70" />
+            </div>
+            <span className="truncate font-medium">{tender.company.name}</span>
+          </div>
+        )}
+
+        {tender.area_address && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+            <MapPin className="w-3 h-3 shrink-0 text-muted-foreground/60" />
+            <span className="truncate">{tender.area_address}</span>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-border/20">
+          {managerName ? (
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                {managerName.charAt(0)}
+              </div>
+              <span className="text-xs text-muted-foreground truncate">{managerName}</span>
+            </div>
+          ) : <div />}
+          {tender.source && (
+            <span className="text-[10px] bg-secondary/80 px-2 py-0.5 rounded-full text-muted-foreground truncate max-w-[120px] font-medium">
+              {tender.source}
+            </span>
+          )}
         </div>
-      )}
-
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/30">
-        {managerName && (
-          <span className="text-xs text-muted-foreground truncate">{managerName}</span>
-        )}
-        {tender.source && (
-          <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground truncate max-w-[120px]">
-            {tender.source}
-          </span>
-        )}
       </div>
-
-      {tender.lead_grade && (
-        <div className="mt-1.5">
-          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-            tender.lead_grade === "горячие" ? "bg-red-500/10 text-red-600" :
-            tender.lead_grade === "теплые/подогретые" ? "bg-orange-500/10 text-orange-600" :
-            tender.lead_grade === "в процессе.." ? "bg-blue-500/10 text-blue-600" :
-            "bg-muted text-muted-foreground"
-          }`}>
-            {tender.lead_grade}
-          </span>
-        </div>
-      )}
     </div>
   );
 }
@@ -589,18 +614,18 @@ function TenderDetailModal({
     <Modal isOpen onClose={onClose} title={tender.project_name}>
       <div className="space-y-4 max-h-[70vh] overflow-y-auto">
         {/* Status selector */}
-        <div className="flex items-center gap-2 flex-wrap p-1 -m-1">
+        <div className="flex items-center gap-2 flex-wrap p-1.5 -m-1.5">
           {TENDER_STATUS_COLUMNS.map((s) => (
             <button
               key={s}
               onClick={() => onStatusChange(s)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
                 tender.status === s
-                  ? STATUS_BG[s] + " ring-2 ring-offset-1 ring-current"
-                  : "bg-muted text-muted-foreground hover:bg-accent"
+                  ? STATUS_BG[s] + " shadow-sm ring-2 ring-offset-2 ring-offset-background ring-current scale-105"
+                  : "bg-muted/60 text-muted-foreground hover:bg-muted hover:scale-105"
               }`}
             >
-              {TENDER_STATUS_LABELS[s]}
+              {STATUS_ICON[s]} {TENDER_STATUS_LABELS[s]}
             </button>
           ))}
         </div>
