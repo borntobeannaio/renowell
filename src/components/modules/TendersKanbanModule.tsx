@@ -572,11 +572,17 @@ function TenderDetailModal({
   onStatusChange: (s: TenderStatus) => void;
 }) {
   const [profiles, setProfiles] = useState<{ id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }[]>([]);
+  const { data: employees = [] } = useEmployees();
   useEffect(() => {
     proxySelect<{ id: string; first_name: string | null; last_name: string | null; avatar_url: string | null }>("profiles", {
       select: "id,first_name,last_name,avatar_url",
     }).then(({ data }) => setProfiles(data || []));
   }, []);
+  const managerName = useMemo(() => {
+    if (!tender.manager) return null;
+    const emp = employees.find(e => e.profile_id === tender.manager);
+    return emp ? getEmployeeDisplayName(emp) : tender.manager;
+  }, [tender.manager, employees]);
   return (
     <Modal isOpen onClose={onClose} title={tender.project_name}>
       <div className="space-y-4 max-h-[70vh] overflow-y-auto">
