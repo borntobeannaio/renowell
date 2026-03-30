@@ -3,6 +3,7 @@ import { Plus, Building, Search, Loader2, Trash2, Edit2, X, ChevronDown, Chevron
 import { TenderInteractionsList } from "@/components/tenders/TenderInteractionsList";
 import { TenderContactsList } from "@/components/tenders/TenderContactsList";
 import { TenderComments } from "@/components/tenders/TenderComments";
+import { TenderChecklist } from "@/components/tenders/TenderChecklist";
 import { proxySelect } from "@/lib/dbProxy";
 import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import {
