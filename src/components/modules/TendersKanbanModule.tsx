@@ -184,21 +184,29 @@ function KanbanColumn({
 }) {
   return (
     <div className="flex-shrink-0 w-72 md:w-80">
-      <div className={`rounded-xl border-t-4 ${STATUS_COLORS[status]} bg-card border border-border/50 overflow-hidden`}>
+      <div className="rounded-2xl bg-card/80 backdrop-blur-sm border border-border/40 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300">
+        {/* Gradient top bar */}
+        <div className={`h-1.5 bg-gradient-to-r ${STATUS_COLORS[status]}`} />
         {/* Column Header */}
-        <div className="p-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${STATUS_BG[status]}`}>
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="text-lg">{STATUS_ICON[status]}</span>
+            <span className="font-semibold text-sm text-foreground">
               {TENDER_STATUS_LABELS[status]}
             </span>
-            <span className="text-xs text-muted-foreground font-medium">{tenders.length}</span>
           </div>
+          <span className="text-xs font-bold bg-muted text-muted-foreground px-2 py-0.5 rounded-full min-w-[24px] text-center">
+            {tenders.length}
+          </span>
         </div>
 
         {/* Cards */}
-        <div className="px-3 pb-3 space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto">
+        <div className="px-3 pb-3 space-y-2.5 max-h-[calc(100vh-280px)] overflow-y-auto">
           {tenders.length === 0 && (
-            <p className="text-xs text-muted-foreground text-center py-6">Нет тендеров</p>
+            <div className="flex flex-col items-center py-8 text-muted-foreground/50">
+              <div className="text-3xl mb-2 opacity-50">{STATUS_ICON[status]}</div>
+              <p className="text-xs">Нет тендеров</p>
+            </div>
           )}
           {tenders.map((tender) => (
             <TenderCard
