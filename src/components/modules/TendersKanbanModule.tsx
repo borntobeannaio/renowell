@@ -608,7 +608,7 @@ function TenderDetailModal({
           <InfoRow icon={Building} label="Компания" value={`${tender.company.name}${tender.company.inn ? ` (ИНН ${tender.company.inn})` : ""}`} />
         )}
 
-        {tender.manager && <InfoRow icon={Tag} label="Менеджер" value={tender.manager} />}
+        {managerName && <InfoRow icon={Tag} label="Менеджер" value={managerName} />}
         {tender.source && <InfoRow icon={Tag} label="Источник" value={tender.source} />}
         {tender.contact_info && <InfoRow icon={Phone} label="Контакты ЛПР" value={tender.contact_info} multiline />}
         {tender.area_address && <InfoRow icon={MapPin} label="Площадь / Адрес" value={tender.area_address} />}
