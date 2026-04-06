@@ -85,7 +85,11 @@ ${tasks.map(t => {
   const projectName = t.project_id ? projectMap.get(t.project_id) : null;
   const assigneeName = t.assignee_id ? profileMap.get(t.assignee_id) : null;
   const originInfo = t.origin_type ? `Источник: ${t.origin_type === 'protocol' ? 'Протокол' : t.origin_type}` : '';
-  return `- [${statusLabels[t.status] || t.status}] [${priorityLabels[t.priority] || t.priority}] ${t.title} | Проект: ${projectName || "не указан"} | Исполнитель: ${assigneeName || "не назначен"} | Срок: ${t.due_date || "не указан"} | Метки: ${t.labels?.join(", ") || "нет"} ${originInfo}`;
+  const tComments = taskComments.filter(c => c.task_id === t.id);
+  const commentsText = tComments.length > 0
+    ? ` | Комментарии: ${tComments.slice(0, 3).map(c => `[${profileMap.get(c.author_id) || '?'}, ${c.created_at?.slice(0, 10)}] ${c.content}`).join('; ')}`
+    : '';
+  return `- [${statusLabels[t.status] || t.status}] [${priorityLabels[t.priority] || t.priority}] ${t.title} | Проект: ${projectName || "не указан"} | Исполнитель: ${assigneeName || "не назначен"} | Срок: ${t.due_date || "не указан"} | Метки: ${t.labels?.join(", ") || "нет"} ${originInfo}${commentsText}`;
 }).join("\n")}
 
 ### Протоколы совещаний (${protocols.length}):
