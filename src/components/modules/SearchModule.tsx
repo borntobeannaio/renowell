@@ -3,6 +3,7 @@ import { useApp } from "@/context/AppContext";
 import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import { useProtocols } from "@/hooks/useProtocols";
 import { useTasks } from "@/hooks/useTasks";
+import { useTenders, TENDER_STATUS_LABELS } from "@/hooks/useTenders";
 import { Search, ArrowRight, Loader2 } from "lucide-react";
 import { NavigationSection } from "@/types";
 
@@ -20,9 +21,10 @@ export function SearchModule() {
   const { data: employees = [], isLoading: loadingEmp } = useEmployees();
   const { data: protocols = [], isLoading: loadingProt } = useProtocols();
   const { data: tasks = [], isLoading: loadingTasks } = useTasks();
+  const { data: tenders = [], isLoading: loadingTenders } = useTenders();
 
   const query = searchQuery.toLowerCase();
-  const isLoading = loadingEmp || loadingProt || loadingTasks;
+  const isLoading = loadingEmp || loadingProt || loadingTasks || loadingTenders;
 
   const results: SearchResult[] = [];
 
@@ -88,6 +90,26 @@ export function SearchModule() {
             .filter(Boolean)
             .join(" • "),
           section: "Задачи",
+    });
+
+    // Search tenders
+    tenders.forEach((tender) => {
+      const companyName = tender.company?.name || '';
+      const statusLabel = TENDER_STATUS_LABELS[tender.status] || tender.status;
+      if (
+        tender.project_name.toLowerCase().includes(query) ||
+        companyName.toLowerCase().includes(query) ||
+        tender.manager?.toLowerCase().includes(query) ||
+        tender.source?.toLowerCase().includes(query) ||
+        tender.area_address?.toLowerCase().includes(query) ||
+        statusLabel.toLowerCase().includes(query)
+      ) {
+        results.push({
+          id: tender.id,
+          type: "tenders",
+          title: tender.project_name,
+          description: [companyName, statusLabel, tender.manager].filter(Boolean).join(" • "),
+          section: "Тендеры",
         });
       }
     });
