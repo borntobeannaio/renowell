@@ -244,6 +244,8 @@ ${portalContext}`;
       tenders: tenders.length,
       tenderContacts: tenderContacts.length,
       tenderInteractions: tenderInteractions.length,
+      tenderComments: tenderComments.length,
+      taskComments: taskComments.length,
     });
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
