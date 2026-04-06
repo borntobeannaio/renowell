@@ -214,6 +214,7 @@ ${tenders.map(t => {
 - Можешь анализировать связи между данными (задачи по проектам, пункты протоколов, исполнители и т.д.)
 - При ответах о задачах по проекту - ищи по названию проекта в данных задач
 - При ответах о протоколах - включай информацию о пунктах протокола
+- При вопросах о тендерах — используй данные тендеров, включая контакты, компании, взаимодействия
 - При вопросах о бренде (позиционирование, ценности, миссия, видение, характер, тональность, выгоды, атрибуты) — используй платформу бренда
 - Можешь помогать формулировать тексты в соответствии с тональностью бренда
 
@@ -228,6 +229,9 @@ ${portalContext}`;
       employees: employees.length,
       projects: projects.length,
       profiles: profiles.length,
+      tenders: tenders.length,
+      tenderContacts: tenderContacts.length,
+      tenderInteractions: tenderInteractions.length,
     });
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
