@@ -3,6 +3,7 @@ import { useApp } from "@/context/AppContext";
 import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import { useProtocols } from "@/hooks/useProtocols";
 import { useTasks } from "@/hooks/useTasks";
+import { useTenders, TENDER_STATUS_LABELS } from "@/hooks/useTenders";
 import { Search, ArrowRight, Loader2 } from "lucide-react";
 import { NavigationSection } from "@/types";
 
