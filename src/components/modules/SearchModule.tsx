@@ -90,8 +90,29 @@ export function SearchModule() {
             .filter(Boolean)
             .join(" • "),
           section: "Задачи",
+    });
+
+    // Search tenders
+    tenders.forEach((tender) => {
+      const companyName = tender.company?.name || '';
+      const statusLabel = TENDER_STATUS_LABELS[tender.status] || tender.status;
+      if (
+        tender.project_name.toLowerCase().includes(query) ||
+        companyName.toLowerCase().includes(query) ||
+        tender.manager?.toLowerCase().includes(query) ||
+        tender.source?.toLowerCase().includes(query) ||
+        tender.area_address?.toLowerCase().includes(query) ||
+        statusLabel.toLowerCase().includes(query)
+      ) {
+        results.push({
+          id: tender.id,
+          type: "tenders",
+          title: tender.project_name,
+          description: [companyName, statusLabel, tender.manager].filter(Boolean).join(" • "),
+          section: "Тендеры",
         });
       }
+    });
     });
   }
 
