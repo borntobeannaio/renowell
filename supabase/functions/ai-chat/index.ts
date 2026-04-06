@@ -25,7 +25,7 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
     // Fetch ALL portal data for context
-    const [tasksResult, protocolsResult, protocolItemsResult, employeesResult, projectsResult, profilesResult, tendersResult, tenderContactsResult, tenderInteractionsResult, tenderCompaniesResult] = await Promise.all([
+    const [tasksResult, protocolsResult, protocolItemsResult, employeesResult, projectsResult, profilesResult, tendersResult, tenderContactsResult, tenderInteractionsResult, tenderCompaniesResult, tenderCommentsResult, taskCommentsResult] = await Promise.all([
       supabase.from("tasks").select("id, title, status, priority, due_date, labels, project_id, assignee_id, origin_type, origin_id").order("created_at", { ascending: false }).limit(100),
       supabase.from("protocols").select("id, title, date, number, organizer, meeting_type, attendees").order("date", { ascending: false }).limit(50),
       supabase.from("protocol_items").select("id, item_text, responsible, due_date, create_task, task_id, project_id, protocol_id").order("sort_order").limit(200),
@@ -36,6 +36,8 @@ serve(async (req) => {
       supabase.from("tender_contacts").select("id, tender_id, name, phone, description").order("created_at").limit(200),
       supabase.from("tender_interactions").select("id, tender_id, content, created_at").order("created_at", { ascending: false }).limit(200),
       supabase.from("tender_companies").select("id, name, inn, ogrn, address").limit(100),
+      supabase.from("tender_comments").select("id, tender_id, author_id, content, created_at").order("created_at", { ascending: false }).limit(200),
+      supabase.from("task_comments").select("id, task_id, author_id, content, created_at").order("created_at", { ascending: false }).limit(200),
     ]);
 
     const tasks = tasksResult.data || [];
@@ -48,6 +50,8 @@ serve(async (req) => {
     const tenderContacts = tenderContactsResult.data || [];
     const tenderInteractions = tenderInteractionsResult.data || [];
     const tenderCompanies = tenderCompaniesResult.data || [];
+    const tenderComments = tenderCommentsResult.data || [];
+    const taskComments = taskCommentsResult.data || [];
 
     // Create lookup maps for relationships
     const projectMap = new Map(projects.map(p => [p.id, p.name]));
@@ -81,7 +85,11 @@ ${tasks.map(t => {
   const projectName = t.project_id ? projectMap.get(t.project_id) : null;
   const assigneeName = t.assignee_id ? profileMap.get(t.assignee_id) : null;
   const originInfo = t.origin_type ? `Источник: ${t.origin_type === 'protocol' ? 'Протокол' : t.origin_type}` : '';
-  return `- [${statusLabels[t.status] || t.status}] [${priorityLabels[t.priority] || t.priority}] ${t.title} | Проект: ${projectName || "не указан"} | Исполнитель: ${assigneeName || "не назначен"} | Срок: ${t.due_date || "не указан"} | Метки: ${t.labels?.join(", ") || "нет"} ${originInfo}`;
+  const tComments = taskComments.filter(c => c.task_id === t.id);
+  const commentsText = tComments.length > 0
+    ? ` | Комментарии: ${tComments.slice(0, 3).map(c => `[${profileMap.get(c.author_id) || '?'}, ${c.created_at?.slice(0, 10)}] ${c.content}`).join('; ')}`
+    : '';
+  return `- [${statusLabels[t.status] || t.status}] [${priorityLabels[t.priority] || t.priority}] ${t.title} | Проект: ${projectName || "не указан"} | Исполнитель: ${assigneeName || "не назначен"} | Срок: ${t.due_date || "не указан"} | Метки: ${t.labels?.join(", ") || "нет"} ${originInfo}${commentsText}`;
 }).join("\n")}
 
 ### Протоколы совещаний (${protocols.length}):
@@ -119,7 +127,11 @@ ${tenders.map(t => {
   const interactionsText = interactions.length > 0
     ? `\n  Последние взаимодействия: ${interactions.slice(0, 5).map(i => `[${i.created_at?.slice(0, 10)}] ${i.content}`).join('; ')}`
     : '';
-  return `- [${statusLabels[t.status] || t.status}] ${t.project_name} | Компания: ${company?.name || "не указана"}${company?.inn ? ` (ИНН: ${company.inn})` : ''} | Менеджер: ${t.manager || "не указан"} | Бюджет: ${t.budget || "не указан"} | Адрес: ${t.area_address || "не указан"} | Источник: ${t.source || "не указан"} | Грейд: ${t.lead_grade || "не указан"}${contactsText}${interactionsText}`;
+  const tComments = tenderComments.filter(c => c.tender_id === t.id);
+  const commentsText = tComments.length > 0
+    ? `\n  Комментарии: ${tComments.slice(0, 5).map(c => `[${profileMap.get(c.author_id) || '?'}, ${c.created_at?.slice(0, 10)}] ${c.content}`).join('; ')}`
+    : '';
+  return `- [${statusLabels[t.status] || t.status}] ${t.project_name} | Компания: ${company?.name || "не указана"}${company?.inn ? ` (ИНН: ${company.inn})` : ''} | Менеджер: ${t.manager || "не указан"} | Бюджет: ${t.budget || "не указан"} | Адрес: ${t.area_address || "не указан"} | Источник: ${t.source || "не указан"} | Грейд: ${t.lead_grade || "не указан"}${contactsText}${interactionsText}${commentsText}`;
 }).join("\n")}
 `;
 
@@ -232,6 +244,8 @@ ${portalContext}`;
       tenders: tenders.length,
       tenderContacts: tenderContacts.length,
       tenderInteractions: tenderInteractions.length,
+      tenderComments: tenderComments.length,
+      taskComments: taskComments.length,
     });
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
