@@ -127,7 +127,11 @@ ${tenders.map(t => {
   const interactionsText = interactions.length > 0
     ? `\n  Последние взаимодействия: ${interactions.slice(0, 5).map(i => `[${i.created_at?.slice(0, 10)}] ${i.content}`).join('; ')}`
     : '';
-  return `- [${statusLabels[t.status] || t.status}] ${t.project_name} | Компания: ${company?.name || "не указана"}${company?.inn ? ` (ИНН: ${company.inn})` : ''} | Менеджер: ${t.manager || "не указан"} | Бюджет: ${t.budget || "не указан"} | Адрес: ${t.area_address || "не указан"} | Источник: ${t.source || "не указан"} | Грейд: ${t.lead_grade || "не указан"}${contactsText}${interactionsText}`;
+  const tComments = tenderComments.filter(c => c.tender_id === t.id);
+  const commentsText = tComments.length > 0
+    ? `\n  Комментарии: ${tComments.slice(0, 5).map(c => `[${profileMap.get(c.author_id) || '?'}, ${c.created_at?.slice(0, 10)}] ${c.content}`).join('; ')}`
+    : '';
+  return `- [${statusLabels[t.status] || t.status}] ${t.project_name} | Компания: ${company?.name || "не указана"}${company?.inn ? ` (ИНН: ${company.inn})` : ''} | Менеджер: ${t.manager || "не указан"} | Бюджет: ${t.budget || "не указан"} | Адрес: ${t.area_address || "не указан"} | Источник: ${t.source || "не указан"} | Грейд: ${t.lead_grade || "не указан"}${contactsText}${interactionsText}${commentsText}`;
 }).join("\n")}
 `;
 
