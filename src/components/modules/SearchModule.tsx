@@ -21,9 +21,10 @@ export function SearchModule() {
   const { data: employees = [], isLoading: loadingEmp } = useEmployees();
   const { data: protocols = [], isLoading: loadingProt } = useProtocols();
   const { data: tasks = [], isLoading: loadingTasks } = useTasks();
+  const { data: tenders = [], isLoading: loadingTenders } = useTenders();
 
   const query = searchQuery.toLowerCase();
-  const isLoading = loadingEmp || loadingProt || loadingTasks;
+  const isLoading = loadingEmp || loadingProt || loadingTasks || loadingTenders;
 
   const results: SearchResult[] = [];
 
