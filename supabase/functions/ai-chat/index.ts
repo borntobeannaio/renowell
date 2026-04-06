@@ -25,13 +25,17 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
     // Fetch ALL portal data for context
-    const [tasksResult, protocolsResult, protocolItemsResult, employeesResult, projectsResult, profilesResult] = await Promise.all([
+    const [tasksResult, protocolsResult, protocolItemsResult, employeesResult, projectsResult, profilesResult, tendersResult, tenderContactsResult, tenderInteractionsResult, tenderCompaniesResult] = await Promise.all([
       supabase.from("tasks").select("id, title, status, priority, due_date, labels, project_id, assignee_id, origin_type, origin_id").order("created_at", { ascending: false }).limit(100),
       supabase.from("protocols").select("id, title, date, number, organizer, meeting_type, attendees").order("date", { ascending: false }).limit(50),
       supabase.from("protocol_items").select("id, item_text, responsible, due_date, create_task, task_id, project_id, protocol_id").order("sort_order").limit(200),
       supabase.from("employees").select("id, full_name, position, department, email, phone, birthday").limit(100),
       supabase.from("projects").select("id, name").limit(50),
       supabase.from("profiles").select("id, user_id, first_name, last_name, position").limit(100),
+      supabase.from("tenders").select("id, project_name, status, source, manager, budget, area_address, contact_info, notes, company_id, lead_grade, duration_months, tender_start_date").order("created_at", { ascending: false }).limit(100),
+      supabase.from("tender_contacts").select("id, tender_id, name, phone, description").order("created_at").limit(200),
+      supabase.from("tender_interactions").select("id, tender_id, content, created_at").order("created_at", { ascending: false }).limit(200),
+      supabase.from("tender_companies").select("id, name, inn, ogrn, address").limit(100),
     ]);
 
     const tasks = tasksResult.data || [];
@@ -40,12 +44,17 @@ serve(async (req) => {
     const employees = employeesResult.data || [];
     const projects = projectsResult.data || [];
     const profiles = profilesResult.data || [];
+    const tenders = tendersResult.data || [];
+    const tenderContacts = tenderContactsResult.data || [];
+    const tenderInteractions = tenderInteractionsResult.data || [];
+    const tenderCompanies = tenderCompaniesResult.data || [];
 
     // Create lookup maps for relationships
     const projectMap = new Map(projects.map(p => [p.id, p.name]));
     const profileMap = new Map(profiles.map(p => [p.id, `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Без имени']));
     const protocolMap = new Map(protocols.map(p => [p.id, `№${p.number} от ${p.date}: ${p.title}`]));
     const taskMap = new Map(tasks.map(t => [t.id, t.title]));
+    const companyMap = new Map(tenderCompanies.map(c => [c.id, c]));
 
     // Format portal data as context
     const portalContext = `
@@ -93,6 +102,24 @@ ${protocolItems.map(i => {
   const protocolInfo = i.protocol_id ? protocolMap.get(i.protocol_id) : null;
   const itemProject = i.project_id ? projectMap.get(i.project_id) : null;
   return `- ${i.item_text} | Протокол: ${protocolInfo || "не указан"} | Ответственный: ${i.responsible || "не указан"} | Срок: ${i.due_date || "не указан"} | Проект: ${itemProject || "не указан"} | Задача создана: ${i.create_task ? 'Да' : 'Нет'}`;
+}).join("\n")}
+
+### Тендеры (${tenders.length}):
+${tenders.map(t => {
+  const statusLabels: Record<string, string> = {
+    initial_contact: "Первичный контакт", in_progress: "В работе", meeting: "Встреча",
+    won: "Выиграли", lost: "Проиграли", cancelled: "Отбой"
+  };
+  const company = t.company_id ? companyMap.get(t.company_id) : null;
+  const contacts = tenderContacts.filter(c => c.tender_id === t.id);
+  const interactions = tenderInteractions.filter(i => i.tender_id === t.id);
+  const contactsText = contacts.length > 0
+    ? `\n  Контакты: ${contacts.map(c => `${c.name || ''} ${c.phone || ''} ${c.description || ''}`.trim()).join('; ')}`
+    : '';
+  const interactionsText = interactions.length > 0
+    ? `\n  Последние взаимодействия: ${interactions.slice(0, 5).map(i => `[${i.created_at?.slice(0, 10)}] ${i.content}`).join('; ')}`
+    : '';
+  return `- [${statusLabels[t.status] || t.status}] ${t.project_name} | Компания: ${company?.name || "не указана"}${company?.inn ? ` (ИНН: ${company.inn})` : ''} | Менеджер: ${t.manager || "не указан"} | Бюджет: ${t.budget || "не указан"} | Адрес: ${t.area_address || "не указан"} | Источник: ${t.source || "не указан"} | Грейд: ${t.lead_grade || "не указан"}${contactsText}${interactionsText}`;
 }).join("\n")}
 `;
 
@@ -187,6 +214,7 @@ ${protocolItems.map(i => {
 - Можешь анализировать связи между данными (задачи по проектам, пункты протоколов, исполнители и т.д.)
 - При ответах о задачах по проекту - ищи по названию проекта в данных задач
 - При ответах о протоколах - включай информацию о пунктах протокола
+- При вопросах о тендерах — используй данные тендеров, включая контакты, компании, взаимодействия
 - При вопросах о бренде (позиционирование, ценности, миссия, видение, характер, тональность, выгоды, атрибуты) — используй платформу бренда
 - Можешь помогать формулировать тексты в соответствии с тональностью бренда
 
@@ -201,6 +229,9 @@ ${portalContext}`;
       employees: employees.length,
       projects: projects.length,
       profiles: profiles.length,
+      tenders: tenders.length,
+      tenderContacts: tenderContacts.length,
+      tenderInteractions: tenderInteractions.length,
     });
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
