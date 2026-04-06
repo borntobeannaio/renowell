@@ -103,6 +103,24 @@ ${protocolItems.map(i => {
   const itemProject = i.project_id ? projectMap.get(i.project_id) : null;
   return `- ${i.item_text} | Протокол: ${protocolInfo || "не указан"} | Ответственный: ${i.responsible || "не указан"} | Срок: ${i.due_date || "не указан"} | Проект: ${itemProject || "не указан"} | Задача создана: ${i.create_task ? 'Да' : 'Нет'}`;
 }).join("\n")}
+
+### Тендеры (${tenders.length}):
+${tenders.map(t => {
+  const statusLabels: Record<string, string> = {
+    initial_contact: "Первичный контакт", in_progress: "В работе", meeting: "Встреча",
+    won: "Выиграли", lost: "Проиграли", cancelled: "Отбой"
+  };
+  const company = t.company_id ? companyMap.get(t.company_id) : null;
+  const contacts = tenderContacts.filter(c => c.tender_id === t.id);
+  const interactions = tenderInteractions.filter(i => i.tender_id === t.id);
+  const contactsText = contacts.length > 0
+    ? `\n  Контакты: ${contacts.map(c => `${c.name || ''} ${c.phone || ''} ${c.description || ''}`.trim()).join('; ')}`
+    : '';
+  const interactionsText = interactions.length > 0
+    ? `\n  Последние взаимодействия: ${interactions.slice(0, 5).map(i => `[${i.created_at?.slice(0, 10)}] ${i.content}`).join('; ')}`
+    : '';
+  return `- [${statusLabels[t.status] || t.status}] ${t.project_name} | Компания: ${company?.name || "не указана"}${company?.inn ? ` (ИНН: ${company.inn})` : ''} | Менеджер: ${t.manager || "не указан"} | Бюджет: ${t.budget || "не указан"} | Адрес: ${t.area_address || "не указан"} | Источник: ${t.source || "не указан"} | Грейд: ${t.lead_grade || "не указан"}${contactsText}${interactionsText}`;
+}).join("\n")}
 `;
 
     // Brand Hub context
