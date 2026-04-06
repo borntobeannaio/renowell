@@ -54,6 +54,7 @@ serve(async (req) => {
     const profileMap = new Map(profiles.map(p => [p.id, `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Без имени']));
     const protocolMap = new Map(protocols.map(p => [p.id, `№${p.number} от ${p.date}: ${p.title}`]));
     const taskMap = new Map(tasks.map(t => [t.id, t.title]));
+    const companyMap = new Map(tenderCompanies.map(c => [c.id, c]));
 
     // Format portal data as context
     const portalContext = `
