@@ -113,7 +113,6 @@ export function SearchModule() {
         });
       }
     });
-    });
   }
 
   const sectionPaths: Record<NavigationSection, string> = {
