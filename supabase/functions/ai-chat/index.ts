@@ -25,13 +25,17 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
     // Fetch ALL portal data for context
-    const [tasksResult, protocolsResult, protocolItemsResult, employeesResult, projectsResult, profilesResult] = await Promise.all([
+    const [tasksResult, protocolsResult, protocolItemsResult, employeesResult, projectsResult, profilesResult, tendersResult, tenderContactsResult, tenderInteractionsResult, tenderCompaniesResult] = await Promise.all([
       supabase.from("tasks").select("id, title, status, priority, due_date, labels, project_id, assignee_id, origin_type, origin_id").order("created_at", { ascending: false }).limit(100),
       supabase.from("protocols").select("id, title, date, number, organizer, meeting_type, attendees").order("date", { ascending: false }).limit(50),
       supabase.from("protocol_items").select("id, item_text, responsible, due_date, create_task, task_id, project_id, protocol_id").order("sort_order").limit(200),
       supabase.from("employees").select("id, full_name, position, department, email, phone, birthday").limit(100),
       supabase.from("projects").select("id, name").limit(50),
       supabase.from("profiles").select("id, user_id, first_name, last_name, position").limit(100),
+      supabase.from("tenders").select("id, project_name, status, source, manager, budget, area_address, contact_info, notes, company_id, lead_grade, duration_months, tender_start_date").order("created_at", { ascending: false }).limit(100),
+      supabase.from("tender_contacts").select("id, tender_id, name, phone, description").order("created_at").limit(200),
+      supabase.from("tender_interactions").select("id, tender_id, content, created_at").order("created_at", { ascending: false }).limit(200),
+      supabase.from("tender_companies").select("id, name, inn, ogrn, address").limit(100),
     ]);
 
     const tasks = tasksResult.data || [];
@@ -40,6 +44,10 @@ serve(async (req) => {
     const employees = employeesResult.data || [];
     const projects = projectsResult.data || [];
     const profiles = profilesResult.data || [];
+    const tenders = tendersResult.data || [];
+    const tenderContacts = tenderContactsResult.data || [];
+    const tenderInteractions = tenderInteractionsResult.data || [];
+    const tenderCompanies = tenderCompaniesResult.data || [];
 
     // Create lookup maps for relationships
     const projectMap = new Map(projects.map(p => [p.id, p.name]));
