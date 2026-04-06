@@ -90,6 +90,8 @@ export function SearchModule() {
             .filter(Boolean)
             .join(" • "),
           section: "Задачи",
+        });
+      }
     });
 
     // Search tenders
