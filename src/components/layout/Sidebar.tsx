@@ -23,7 +23,7 @@ const allNavItems: { id: NavigationSection; path: string; label: string; icon: R
   { id: "news", path: "/news", label: "Новости", icon: Newspaper },
   { id: "protocols", path: "/protocols", label: "Протоколы", icon: FileText },
   { id: "tasks", path: "/tasks", label: "Задачи", icon: CheckSquare },
-  { id: "tenders", path: "/tenders", label: "Ком. отдел", icon: Building },
+  { id: "tenders", path: "/tenders", label: "Коммерческий\nотдел", icon: Building },
   { id: "hr", path: "/hr", label: "HR и Офис", icon: Users },
   { id: "calendar", path: "/calendar", label: "Календарь", icon: Calendar },
   { id: "knowledge", path: "/knowledge", label: "База знаний", icon: BookOpen },
@@ -97,7 +97,7 @@ export function Sidebar() {
             `}
           >
             <Icon className={`w-5 h-5 transition-transform duration-300 ${isActive(path) ? 'scale-110' : ''}`} />
-            <span>{label}</span>
+            <span className="whitespace-pre-line leading-tight">{label}</span>
           </Link>
         ))}
       </nav>
