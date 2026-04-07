@@ -97,7 +97,7 @@ export function Sidebar() {
             `}
           >
             <Icon className={`w-5 h-5 transition-transform duration-300 ${isActive(path) ? 'scale-110' : ''}`} />
-            <span>{label}</span>
+            <span className="whitespace-pre-line leading-tight">{label}</span>
           </Link>
         ))}
       </nav>
