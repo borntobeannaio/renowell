@@ -296,13 +296,38 @@ export default function ProtocolEditor() {
   }, [employees]);
 
   // Get all profile IDs from responsible string for task assignment
+  // Supports both "Имя Фамилия" and "Фамилия Имя" formats
   const getProfileIdsFromResponsible = useCallback((responsible: string | null): string[] => {
     if (!responsible) return [];
-    const names = responsible.split(", ").map(n => n.trim());
+    const names = responsible.split(", ").map(n => n.trim()).filter(Boolean);
     return names
-      .map(name => employees.find(e => getEmployeeDisplayName(e) === name)?.profile_id)
+      .map(name => {
+        const nameParts = new Set(name.toLowerCase().split(/\s+/));
+        return employees.find(e => {
+          const displayParts = new Set(getEmployeeDisplayName(e).toLowerCase().split(/\s+/));
+          // Match if all parts of the name are present in the display name
+          if (nameParts.size === displayParts.size && [...nameParts].every(p => displayParts.has(p))) return true;
+          // Also try full_name
+          const fullParts = new Set(e.full_name.toLowerCase().split(/\s+/));
+          if (nameParts.size === fullParts.size && [...nameParts].every(p => fullParts.has(p))) return true;
+          // Partial match: at least last name matches
+          if (nameParts.size > 0 && fullParts.size > 0) {
+            const nameArr = [...nameParts];
+            const fullArr = [...fullParts];
+            if (nameArr[0] === fullArr[0] || nameArr[nameArr.length - 1] === fullArr[0]) return true;
+          }
+          return false;
+        })?.profile_id;
+      })
       .filter(Boolean) as string[];
   }, [employees]);
+
+  // Split responsible into first assignee + remaining observers
+  const splitResponsibleForTask = useCallback((responsible: string | null): { assignee_ids: string[]; observer_ids: string[] } => {
+    const allIds = getProfileIdsFromResponsible(responsible);
+    if (allIds.length <= 1) return { assignee_ids: allIds, observer_ids: [] };
+    return { assignee_ids: [allIds[0]], observer_ids: allIds.slice(1) };
+  }, [getProfileIdsFromResponsible]);
 
   // Initialize for edit mode
   useEffect(() => {
