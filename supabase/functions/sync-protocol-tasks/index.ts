@@ -59,13 +59,31 @@ async function handleRebuild(supabase: any, protocolId: string) {
   // ===== 1. Load employees for name→profile_id mapping =====
   const { data: employees } = await supabase
     .from('employees')
-    .select('full_name, profile_id');
+    .select('full_name, first_name, last_name, profile_id');
 
-  const employeeMap = new Map<string, string>();
-  for (const emp of employees || []) {
-    if (emp.profile_id) {
-      employeeMap.set(emp.full_name.toLowerCase().trim(), emp.profile_id);
+  const employeeList = (employees || []).filter((e: any) => e.profile_id);
+
+  // Order-insensitive name matching: "Берлизова Татьяна" matches "Татьяна Берлизова"
+  function findProfileId(name: string): string | null {
+    const nameParts = new Set(name.toLowerCase().trim().split(/\s+/));
+    for (const emp of employeeList) {
+      const fullParts = new Set(emp.full_name.toLowerCase().trim().split(/\s+/));
+      if (nameParts.size === fullParts.size && [...nameParts].every((p: string) => fullParts.has(p))) {
+        return emp.profile_id;
+      }
+      // Also try first+last
+      const displayParts = new Set([emp.first_name, emp.last_name].filter(Boolean).map((s: string) => s.toLowerCase()));
+      if (nameParts.size === displayParts.size && [...nameParts].every((p: string) => displayParts.has(p))) {
+        return emp.profile_id;
+      }
     }
+    // Fallback: partial match on last name
+    const nameArr = [...nameParts];
+    for (const emp of employeeList) {
+      const lastName = (emp.last_name || emp.full_name.split(' ')[0] || '').toLowerCase();
+      if (nameArr.includes(lastName)) return emp.profile_id;
+    }
+    return null;
   }
 
   function getProfileIds(responsibleStr: string | null): string[] {
@@ -73,17 +91,8 @@ async function handleRebuild(supabase: any, protocolId: string) {
     const ids: string[] = [];
     const names = responsibleStr.split(/[,;\/]/).map(n => n.trim()).filter(Boolean);
     for (const name of names) {
-      const norm = name.toLowerCase().trim();
-      if (employeeMap.has(norm)) {
-        ids.push(employeeMap.get(norm)!);
-      } else {
-        for (const [empName, profileId] of employeeMap) {
-          if (empName.includes(norm) || norm.includes(empName.split(' ')[0])) {
-            ids.push(profileId);
-            break;
-          }
-        }
-      }
+      const pid = findProfileId(name);
+      if (pid) ids.push(pid);
     }
     return [...new Set(ids)];
   }
@@ -150,9 +159,11 @@ async function handleRebuild(supabase: any, protocolId: string) {
     // Use item_text as title directly (tender items already have [company] prefix)
     const title = item.item_text;
 
-    // Resolve responsible → profile IDs
+    // Resolve responsible → profile IDs (first = assignee, rest = observers)
     const responsible = item.responsible || section?.default_responsible;
     const profileIds = getProfileIds(responsible);
+    const assigneeIds = profileIds.length > 0 ? [profileIds[0]] : [];
+    const observerIds = profileIds.length > 1 ? profileIds.slice(1) : [];
 
     // Resolve project_id
     let projectId: string | null = null;
@@ -171,9 +182,9 @@ async function handleRebuild(supabase: any, protocolId: string) {
       .from('tasks')
       .insert({
         title,
-        assignee_ids: profileIds.length > 0 ? profileIds : [],
+        assignee_ids: assigneeIds,
         responsible_ids: [],
-        observer_ids: [],
+        observer_ids: observerIds,
         project_id: projectId,
         due_date: item.due_date,
         status,
