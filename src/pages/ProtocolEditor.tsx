@@ -1459,11 +1459,12 @@ export default function ProtocolEditor() {
               idMapping[item.id] = createdItem.id;
 
               if (!item.task_id && item.item_text.trim()) {
-                const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
+                const { assignee_ids, observer_ids } = splitResponsibleForTask(effectiveResponsible);
 
                 const taskResult = await createTask.mutateAsync({
                   title: `[${company.companyName}] ${item.item_text}`,
-                  assignee_ids: assigneeProfileIds,
+                  assignee_ids,
+                  observer_ids,
                   project_id: sectionProjectId,
                   due_date: item.due_date || null,
                   status: "new",
@@ -1516,11 +1517,12 @@ export default function ProtocolEditor() {
 
             // Always create task for every protocol item (unless copying with existing task)
             if (!item.task_id) {
-              const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
+              const { assignee_ids, observer_ids } = splitResponsibleForTask(effectiveResponsible);
 
               const taskResult = await createTask.mutateAsync({
                 title: item.item_text,
-                assignee_ids: assigneeProfileIds,
+                assignee_ids,
+                observer_ids,
                 project_id: sectionProjectId,
                 due_date: item.due_date || null,
                 status: "new",
@@ -1646,11 +1648,12 @@ export default function ProtocolEditor() {
 
             // Always create task for new items (unless placeholder or already has task from copy)
             if (!item.task_id && item.item_text.trim()) {
-              const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
+              const { assignee_ids, observer_ids } = splitResponsibleForTask(effectiveResponsible);
 
               const taskResult = await createTask.mutateAsync({
                 title: itemText,
-                assignee_ids: assigneeProfileIds,
+                assignee_ids,
+                observer_ids,
                 project_id: projectId,
                 due_date: item.due_date || null,
                 status: "new",
@@ -1698,11 +1701,12 @@ export default function ProtocolEditor() {
 
             // Create task if no task exists yet and item has text, update if exists
             if (!item.task_id && item.item_text.trim()) {
-              const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
+              const { assignee_ids, observer_ids } = splitResponsibleForTask(effectiveResponsible);
 
               const taskResult = await createTask.mutateAsync({
                 title: itemText,
-                assignee_ids: assigneeProfileIds,
+                assignee_ids,
+                observer_ids,
                 project_id: projectId,
                 due_date: item.due_date || null,
                 status: "new",
@@ -1719,12 +1723,13 @@ export default function ProtocolEditor() {
               toast.success(`Задача "${item.item_text.slice(0, 30)}..." создана`);
             } else {
               // Update existing task with current item data (sync all editable fields)
-              const assigneeProfileIds = getProfileIdsFromResponsible(effectiveResponsible);
+              const { assignee_ids, observer_ids } = splitResponsibleForTask(effectiveResponsible);
 
               await updateTask.mutateAsync({
                 id: item.task_id,
                 title: itemText,
-                assignee_ids: assigneeProfileIds,
+                assignee_ids,
+                observer_ids,
                 project_id: projectId,
                 due_date: item.due_date || null,
               });
