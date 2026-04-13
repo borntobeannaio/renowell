@@ -150,9 +150,11 @@ async function handleRebuild(supabase: any, protocolId: string) {
     // Use item_text as title directly (tender items already have [company] prefix)
     const title = item.item_text;
 
-    // Resolve responsible → profile IDs
+    // Resolve responsible → profile IDs (first = assignee, rest = observers)
     const responsible = item.responsible || section?.default_responsible;
     const profileIds = getProfileIds(responsible);
+    const assigneeIds = profileIds.length > 0 ? [profileIds[0]] : [];
+    const observerIds = profileIds.length > 1 ? profileIds.slice(1) : [];
 
     // Resolve project_id
     let projectId: string | null = null;
@@ -171,9 +173,9 @@ async function handleRebuild(supabase: any, protocolId: string) {
       .from('tasks')
       .insert({
         title,
-        assignee_ids: profileIds.length > 0 ? profileIds : [],
+        assignee_ids: assigneeIds,
         responsible_ids: [],
-        observer_ids: [],
+        observer_ids: observerIds,
         project_id: projectId,
         due_date: item.due_date,
         status,
