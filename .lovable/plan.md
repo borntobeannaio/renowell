@@ -1,68 +1,62 @@
+## План: Нативное приложение через Capacitor
 
+Превращаем портал Renowell в настоящее мобильное приложение для iOS и Android, которое можно опубликовать в App Store и Google Play.
 
-## Проблема: все пользователи видят все чаты и сообщения
+### Что я сделаю в проекте
 
-### Корневая причина
+1. **Установлю зависимости Capacitor**
+   - `@capacitor/core`, `@capacitor/cli`, `@capacitor/ios`, `@capacitor/android`
+   - `@capacitor/push-notifications` — для нативных push (у вас уже есть web-push, добавим нативный канал)
+   - `@capacitor/app`, `@capacitor/status-bar`, `@capacitor/splash-screen` — базовый UX
+   - `@capacitor/keyboard` — корректное поведение клавиатуры в формах
 
-Все запросы к БД идут через `dbProxy` → Yandex Cloud → `db-proxy` edge function, которая использует `SERVICE_ROLE_KEY` и **полностью обходит RLS**. При этом в `useConversations()` нет фильтра по текущему пользователю — запрос возвращает ВСЕ чаты из таблицы `chat_conversations`.
+2. **Создам `capacitor.config.ts`** в корне:
+   - `appId`: `app.lovable.0c20bd3b13c64401a76bdee9b432d23c`
+   - `appName`: `Renowell`
+   - `webDir`: `dist`
+   - Hot-reload с sandbox URL — чтобы вы могли тестировать на реальном устройстве, а изменения из Lovable сразу прилетали в приложение
 
-Результат: Софья видит чат Войченко с Морозом, и наоборот — все видят всё.
+3. **Адаптация под мобильные нюансы**
+   - Безопасные зоны (notch / Dynamic Island) — добавлю `viewport-fit=cover` и CSS `env(safe-area-inset-*)` в `index.html` и `MobileNav` (сейчас уже есть `safe-area-pb`, проверю остальные экраны)
+   - Статус-бар: настрою цвет под ваш `theme-color` `#6366f1`
+   - Splash-screen с логотипом Renowell
+   - Отключу контекстное меню/выделение текста там, где это мешает (в чате — оставлю)
 
-### Решение
+4. **Push-уведомления (нативные)**
+   - Сейчас работает Web Push через VAPID и `sw.js` — на iOS-приложениях это не работает, нужен APNs
+   - Добавлю слой `useNativePushNotifications`, который на платформе `ios`/`android` использует `@capacitor/push-notifications` и сохраняет нативный токен в `profiles.push_subscription` (или новое поле `native_push_token` — уточним при реализации)
+   - Web остаётся как был
+   - Edge function `send-queued-notifications` нужно будет научить отправлять в FCM/APNs — это второй шаг, сделаю заглушку и отмечу TODO
 
-Добавить фильтрацию по участнику в хуки чатов, поскольку RLS не работает через прокси:
+5. **Иконки и splash**
+   - Сгенерирую иконки и splash из `renowell-logo` под все размеры iOS/Android
 
-**Файл: `src/hooks/useChat.ts`**
+### Что вам нужно будет сделать на своей стороне
 
-1. **`useConversations()`** — подгружать только те чаты, где текущий пользователь является участником:
-   - Сначала получить `profile.id` текущего юзера
-   - Запросить `chat_participants` с фильтром `user_id = profile.id` → список `conversation_id`
-   - Запросить `chat_conversations` с фильтром `id in [conversation_ids]`
+Capacitor нельзя собрать прямо в Lovable — нативные сборки требуют Xcode (iOS) и/или Android Studio. Я подготовлю пошаговую инструкцию, краткая версия:
 
-2. **`useConversationMessages()`** — добавить проверку, что текущий пользователь является участником разговора (опционально, но для безопасности)
+1. Экспортировать проект в GitHub (кнопка справа сверху)
+2. `git pull` к себе локально → `npm install`
+3. `npx cap add ios` и/или `npx cap add android`
+4. `npm run build && npx cap sync`
+5. `npx cap run ios` (нужен Mac + Xcode) или `npx cap run android` (Android Studio)
 
-**Файл: `src/hooks/useChat.ts` — изменения в `useConversations`:**
+Каждый раз после изменений в Lovable: `git pull && npm run build && npx cap sync`.
 
-```typescript
-export function useConversations() {
-  const { user } = useAuth();
+Для публикации:
+- **App Store**: Apple Developer аккаунт ($99/год)
+- **Google Play**: Google Play Console ($25 разово)
 
-  return useQuery({
-    queryKey: ["conversations", user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      
-      // 1. Get current user's profile ID
-      const { data: profiles } = await proxySelect<{ id: string }>('profiles', {
-        select: 'id',
-        filters: [{ column: 'user_id', operator: 'eq', value: user.id }],
-        limit: 1,
-      });
-      const profileId = profiles?.[0]?.id;
-      if (!profileId) return [];
-      
-      // 2. Get conversation IDs where user is a participant
-      const { data: participations } = await proxySelect<{ conversation_id: string }>('chat_participants', {
-        select: 'conversation_id',
-        filters: [{ column: 'user_id', operator: 'eq', value: profileId }],
-      });
-      if (!participations?.length) return [];
-      
-      const convIds = participations.map(p => p.conversation_id);
-      
-      // 3. Fetch only those conversations
-      const { data, error } = await proxySelect<ChatConversation>('chat_conversations', {
-        filters: [{ column: 'id', operator: 'in', value: convIds }],
-        order: [{ column: 'updated_at', ascending: false }],
-      });
-      if (error) throw new Error(error.message);
-      return data || [];
-    },
-    enabled: !!user,
-  });
-}
-```
+### Технические детали
 
-### Масштаб
-Один файл (`src/hooks/useChat.ts`), одна функция `useConversations` — добавить 2 промежуточных запроса для фильтрации по участнику.
+- Hot-reload сервер в `capacitor.config.ts` указывает на `https://0c20bd3b-13c6-4401-a76b-dee9b432d23c.lovableproject.com?forceHideBadge=true` — удобно для разработки, перед публикацией в сторы это поле убираем, чтобы приложение использовало bundled `dist/`
+- Авторизация через Supabase будет работать сразу (email/пароль). Для Google Sign-In в нативном приложении понадобится отдельный шаг настройки Google OAuth с native client ID — сделаем при необходимости отдельной задачей
+- Web-версия портала продолжит работать без изменений, мобильное приложение использует тот же бэкенд (Lovable Cloud)
 
+### Что НЕ входит в этот шаг
+
+- Реальная отправка APNs/FCM с бэкенда (нужны ключи Apple/Google — сделаем после первой сборки)
+- Публикация в сторы (требует ваших аккаунтов разработчика)
+- Native Google Sign-In (по запросу, отдельным шагом)
+
+После аппрува — приступаю к коду.
