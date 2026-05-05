@@ -19,6 +19,7 @@ import { TendersKanbanModule } from "@/components/modules/TendersKanbanModule";
 import { FloatingChat } from "@/components/chat/FloatingChat";
 import { useDbProxyWarmup } from "@/hooks/useDbProxyWarmup";
 import { useProtocolPermissions } from "@/hooks/useProtocolPermissions";
+import { useNativePush } from "@/hooks/useNativePush";
 import { NavigationSection } from "@/types";
 import { toast } from "sonner";
 import { ShieldAlert } from "lucide-react";
@@ -50,6 +51,7 @@ const sectionFromPath = (pathname: string): NavigationSection => {
 
 function PortalContent() {
   useDbProxyWarmup();
+  useNativePush();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
