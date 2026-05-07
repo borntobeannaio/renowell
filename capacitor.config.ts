@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.lovable.0c20bd3b13c64401a76bdee9b432d23c',
+  appId: 'com.renowell.app',
   appName: 'Renowell',
   webDir: 'dist',
   server: {
