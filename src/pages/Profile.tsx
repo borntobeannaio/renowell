@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { proxyInsert } from "@/lib/dbProxy";
+
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { Link } from "react-router-dom";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
