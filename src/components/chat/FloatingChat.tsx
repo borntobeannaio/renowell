@@ -39,6 +39,10 @@ export function FloatingChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
+  // Был ли пользователь рядом с концом ленты до изменения вьюпорта/клавиатуры
+  const wasNearBottomRef = useRef(true);
+  // Запомнить scrollTop перед открытием клавиатуры, чтобы вернуть его обратно
+  const savedScrollTopRef = useRef<number | null>(null);
 
   // Attachment upload hook
   const { uploadFiles, isUploading, uploadProgress } = useChatAttachments();
