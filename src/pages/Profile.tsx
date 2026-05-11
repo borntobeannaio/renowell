@@ -75,6 +75,36 @@ export default function Profile() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isRequestingDeletion, setIsRequestingDeletion] = useState(false);
+  const { data: currentProfile } = useCurrentProfile();
+
+  const handleRequestAccountDeletion = async () => {
+    if (!currentProfile?.id) {
+      toast.error("Не удалось определить профиль");
+      return;
+    }
+    setIsRequestingDeletion(true);
+    try {
+      const fullName = [lastName, firstName, middleName].filter(Boolean).join(" ") || user?.email || "—";
+      const content =
+        `[ЗАПРОС НА УДАЛЕНИЕ АККАУНТА]\n` +
+        `Пользователь: ${fullName}\n` +
+        `Email: ${user?.email ?? "—"}\n` +
+        `Profile ID: ${currentProfile.id}\n` +
+        `Прошу удалить мою учётную запись и связанные с ней данные.`;
+      const { error } = await dbProxyInsert("support_messages", {
+        user_profile_id: currentProfile.id,
+        direction: "outgoing",
+        content,
+      });
+      if (error) throw new Error(error.message);
+      toast.success("Запрос отправлен администратору. Удаление в течение 30 дней.");
+    } catch (e: any) {
+      toast.error("Не удалось отправить запрос: " + (e?.message ?? "ошибка"));
+    } finally {
+      setIsRequestingDeletion(false);
+    }
+  };
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["profile", user?.id],
