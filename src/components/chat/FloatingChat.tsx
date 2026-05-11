@@ -826,46 +826,46 @@ export function FloatingChat() {
                   {activeTab === "ai" ? "AI Ассистент" : activeTab === "support" ? "Техподдержка" : "Чаты"}
                 </span>
               )}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-0.5 md:gap-1">
                 {/* Call buttons - only show when in a conversation */}
                 {selectedConversationId && activeTab === "general" && (
                   <>
                     <button
                       onClick={() => handleStartCall("audio")}
                       disabled={createCall.isPending}
-                      className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-green-500"
+                      className="h-11 w-11 md:h-9 md:w-9 inline-flex items-center justify-center rounded-lg hover:bg-secondary active:bg-secondary/80 transition-colors text-muted-foreground hover:text-green-500 touch-manipulation"
                       title="Голосовой звонок"
                     >
-                      <Phone className="w-4 h-4" />
+                      <Phone className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
                     <button
                       onClick={() => handleStartCall("video")}
                       disabled={createCall.isPending}
-                      className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-green-500"
+                      className="h-11 w-11 md:h-9 md:w-9 inline-flex items-center justify-center rounded-lg hover:bg-secondary active:bg-secondary/80 transition-colors text-muted-foreground hover:text-green-500 touch-manipulation"
                       title="Видеозвонок"
                     >
-                      <Video className="w-4 h-4" />
+                      <Video className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
                   </>
                 )}
                 {activeTab === "ai" && aiMessages.length > 0 && (
                   <button
                     onClick={() => clearAIHistory.mutate()}
-                    className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-destructive"
+                    className="h-11 w-11 md:h-9 md:w-9 inline-flex items-center justify-center rounded-lg hover:bg-secondary active:bg-secondary/80 transition-colors text-muted-foreground hover:text-destructive touch-manipulation"
                     title="Очистить историю"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-5 h-5 md:w-4 md:h-4" />
                   </button>
                 )}
                 <button
                   onClick={() => setIsFullscreen(!isFullscreen)}
-                  className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
+                  className="h-11 w-11 md:h-9 md:w-9 inline-flex items-center justify-center rounded-lg hover:bg-secondary active:bg-secondary/80 transition-colors touch-manipulation"
                   title={isFullscreen ? "Свернуть" : "На весь экран"}
                 >
                   {isFullscreen ? (
-                    <Minimize2 className="w-4 h-4" />
+                    <Minimize2 className="w-5 h-5 md:w-4 md:h-4" />
                   ) : (
-                    <Maximize2 className="w-4 h-4" />
+                    <Maximize2 className="w-5 h-5 md:w-4 md:h-4" />
                   )}
                 </button>
                 <button
@@ -873,49 +873,50 @@ export function FloatingChat() {
                     closeChat();
                     setIsFullscreen(false);
                   }}
-                  className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
+                  className="h-11 w-11 md:h-9 md:w-9 inline-flex items-center justify-center rounded-lg hover:bg-secondary active:bg-secondary/80 transition-colors touch-manipulation"
+                  title="Закрыть"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5 md:w-4 md:h-4" />
                 </button>
               </div>
             </div>
 
             {/* Pinned tabs */}
-            <div className="flex gap-1 px-3 pb-2">
+            <div className="flex gap-1 px-3 pb-2 overflow-x-auto">
               <button
                 onClick={() => {
                   setActiveTab("general");
                   setSelectedConversation(null);
                 }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 px-3 min-h-9 rounded-full text-xs font-medium transition-colors touch-manipulation whitespace-nowrap ${
                   activeTab === "general"
                     ? "bg-primary text-primary-foreground"
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 }`}
               >
-                <Users className="w-3 h-3" />
+                <Users className="w-3.5 h-3.5" />
                 Чаты
               </button>
               <button
                 onClick={() => setActiveTab("ai")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 px-3 min-h-9 rounded-full text-xs font-medium transition-colors touch-manipulation whitespace-nowrap ${
                   activeTab === "ai"
                     ? "bg-primary text-primary-foreground"
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 }`}
               >
-                <Bot className="w-3 h-3" />
+                <Bot className="w-3.5 h-3.5" />
                 AI чат
               </button>
               <button
                 onClick={() => setActiveTab("support")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 px-3 min-h-9 rounded-full text-xs font-medium transition-colors touch-manipulation whitespace-nowrap ${
                   activeTab === "support"
                     ? "bg-primary text-primary-foreground"
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 }`}
               >
-                <Headphones className="w-3 h-3" />
+                <Headphones className="w-3.5 h-3.5" />
                 Поддержка
               </button>
             </div>
@@ -944,7 +945,7 @@ export function FloatingChat() {
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex items-end gap-2">
                 {/* Attach button - only for regular chats, not AI */}
                 {activeTab === "general" && selectedConversationId && (
                   <>
@@ -959,10 +960,10 @@ export function FloatingChat() {
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isUploading}
-                      className="px-3 py-2 bg-secondary text-secondary-foreground rounded-xl hover:bg-secondary/80 transition-colors disabled:opacity-50"
+                      className="h-11 w-11 shrink-0 inline-flex items-center justify-center bg-secondary text-secondary-foreground rounded-xl hover:bg-secondary/80 active:bg-secondary/60 transition-colors disabled:opacity-50 touch-manipulation"
                       title="Прикрепить файл"
                     >
-                      <Paperclip className="w-4 h-4" />
+                      <Paperclip className="w-5 h-5" />
                     </button>
                   </>
                 )}
@@ -972,16 +973,17 @@ export function FloatingChat() {
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
                   placeholder="Напишите сообщение..."
-                  className="flex-1 bg-secondary text-foreground rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  className="flex-1 min-w-0 bg-secondary text-foreground rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-11"
                   rows={1}
                   disabled={isAiLoading || isUploading}
                 />
                 <button
                   onClick={handleSendMessage}
                   disabled={(!message.trim() && pendingAttachments.length === 0) || isAiLoading || isUploading}
-                  className="px-3 py-2 bg-primary text-primary-foreground rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
+                  className="h-11 w-11 shrink-0 inline-flex items-center justify-center bg-primary text-primary-foreground rounded-xl hover:opacity-90 active:opacity-80 transition-opacity disabled:opacity-50 touch-manipulation"
+                  title="Отправить"
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-5 h-5" />
                 </button>
               </div>
             </div>
