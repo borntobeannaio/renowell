@@ -807,6 +807,7 @@ export function FloatingChat() {
       {isOpen && (
         <div 
           ref={dropZoneRef}
+          data-chat-panel
           className={`${panelClasses} bg-card border border-border rounded-none md:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 ${
             isDragging ? "ring-2 ring-primary ring-offset-2" : ""
           }`}
