@@ -13,6 +13,13 @@ export function useNativePush() {
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform() || !user?.id) return;
+    // На Android требуется google-services.json + Firebase. Пока не настроено —
+    // вызов PushNotifications.register() крашит приложение нативным исключением,
+    // которое JS try/catch не ловит. Поэтому регистрируем push только на iOS.
+    if (Capacitor.getPlatform() !== 'ios') {
+      console.log('[NativePush] skipped: FCM not configured for', Capacitor.getPlatform());
+      return;
+    }
 
     let removed = false;
     const handles: Array<Promise<{ remove: () => Promise<void> }>> = [];
