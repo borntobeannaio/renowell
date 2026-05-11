@@ -62,7 +62,7 @@ export function Header() {
   const currentTitle = sectionTitles[location.pathname] || "Портал";
 
   return (
-    <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border/50 shadow-sm">
+    <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border/50 shadow-sm pt-[env(safe-area-inset-top)]">
       <div className="flex items-center justify-between h-14 md:h-16 px-3 md:px-6 gap-2">
         {/* Title - hidden on very small screens */}
         <h2 className="text-sm md:text-lg font-bold text-foreground tracking-tight truncate min-w-0 flex-shrink">
