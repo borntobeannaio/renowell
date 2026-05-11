@@ -112,7 +112,9 @@ export function FloatingChat() {
   }, [conversationMessages, aiMessages, streamingMessages, supportMessages, adminSupportMessages]);
 
   // Keep last messages visible when the on-screen keyboard opens/closes — only while
-  // the message input itself is focused, чтобы не дёргать скролл при выборе сообщений/реакций.
+  // the message input itself is focused, и только когда реально меняется высота
+  // visualViewport (а не layout viewport), чтобы iOS Safari/Chrome не дёргали скролл
+  // на каждое событие resize (тулбары, safe-area, поворот и т.п.).
   useEffect(() => {
     if (!isOpen) return;
 
@@ -121,12 +123,44 @@ export function FloatingChat() {
       if (!el) return false;
       const tag = el.tagName;
       if (tag !== "TEXTAREA" && tag !== "INPUT") return false;
-      // Только поле ввода сообщения внутри панели чата
       return !!el.closest("[data-chat-panel]");
     };
 
-    const handleResize = () => {
-      if (isInputFocused()) scrollToBottom("auto");
+    // Базовая высота viewport (без клавиатуры). На iOS Safari эта величина
+    // корректно отражается через visualViewport.height, а не window.innerHeight.
+    const getVH = () =>
+      window.visualViewport?.height ?? window.innerHeight ?? 0;
+
+    let lastVH = getVH();
+    let baselineVH = lastVH; // максимальная виденная высота — наша «без клавиатуры»
+    let rafId: number | null = null;
+
+    const KEYBOARD_DELTA = 120; // px — уверенный признак появления клавиатуры
+
+    const scheduleScroll = () => {
+      if (rafId != null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        scrollToBottom("auto");
+      });
+    };
+
+    const handleViewportResize = () => {
+      const vh = getVH();
+      // Поддерживаем актуальный baseline: если высота выросла — пользователь
+      // спрятал клавиатуру/тулбар, фиксируем новый максимум.
+      if (vh > baselineVH) baselineVH = vh;
+
+      const delta = baselineVH - vh; // насколько viewport «съело»
+      const opened = delta > KEYBOARD_DELTA;
+      const heightChanged = Math.abs(vh - lastVH) > 1;
+      lastVH = vh;
+
+      // Дёргаем скролл только если поле ввода в фокусе И высота реально
+      // изменилась из-за клавиатуры (открытие или закрытие).
+      if (heightChanged && isInputFocused() && (opened || delta < 8)) {
+        scheduleScroll();
+      }
     };
 
     const handleFocusIn = (e: FocusEvent) => {
@@ -136,31 +170,40 @@ export function FloatingChat() {
       if (tag !== "TEXTAREA" && tag !== "INPUT") return;
       if (!target.closest("[data-chat-panel]")) return;
       // Дать клавиатуре подняться и пересчитать viewport
-      setTimeout(() => scrollToBottom("auto"), 250);
-      setTimeout(() => scrollToBottom("auto"), 500);
+      setTimeout(scheduleScroll, 250);
+      setTimeout(scheduleScroll, 500);
     };
 
-    window.visualViewport?.addEventListener("resize", handleResize);
-    window.addEventListener("resize", handleResize);
+    const handleOrientation = () => {
+      // При повороте сбрасываем baseline на следующий тик
+      setTimeout(() => {
+        baselineVH = getVH();
+        lastVH = baselineVH;
+      }, 300);
+    };
+
+    window.visualViewport?.addEventListener("resize", handleViewportResize);
+    window.addEventListener("orientationchange", handleOrientation);
     document.addEventListener("focusin", handleFocusIn);
 
-    // Capacitor Keyboard events (native mobile) — тоже только при фокусе на input
+    // Capacitor Keyboard events (native mobile) — точные сигналы, без эвристик
     let keyboardShowListener: { remove: () => void } | undefined;
     let keyboardHideListener: { remove: () => void } | undefined;
     import("@capacitor/keyboard")
       .then(({ Keyboard }) => {
         keyboardShowListener = Keyboard.addListener("keyboardDidShow", () => {
-          if (isInputFocused()) scrollToBottom("auto");
+          if (isInputFocused()) scheduleScroll();
         }) as any;
         keyboardHideListener = Keyboard.addListener("keyboardDidHide", () => {
-          if (isInputFocused()) scrollToBottom("auto");
+          if (isInputFocused()) scheduleScroll();
         }) as any;
       })
       .catch(() => {});
 
     return () => {
-      window.visualViewport?.removeEventListener("resize", handleResize);
-      window.removeEventListener("resize", handleResize);
+      if (rafId != null) cancelAnimationFrame(rafId);
+      window.visualViewport?.removeEventListener("resize", handleViewportResize);
+      window.removeEventListener("orientationchange", handleOrientation);
       document.removeEventListener("focusin", handleFocusIn);
       keyboardShowListener?.remove();
       keyboardHideListener?.remove();
