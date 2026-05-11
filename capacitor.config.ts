@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.renowell.app',
+  appId: 'ru.renowell.app',
   appName: 'Renowell',
   webDir: 'dist',
   // В production-сборке server не задаётся: приложение должно грузить локальные файлы из webDir.
