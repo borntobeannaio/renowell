@@ -24,7 +24,8 @@ const config: CapacitorConfig = {
     },
   },
   ios: {
-    contentInset: 'always',
+    // 'never' позволяет WebView выйти под notch, а env(safe-area-inset-*) корректно работает в CSS
+    contentInset: 'never',
   },
 };
 

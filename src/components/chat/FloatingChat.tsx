@@ -768,7 +768,11 @@ export function FloatingChat() {
       {/* Floating button */}
       <button
         onClick={() => openChat()}
-        className={`fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-105 transition-transform flex items-center justify-center ${
+        style={{
+          marginBottom: 'env(safe-area-inset-bottom)',
+          marginRight: 'env(safe-area-inset-right)',
+        }}
+        className={`fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-105 transition-transform flex items-center justify-center touch-manipulation ${
           isOpen ? "hidden" : ""
         }`}
       >
