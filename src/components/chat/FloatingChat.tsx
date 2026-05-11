@@ -882,41 +882,41 @@ export function FloatingChat() {
             </div>
 
             {/* Pinned tabs */}
-            <div className="flex gap-1 px-3 pb-2">
+            <div className="flex gap-1 px-3 pb-2 overflow-x-auto">
               <button
                 onClick={() => {
                   setActiveTab("general");
                   setSelectedConversation(null);
                 }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 px-3 min-h-9 rounded-full text-xs font-medium transition-colors touch-manipulation whitespace-nowrap ${
                   activeTab === "general"
                     ? "bg-primary text-primary-foreground"
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 }`}
               >
-                <Users className="w-3 h-3" />
+                <Users className="w-3.5 h-3.5" />
                 Чаты
               </button>
               <button
                 onClick={() => setActiveTab("ai")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 px-3 min-h-9 rounded-full text-xs font-medium transition-colors touch-manipulation whitespace-nowrap ${
                   activeTab === "ai"
                     ? "bg-primary text-primary-foreground"
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 }`}
               >
-                <Bot className="w-3 h-3" />
+                <Bot className="w-3.5 h-3.5" />
                 AI чат
               </button>
               <button
                 onClick={() => setActiveTab("support")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 px-3 min-h-9 rounded-full text-xs font-medium transition-colors touch-manipulation whitespace-nowrap ${
                   activeTab === "support"
                     ? "bg-primary text-primary-foreground"
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 }`}
               >
-                <Headphones className="w-3 h-3" />
+                <Headphones className="w-3.5 h-3.5" />
                 Поддержка
               </button>
             </div>
