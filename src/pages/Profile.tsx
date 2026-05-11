@@ -30,7 +30,7 @@ import { ru } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { proxyUpload, proxyDelete as storageProxyDelete, proxyGetPublicUrl } from "@/lib/storageProxy";
-import { proxySelect, proxyUpdate, proxyDelete } from "@/lib/dbProxy";
+import { proxySelect, proxyUpdate, proxyDelete, proxyInsert as dbProxyInsert } from "@/lib/dbProxy";
 import { useProxiedAvatarUrl } from "@/lib/avatarProxy";
 import { supabase } from "@/integrations/supabase/client";
 import renowellLogo from "@/assets/renowell-logo-text.png";
