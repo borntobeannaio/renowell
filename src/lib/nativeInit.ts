@@ -10,9 +10,10 @@ export async function initNativeApp() {
 
   try {
     const { StatusBar, Style } = await import('@capacitor/status-bar');
-    await StatusBar.setStyle({ style: Style.Dark });
+    await StatusBar.setStyle({ style: Style.Light });
     if (Capacitor.getPlatform() === 'android') {
-      await StatusBar.setBackgroundColor({ color: '#6366f1' });
+      // Edge-to-edge: WebView заходит под статус-бар, верстка использует env(safe-area-inset-top)
+      await StatusBar.setOverlaysWebView({ overlay: true });
     }
   } catch (err) {
     console.warn('[NativeInit] StatusBar', err);
