@@ -945,7 +945,7 @@ export function FloatingChat() {
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex items-end gap-2">
                 {/* Attach button - only for regular chats, not AI */}
                 {activeTab === "general" && selectedConversationId && (
                   <>
@@ -960,10 +960,10 @@ export function FloatingChat() {
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isUploading}
-                      className="px-3 py-2 bg-secondary text-secondary-foreground rounded-xl hover:bg-secondary/80 transition-colors disabled:opacity-50"
+                      className="h-11 w-11 shrink-0 inline-flex items-center justify-center bg-secondary text-secondary-foreground rounded-xl hover:bg-secondary/80 active:bg-secondary/60 transition-colors disabled:opacity-50 touch-manipulation"
                       title="Прикрепить файл"
                     >
-                      <Paperclip className="w-4 h-4" />
+                      <Paperclip className="w-5 h-5" />
                     </button>
                   </>
                 )}
@@ -973,16 +973,17 @@ export function FloatingChat() {
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
                   placeholder="Напишите сообщение..."
-                  className="flex-1 bg-secondary text-foreground rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  className="flex-1 min-w-0 bg-secondary text-foreground rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-11"
                   rows={1}
                   disabled={isAiLoading || isUploading}
                 />
                 <button
                   onClick={handleSendMessage}
                   disabled={(!message.trim() && pendingAttachments.length === 0) || isAiLoading || isUploading}
-                  className="px-3 py-2 bg-primary text-primary-foreground rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
+                  className="h-11 w-11 shrink-0 inline-flex items-center justify-center bg-primary text-primary-foreground rounded-xl hover:opacity-90 active:opacity-80 transition-opacity disabled:opacity-50 touch-manipulation"
+                  title="Отправить"
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-5 h-5" />
                 </button>
               </div>
             </div>
