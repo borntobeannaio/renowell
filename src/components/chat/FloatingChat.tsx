@@ -883,7 +883,7 @@ export function FloatingChat() {
 
           {/* Input */}
           {(activeTab === "ai" || (activeTab === "support" && (!isSupportAdmin || selectedSupportUserId)) || selectedConversationId) && (
-            <div className="p-3 border-t border-border space-y-2">
+            <div className="p-3 border-t border-border space-y-2 pb-[env(safe-area-inset-bottom)]">
               {/* Pending attachments preview */}
               {pendingAttachments.length > 0 && (
                 <ChatAttachmentPreview
