@@ -826,46 +826,46 @@ export function FloatingChat() {
                   {activeTab === "ai" ? "AI Ассистент" : activeTab === "support" ? "Техподдержка" : "Чаты"}
                 </span>
               )}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-0.5 md:gap-1">
                 {/* Call buttons - only show when in a conversation */}
                 {selectedConversationId && activeTab === "general" && (
                   <>
                     <button
                       onClick={() => handleStartCall("audio")}
                       disabled={createCall.isPending}
-                      className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-green-500"
+                      className="h-11 w-11 md:h-9 md:w-9 inline-flex items-center justify-center rounded-lg hover:bg-secondary active:bg-secondary/80 transition-colors text-muted-foreground hover:text-green-500 touch-manipulation"
                       title="Голосовой звонок"
                     >
-                      <Phone className="w-4 h-4" />
+                      <Phone className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
                     <button
                       onClick={() => handleStartCall("video")}
                       disabled={createCall.isPending}
-                      className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-green-500"
+                      className="h-11 w-11 md:h-9 md:w-9 inline-flex items-center justify-center rounded-lg hover:bg-secondary active:bg-secondary/80 transition-colors text-muted-foreground hover:text-green-500 touch-manipulation"
                       title="Видеозвонок"
                     >
-                      <Video className="w-4 h-4" />
+                      <Video className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
                   </>
                 )}
                 {activeTab === "ai" && aiMessages.length > 0 && (
                   <button
                     onClick={() => clearAIHistory.mutate()}
-                    className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-destructive"
+                    className="h-11 w-11 md:h-9 md:w-9 inline-flex items-center justify-center rounded-lg hover:bg-secondary active:bg-secondary/80 transition-colors text-muted-foreground hover:text-destructive touch-manipulation"
                     title="Очистить историю"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-5 h-5 md:w-4 md:h-4" />
                   </button>
                 )}
                 <button
                   onClick={() => setIsFullscreen(!isFullscreen)}
-                  className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
+                  className="h-11 w-11 md:h-9 md:w-9 inline-flex items-center justify-center rounded-lg hover:bg-secondary active:bg-secondary/80 transition-colors touch-manipulation"
                   title={isFullscreen ? "Свернуть" : "На весь экран"}
                 >
                   {isFullscreen ? (
-                    <Minimize2 className="w-4 h-4" />
+                    <Minimize2 className="w-5 h-5 md:w-4 md:h-4" />
                   ) : (
-                    <Maximize2 className="w-4 h-4" />
+                    <Maximize2 className="w-5 h-5 md:w-4 md:h-4" />
                   )}
                 </button>
                 <button
@@ -873,9 +873,10 @@ export function FloatingChat() {
                     closeChat();
                     setIsFullscreen(false);
                   }}
-                  className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
+                  className="h-11 w-11 md:h-9 md:w-9 inline-flex items-center justify-center rounded-lg hover:bg-secondary active:bg-secondary/80 transition-colors touch-manipulation"
+                  title="Закрыть"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5 md:w-4 md:h-4" />
                 </button>
               </div>
             </div>
