@@ -4,13 +4,7 @@ const config: CapacitorConfig = {
   appId: 'com.renowell.app',
   appName: 'Renowell',
   webDir: 'dist',
-  // Для разработки раскомментируй блок server ниже (hot-reload из Lovable).
-  // Для production-сборки в Google Play он ДОЛЖЕН быть закомментирован,
-  // иначе приложение будет грузить сайт вместо локальных файлов.
-  // server: {
-  //   url: 'https://0c20bd3b-13c6-4401-a76b-dee9b432d23c.lovableproject.com?forceHideBadge=true',
-  //   cleartext: true,
-  // },
+  // В production-сборке server не задаётся: приложение должно грузить локальные файлы из webDir.
   plugins: {
     SplashScreen: {
       launchShowDuration: 1500,
