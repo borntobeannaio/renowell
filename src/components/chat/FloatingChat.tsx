@@ -111,31 +111,50 @@ export function FloatingChat() {
     scrollToBottom("smooth");
   }, [conversationMessages, aiMessages, streamingMessages, supportMessages, adminSupportMessages]);
 
-  // Keep last messages visible when the on-screen keyboard opens/closes or viewport resizes
+  // Keep last messages visible when the on-screen keyboard opens/closes — only while
+  // the message input itself is focused, чтобы не дёргать скролл при выборе сообщений/реакций.
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleResize = () => scrollToBottom("auto");
+    const isInputFocused = () => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName;
+      if (tag !== "TEXTAREA" && tag !== "INPUT") return false;
+      // Только поле ввода сообщения внутри панели чата
+      return !!el.closest("[data-chat-panel]");
+    };
+
+    const handleResize = () => {
+      if (isInputFocused()) scrollToBottom("auto");
+    };
+
     const handleFocusIn = (e: FocusEvent) => {
       const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT")) {
-        // Delay so the keyboard has time to appear and resize the viewport
-        setTimeout(() => scrollToBottom("auto"), 250);
-        setTimeout(() => scrollToBottom("auto"), 500);
-      }
+      if (!target) return;
+      const tag = target.tagName;
+      if (tag !== "TEXTAREA" && tag !== "INPUT") return;
+      if (!target.closest("[data-chat-panel]")) return;
+      // Дать клавиатуре подняться и пересчитать viewport
+      setTimeout(() => scrollToBottom("auto"), 250);
+      setTimeout(() => scrollToBottom("auto"), 500);
     };
 
     window.visualViewport?.addEventListener("resize", handleResize);
     window.addEventListener("resize", handleResize);
     document.addEventListener("focusin", handleFocusIn);
 
-    // Capacitor Keyboard events (native mobile)
+    // Capacitor Keyboard events (native mobile) — тоже только при фокусе на input
     let keyboardShowListener: { remove: () => void } | undefined;
     let keyboardHideListener: { remove: () => void } | undefined;
     import("@capacitor/keyboard")
       .then(({ Keyboard }) => {
-        keyboardShowListener = Keyboard.addListener("keyboardDidShow", () => scrollToBottom("auto")) as any;
-        keyboardHideListener = Keyboard.addListener("keyboardDidHide", () => scrollToBottom("auto")) as any;
+        keyboardShowListener = Keyboard.addListener("keyboardDidShow", () => {
+          if (isInputFocused()) scrollToBottom("auto");
+        }) as any;
+        keyboardHideListener = Keyboard.addListener("keyboardDidHide", () => {
+          if (isInputFocused()) scrollToBottom("auto");
+        }) as any;
       })
       .catch(() => {});
 
@@ -788,6 +807,7 @@ export function FloatingChat() {
       {isOpen && (
         <div 
           ref={dropZoneRef}
+          data-chat-panel
           className={`${panelClasses} bg-card border border-border rounded-none md:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 ${
             isDragging ? "ring-2 ring-primary ring-offset-2" : ""
           }`}
