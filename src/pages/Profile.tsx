@@ -9,7 +9,21 @@ import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, CalendarIcon, Save, Loader2, Camera, User, Lock, Eye, EyeOff, HelpCircle, X } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Save, Loader2, Camera, User, Lock, Eye, EyeOff, HelpCircle, X, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { proxyInsert } from "@/lib/dbProxy";
+import { useCurrentProfile } from "@/hooks/useCurrentProfile";
+import { Link } from "react-router-dom";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
