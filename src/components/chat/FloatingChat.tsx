@@ -101,9 +101,52 @@ export function FloatingChat() {
     }
   }, [isOpen, selectedConversationId]);
 
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
+    });
+  };
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [conversationMessages, aiMessages, streamingMessages]);
+    scrollToBottom("smooth");
+  }, [conversationMessages, aiMessages, streamingMessages, supportMessages, adminSupportMessages]);
+
+  // Keep last messages visible when the on-screen keyboard opens/closes or viewport resizes
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleResize = () => scrollToBottom("auto");
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT")) {
+        // Delay so the keyboard has time to appear and resize the viewport
+        setTimeout(() => scrollToBottom("auto"), 250);
+        setTimeout(() => scrollToBottom("auto"), 500);
+      }
+    };
+
+    window.visualViewport?.addEventListener("resize", handleResize);
+    window.addEventListener("resize", handleResize);
+    document.addEventListener("focusin", handleFocusIn);
+
+    // Capacitor Keyboard events (native mobile)
+    let keyboardShowListener: { remove: () => void } | undefined;
+    let keyboardHideListener: { remove: () => void } | undefined;
+    import("@capacitor/keyboard")
+      .then(({ Keyboard }) => {
+        keyboardShowListener = Keyboard.addListener("keyboardDidShow", () => scrollToBottom("auto")) as any;
+        keyboardHideListener = Keyboard.addListener("keyboardDidHide", () => scrollToBottom("auto")) as any;
+      })
+      .catch(() => {});
+
+    return () => {
+      window.visualViewport?.removeEventListener("resize", handleResize);
+      window.removeEventListener("resize", handleResize);
+      document.removeEventListener("focusin", handleFocusIn);
+      keyboardShowListener?.remove();
+      keyboardHideListener?.remove();
+    };
+  }, [isOpen]);
 
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);
