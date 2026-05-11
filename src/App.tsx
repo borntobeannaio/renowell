@@ -14,6 +14,9 @@ import NotFound from "./pages/NotFound";
 import ProtocolEditorPage from "./pages/ProtocolEditor";
 import Profile from "./pages/Profile";
 import CreateEvent from "./pages/CreateEvent";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Terms from "./pages/Terms";
+import AccountDeletion from "./pages/AccountDeletion";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,6 +55,9 @@ const App = () => (
             <BrowserRouter>
               <Routes>
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/privacy" element={<PrivacyPolicy />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/account-deletion" element={<AccountDeletion />} />
                 <Route
                   path="/"
                   element={

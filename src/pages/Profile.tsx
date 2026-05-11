@@ -9,14 +9,28 @@ import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, CalendarIcon, Save, Loader2, Camera, User, Lock, Eye, EyeOff, HelpCircle, X } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Save, Loader2, Camera, User, Lock, Eye, EyeOff, HelpCircle, X, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+import { useCurrentProfile } from "@/hooks/useCurrentProfile";
+import { Link } from "react-router-dom";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { proxyUpload, proxyDelete as storageProxyDelete, proxyGetPublicUrl } from "@/lib/storageProxy";
-import { proxySelect, proxyUpdate, proxyDelete } from "@/lib/dbProxy";
+import { proxySelect, proxyUpdate, proxyDelete, proxyInsert as dbProxyInsert } from "@/lib/dbProxy";
 import { useProxiedAvatarUrl } from "@/lib/avatarProxy";
 import { supabase } from "@/integrations/supabase/client";
 import renowellLogo from "@/assets/renowell-logo-text.png";
@@ -61,6 +75,36 @@ export default function Profile() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isRequestingDeletion, setIsRequestingDeletion] = useState(false);
+  const { data: currentProfile } = useCurrentProfile();
+
+  const handleRequestAccountDeletion = async () => {
+    if (!currentProfile?.id) {
+      toast.error("Не удалось определить профиль");
+      return;
+    }
+    setIsRequestingDeletion(true);
+    try {
+      const fullName = [lastName, firstName, middleName].filter(Boolean).join(" ") || user?.email || "—";
+      const content =
+        `[ЗАПРОС НА УДАЛЕНИЕ АККАУНТА]\n` +
+        `Пользователь: ${fullName}\n` +
+        `Email: ${user?.email ?? "—"}\n` +
+        `Profile ID: ${currentProfile.id}\n` +
+        `Прошу удалить мою учётную запись и связанные с ней данные.`;
+      const { error } = await dbProxyInsert("support_messages", {
+        user_profile_id: currentProfile.id,
+        direction: "outgoing",
+        content,
+      });
+      if (error) throw new Error(error.message);
+      toast.success("Запрос отправлен администратору. Удаление в течение 30 дней.");
+    } catch (e: any) {
+      toast.error("Не удалось отправить запрос: " + (e?.message ?? "ошибка"));
+    } finally {
+      setIsRequestingDeletion(false);
+    }
+  };
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["profile", user?.id],
@@ -677,6 +721,53 @@ export default function Profile() {
 
           {/* Notification Settings */}
           <NotificationSettings />
+
+          <Separator className="my-8" />
+
+          {/* Account deletion */}
+          <div className="space-y-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4 sm:p-6">
+            <div>
+              <h2 className="text-lg font-semibold text-destructive flex items-center gap-2">
+                <Trash2 className="h-5 w-5" /> Удаление аккаунта
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Запрос будет отправлен администратору. Учётная запись и связанные с ней данные
+                будут удалены в течение 30 дней. Подробнее — на{" "}
+                <Link to="/account-deletion" className="underline">странице удаления</Link>.
+              </p>
+            </div>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={isRequestingDeletion}>
+                  {isRequestingDeletion ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-4 w-4" />
+                  )}
+                  Запросить удаление аккаунта
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Подтвердите удаление аккаунта</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Будет отправлен запрос администратору на удаление вашей учётной записи,
+                    личных сообщений, комментариев и персональных настроек. Это действие
+                    нельзя будет отменить после обработки.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Отмена</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleRequestAccountDeletion}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Отправить запрос
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
       </main>
     </div>

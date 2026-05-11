@@ -165,6 +165,13 @@ export default function Auth() {
             </form>
           </CardContent>
         </Card>
+        <p className="text-center text-xs text-muted-foreground mt-4">
+          <a href="/privacy" className="hover:text-foreground underline underline-offset-2">Политика конфиденциальности</a>
+          {" · "}
+          <a href="/terms" className="hover:text-foreground underline underline-offset-2">Условия использования</a>
+          {" · "}
+          <a href="/account-deletion" className="hover:text-foreground underline underline-offset-2">Удаление аккаунта</a>
+        </p>
       </div>
     </div>
   );
