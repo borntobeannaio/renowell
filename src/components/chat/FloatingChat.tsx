@@ -760,7 +760,7 @@ export function FloatingChat() {
             </div>
           )}
           {/* Header with tabs */}
-          <div className="bg-card border-b border-border">
+          <div className="bg-card border-b border-border" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
             <div className="flex items-center justify-between p-3">
               {(selectedConversationId && activeTab === "general") ? (
                 <button
