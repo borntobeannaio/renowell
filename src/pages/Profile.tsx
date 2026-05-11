@@ -721,6 +721,53 @@ export default function Profile() {
 
           {/* Notification Settings */}
           <NotificationSettings />
+
+          <Separator className="my-8" />
+
+          {/* Account deletion */}
+          <div className="space-y-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4 sm:p-6">
+            <div>
+              <h2 className="text-lg font-semibold text-destructive flex items-center gap-2">
+                <Trash2 className="h-5 w-5" /> Удаление аккаунта
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Запрос будет отправлен администратору. Учётная запись и связанные с ней данные
+                будут удалены в течение 30 дней. Подробнее — на{" "}
+                <Link to="/account-deletion" className="underline">странице удаления</Link>.
+              </p>
+            </div>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={isRequestingDeletion}>
+                  {isRequestingDeletion ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-4 w-4" />
+                  )}
+                  Запросить удаление аккаунта
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Подтвердите удаление аккаунта</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Будет отправлен запрос администратору на удаление вашей учётной записи,
+                    личных сообщений, комментариев и персональных настроек. Это действие
+                    нельзя будет отменить после обработки.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Отмена</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleRequestAccountDeletion}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Отправить запрос
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
       </main>
     </div>
