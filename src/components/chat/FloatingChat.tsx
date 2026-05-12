@@ -15,6 +15,7 @@ import { MessageReactions } from "@/components/chat/MessageReactions";
 import { ReactionPicker } from "@/components/chat/ReactionPicker";
 import { useSupportMessages, useSendSupportMessage } from "@/hooks/useSupportChat";
 import { useIsSupportAdmin, useSupportThreads, useSupportUserMessages, useSendSupportReply } from "@/hooks/useSupportAdmin";
+import { GroupParticipantsModal } from "@/components/chat/GroupParticipantsModal";
 type ChatTab = "general" | "ai" | "support";
 
 interface StreamingAIMessage {
