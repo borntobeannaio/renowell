@@ -15,6 +15,7 @@ import { MessageReactions } from "@/components/chat/MessageReactions";
 import { ReactionPicker } from "@/components/chat/ReactionPicker";
 import { useSupportMessages, useSendSupportMessage } from "@/hooks/useSupportChat";
 import { useIsSupportAdmin, useSupportThreads, useSupportUserMessages, useSendSupportReply } from "@/hooks/useSupportAdmin";
+import { GroupParticipantsModal } from "@/components/chat/GroupParticipantsModal";
 type ChatTab = "general" | "ai" | "support";
 
 interface StreamingAIMessage {
@@ -36,6 +37,7 @@ export function FloatingChat() {
   const [groupTitle, setGroupTitle] = useState("");
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isParticipantsModalOpen, setIsParticipantsModalOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -959,6 +961,15 @@ export function FloatingChat() {
                     </button>
                   </>
                 )}
+                {selectedConversationId && activeTab === "general" && selectedConversation?.type === "group" && (
+                  <button
+                    onClick={() => setIsParticipantsModalOpen(true)}
+                    className="h-11 w-11 md:h-9 md:w-9 inline-flex items-center justify-center rounded-lg hover:bg-secondary active:bg-secondary/80 transition-colors text-muted-foreground hover:text-primary touch-manipulation"
+                    title="Участники чата"
+                  >
+                    <Users className="w-5 h-5 md:w-4 md:h-4" />
+                  </button>
+                )}
                 {activeTab === "ai" && aiMessages.length > 0 && (
                   <button
                     onClick={() => clearAIHistory.mutate()}
@@ -1100,6 +1111,16 @@ export function FloatingChat() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Group participants modal */}
+      {selectedConversationId && selectedConversation?.type === "group" && (
+        <GroupParticipantsModal
+          isOpen={isParticipantsModalOpen}
+          onClose={() => setIsParticipantsModalOpen(false)}
+          conversationId={selectedConversationId}
+          conversationTitle={selectedConversation.title}
+        />
       )}
 
       {/* New chat modal */}
