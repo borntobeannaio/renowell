@@ -38,19 +38,22 @@ export function GroupParticipantsModal({
         filters: [{ column: "conversation_id", operator: "eq", value: conversationId }],
       });
       if (error) throw new Error(error.message);
+      console.log("[GroupParticipantsModal] participants:", data);
       return (data || []).map((p) => p.user_id);
     },
-    enabled: isOpen,
+    enabled: isOpen && !!conversationId,
+    staleTime: 0,
   });
 
-  // All profiles
-  const { data: profiles = [] } = useQuery({
-    queryKey: ["profiles-all"],
+  // All profiles — share cache with FloatingChat ("profiles" key)
+  const { data: profiles = [], isLoading: loadingProfiles } = useQuery({
+    queryKey: ["profiles"],
     queryFn: async () => {
-      const { data, error } = await proxySelect<Profile>("profiles", {
-        select: "id, first_name, last_name, avatar_url",
+      const { data, error } = await proxySelect<Profile & { user_id: string }>("profiles", {
+        select: "id, first_name, last_name, avatar_url, user_id",
       });
       if (error) throw new Error(error.message);
+      console.log("[GroupParticipantsModal] profiles:", data?.length);
       return data || [];
     },
     enabled: isOpen,
