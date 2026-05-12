@@ -1113,6 +1113,16 @@ export function FloatingChat() {
         </div>
       )}
 
+      {/* Group participants modal */}
+      {selectedConversationId && selectedConversation?.type === "group" && (
+        <GroupParticipantsModal
+          isOpen={isParticipantsModalOpen}
+          onClose={() => setIsParticipantsModalOpen(false)}
+          conversationId={selectedConversationId}
+          conversationTitle={selectedConversation.title}
+        />
+      )}
+
       {/* New chat modal */}
       <Modal
         isOpen={isNewChatModalOpen}
