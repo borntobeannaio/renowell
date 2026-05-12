@@ -41,7 +41,7 @@ export function useProtocols() {
     queryKey: ["protocols"],
     queryFn: async () => {
       const { data, error } = await proxySelect<DbProtocol>('protocols', {
-        order: [{ column: 'date', ascending: false }],
+        order: [{ column: 'created_at', ascending: false }],
       });
       if (error) throw new Error(error.message);
       return data || [];
