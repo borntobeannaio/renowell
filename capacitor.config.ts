@@ -14,7 +14,7 @@ const config: CapacitorConfig = {
     },
     StatusBar: {
       style: 'DARK',
-      backgroundColor: '#6366f1',
+      backgroundColor: '#052A6E',
     },
     Keyboard: {
       resize: 'body',
