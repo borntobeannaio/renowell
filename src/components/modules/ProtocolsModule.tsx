@@ -467,7 +467,14 @@ function ProtocolCard({
           <span className="text-sm text-muted-foreground">
             {formatDisplayDate(protocol.date)}
           </span>
-          <h3 className="font-medium text-foreground flex-1">{protocol.title}</h3>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-medium text-foreground truncate">{protocol.title}</h3>
+            {(protocol as any).created_at && (
+              <div className="text-xs text-muted-foreground mt-0.5">
+                Создан: {new Date((protocol as any).created_at).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}
+              </div>
+            )}
+          </div>
           <span className="chip shrink-0">
             {protocol.attendees.length} участников
           </span>
