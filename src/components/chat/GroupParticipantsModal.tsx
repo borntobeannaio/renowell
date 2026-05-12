@@ -38,19 +38,22 @@ export function GroupParticipantsModal({
         filters: [{ column: "conversation_id", operator: "eq", value: conversationId }],
       });
       if (error) throw new Error(error.message);
+      console.log("[GroupParticipantsModal] participants:", data);
       return (data || []).map((p) => p.user_id);
     },
-    enabled: isOpen,
+    enabled: isOpen && !!conversationId,
+    staleTime: 0,
   });
 
-  // All profiles
-  const { data: profiles = [] } = useQuery({
-    queryKey: ["profiles-all"],
+  // All profiles — share cache with FloatingChat ("profiles" key)
+  const { data: profiles = [], isLoading: loadingProfiles } = useQuery({
+    queryKey: ["profiles"],
     queryFn: async () => {
-      const { data, error } = await proxySelect<Profile>("profiles", {
-        select: "id, first_name, last_name, avatar_url",
+      const { data, error } = await proxySelect<Profile & { user_id: string }>("profiles", {
+        select: "id, first_name, last_name, avatar_url, user_id",
       });
       if (error) throw new Error(error.message);
+      console.log("[GroupParticipantsModal] profiles:", data?.length);
       return data || [];
     },
     enabled: isOpen,
@@ -159,7 +162,12 @@ export function GroupParticipantsModal({
             className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background mb-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
           <div className="max-h-48 overflow-y-auto space-y-1 rounded-lg border border-border p-2">
-            {availableToAdd.length === 0 && (
+            {(loadingProfiles || loadingParticipants) && availableToAdd.length === 0 && (
+              <div className="flex justify-center py-3">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {!loadingProfiles && !loadingParticipants && availableToAdd.length === 0 && (
               <p className="text-xs text-muted-foreground text-center py-3">
                 Никого не найдено
               </p>
