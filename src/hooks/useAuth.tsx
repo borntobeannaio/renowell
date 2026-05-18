@@ -108,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    withTimeout(supabase.auth.getSession(), AUTH_DIRECT_TIMEOUT_MS, 'getSession').then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       markInitialized();
@@ -141,11 +141,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn('[auth] getSession hang — пробуем refresh через auth-proxy');
           const { data: proxySess } = await proxyRefreshSession(refreshToken);
           if (proxySess) {
-            await supabase.auth.setSession({
-              access_token: proxySess.access_token,
-              refresh_token: proxySess.refresh_token,
-            });
-            // setSession триггерит onAuthStateChange → markInitialized
+            const { error: setErr } = await withTimeout(
+              supabase.auth.setSession({
+                access_token: proxySess.access_token,
+                refresh_token: proxySess.refresh_token,
+              }),
+              AUTH_DIRECT_TIMEOUT_MS,
+              'setSession',
+            );
+            if (!setErr) {
+              setSession(proxySess as Session);
+              setUser(proxySess.user as User);
+            }
+            markInitialized();
             return;
           }
         }
@@ -210,7 +218,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const startedAt = performance.now();
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        AUTH_DIRECT_TIMEOUT_MS,
+        'signInWithPassword',
+      );
       const elapsedMs = performance.now() - startedAt;
 
       if (!error) return { error: null };
@@ -224,7 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         msg.includes('invalid login credentials') || msg.includes('invalid_credentials');
 
       // Мгновенный invalid_credentials → подозрение на IP-рейтлимит, ретрай через прокси
-      if (looksLikeInvalidCreds && elapsedMs < RATE_LIMIT_MS) {
+      if (looksLikeInvalidCreds && elapsedMs < AUTH_PROXY_RETRY_MS) {
         console.warn(`[auth] invalid_credentials за ${elapsedMs.toFixed(1)}ms — ретрай через auth-proxy`);
         const proxyResult = await applyProxySession(email, password, error as Error);
         if (!proxyResult.error) return proxyResult;
