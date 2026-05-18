@@ -79,9 +79,9 @@ export function useSendSupportMessage() {
 
       // Notify support via Telegram (fire and forget)
       if (msg) {
-        supabase.functions
-          .invoke("support-notify", { body: { message_id: msg.id } })
-          .catch((err) => console.error("Support notify error:", err));
+        proxyInvoke("support-notify", { message_id: msg.id }).catch((err) =>
+          console.error("Support notify error:", err)
+        );
       }
 
       return msg;
