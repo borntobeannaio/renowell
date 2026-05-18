@@ -2,6 +2,7 @@
 // если прямой запрос к supabase.co не проходит (Failed to fetch).
 
 const EXTERNAL_PROXY_URL = "https://functions.yandexcloud.net/d4ed338dbl81ecrk8g0t";
+const AUTH_PROXY_TIMEOUT_MS = 15000;
 
 interface ProxyAuthSession {
   access_token: string;
@@ -21,10 +22,13 @@ export async function proxySignInWithPassword(
   email: string,
   password: string
 ): Promise<ProxyAuthResult> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), AUTH_PROXY_TIMEOUT_MS);
   try {
     const response = await fetch(EXTERNAL_PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         _proxyTarget: "auth-proxy",
         action: "password",
@@ -32,6 +36,7 @@ export async function proxySignInWithPassword(
         password,
       }),
     });
+    window.clearTimeout(timeoutId);
 
     const json = await response.json().catch(() => null);
     if (!json) {
@@ -52,6 +57,7 @@ export async function proxySignInWithPassword(
     }
     return { data: session, error: null };
   } catch (e) {
+    window.clearTimeout(timeoutId);
     const message = e instanceof Error ? e.message : "Не удалось связаться с прокси";
     return { data: null, error: { message } };
   }
@@ -60,16 +66,20 @@ export async function proxySignInWithPassword(
 export async function proxyRefreshSession(
   refreshToken: string
 ): Promise<ProxyAuthResult> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), AUTH_PROXY_TIMEOUT_MS);
   try {
     const response = await fetch(EXTERNAL_PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         _proxyTarget: "auth-proxy",
         action: "refresh",
         refresh_token: refreshToken,
       }),
     });
+    window.clearTimeout(timeoutId);
 
     const json = await response.json().catch(() => null);
     if (!json) {
@@ -88,6 +98,7 @@ export async function proxyRefreshSession(
     }
     return { data: session, error: null };
   } catch (e) {
+    window.clearTimeout(timeoutId);
     const message = e instanceof Error ? e.message : "Не удалось связаться с прокси";
     return { data: null, error: { message } };
   }
