@@ -57,6 +57,42 @@ export async function proxySignInWithPassword(
   }
 }
 
+export async function proxyRefreshSession(
+  refreshToken: string
+): Promise<ProxyAuthResult> {
+  try {
+    const response = await fetch(EXTERNAL_PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        _proxyTarget: "auth-proxy",
+        action: "refresh",
+        refresh_token: refreshToken,
+      }),
+    });
+
+    const json = await response.json().catch(() => null);
+    if (!json) {
+      return { data: null, error: { message: "Прокси вернул пустой ответ" } };
+    }
+    if (json.error) {
+      const msg =
+        typeof json.error === "string"
+          ? json.error
+          : json.error.message || "Ошибка обновления сессии через прокси";
+      return { data: null, error: { message: msg } };
+    }
+    const session = (json.data ?? json) as ProxyAuthSession;
+    if (!session?.access_token || !session?.refresh_token) {
+      return { data: null, error: { message: "Прокси не вернул сессию" } };
+    }
+    return { data: session, error: null };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Не удалось связаться с прокси";
+    return { data: null, error: { message } };
+  }
+}
+
 export function isNetworkError(err: unknown): boolean {
   if (!err) return false;
   const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
