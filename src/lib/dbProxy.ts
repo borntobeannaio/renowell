@@ -181,15 +181,25 @@ export const proxyUpsert = <T = unknown>(
 export async function proxyInvoke<T = unknown>(
   functionName: string,
   body?: Record<string, unknown>,
-  timeout: number = DEFAULT_TIMEOUT
+  options?: { timeout?: number; accessToken?: string },
 ): Promise<ProxyResponse<T>> {
+  const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
   try {
+    const envelope: Record<string, unknown> = {
+      _proxyTarget: functionName,
+      ...(body ?? {}),
+    };
+    if (options?.accessToken) {
+      // Yandex Cloud прокси не пробрасывает кастомные заголовки —
+      // токен передаём в теле, edge-функция вытаскивает его как fallback.
+      envelope._accessToken = options.accessToken;
+    }
     const response = await fetch(EXTERNAL_PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ _proxyTarget: functionName, ...(body ?? {}) }),
+      body: JSON.stringify(envelope),
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
