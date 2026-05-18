@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { proxySelect, proxyInsert } from "@/lib/dbProxy";
+import { proxySelect, proxyInsert, proxyInvoke } from "@/lib/dbProxy";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { useEffect } from "react";
