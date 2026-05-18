@@ -34,11 +34,12 @@ export default function Auth() {
   const location = useLocation();
   const { toast } = useToast();
 
+  // ВРЕМЕННО: авто-вход включён → всегда уводим на главную, не показываем форму
   useEffect(() => {
-    if (user && !authLoading) {
+    if (!authLoading) {
       const state = location.state as LocationState | null;
       const from = state?.from;
-      if (from?.pathname) {
+      if (user && from?.pathname) {
         navigate(`${from.pathname}${from.search || ""}`, { replace: true });
       } else {
         navigate("/", { replace: true });
