@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.send-queued-notifications]
 verify_jwt = false
+
+[functions.dev-impersonate]
+verify_jwt = false
