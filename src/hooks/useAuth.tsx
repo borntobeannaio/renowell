@@ -70,12 +70,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    let initialized = false;
+    const markInitialized = () => {
+      if (initialized) return;
+      initialized = true;
+      setLoading(false);
+    };
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        setLoading(false);
+        markInitialized();
         scheduleRefresh(session);
       }
     );
@@ -84,12 +91,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
+      markInitialized();
       scheduleRefresh(session);
+    }).catch((e) => {
+      console.warn('[auth] getSession failed:', e);
+      markInitialized();
     });
+
+    // Страховка: если getSession завис (сеть до auth.supabase.co заблокирована
+    // и идёт молчаливый refresh) — через 4с пробуем восстановить сессию через
+    // auth-proxy по сохранённому refresh_token, иначе хотя бы показываем форму логина.
+    const fallbackTimer = window.setTimeout(async () => {
+      if (initialized) return;
+      try {
+        // Достаём сохранённый refresh_token из localStorage supabase-js
+        let refreshToken: string | null = null;
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (!key || !key.startsWith('sb-') || !key.endsWith('-auth-token')) continue;
+          try {
+            const parsed = JSON.parse(localStorage.getItem(key) || 'null');
+            if (parsed?.refresh_token) {
+              refreshToken = parsed.refresh_token;
+              break;
+            }
+          } catch {}
+        }
+        if (refreshToken) {
+          console.warn('[auth] getSession hang — пробуем refresh через auth-proxy');
+          const { data: proxySess } = await proxyRefreshSession(refreshToken);
+          if (proxySess) {
+            await supabase.auth.setSession({
+              access_token: proxySess.access_token,
+              refresh_token: proxySess.refresh_token,
+            });
+            // setSession триггерит onAuthStateChange → markInitialized
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('[auth] fallback refresh failed:', e);
+      }
+      markInitialized();
+    }, 4000);
 
     return () => {
       subscription.unsubscribe();
+      window.clearTimeout(fallbackTimer);
       if (refreshTimerRef.current !== null) {
         window.clearTimeout(refreshTimerRef.current);
         refreshTimerRef.current = null;
