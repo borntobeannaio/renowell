@@ -23,6 +23,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const REFRESH_LEAD_SECONDS = 5 * 60; // 5 минут
 const AUTH_DIRECT_TIMEOUT_MS = 4000;
 const AUTH_PROXY_RETRY_MS = 1500;
+const DEV_IMPERSONATE_EMAIL = 'anna.rum91@gmail.com';
+const DEV_IMPERSONATE_USER_ID = '5bb8d8f4-ead5-497a-8055-11bc99b36084';
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   let timeoutId: number | null = null;
@@ -34,6 +36,35 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   } finally {
     if (timeoutId !== null) window.clearTimeout(timeoutId);
   }
+}
+
+function buildDevSession(data: {
+  access_token: string;
+  refresh_token: string;
+  expires_in?: number;
+  expires_at?: number;
+  token_type?: string;
+  user?: User;
+}): Session {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const expiresIn = data.expires_in ?? 3600;
+  return {
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+    expires_in: expiresIn,
+    expires_at: data.expires_at ?? nowSec + expiresIn,
+    token_type: data.token_type ?? 'bearer',
+    user: data.user ?? ({
+      id: DEV_IMPERSONATE_USER_ID,
+      aud: 'authenticated',
+      role: 'authenticated',
+      email: DEV_IMPERSONATE_EMAIL,
+      app_metadata: { provider: 'email', providers: ['email'] },
+      user_metadata: {},
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as User),
+  } as Session;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
