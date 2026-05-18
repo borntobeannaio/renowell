@@ -53,6 +53,9 @@ Deno.serve(async (req) => {
       JSON.stringify({
         access_token: verifyData.session.access_token,
         refresh_token: verifyData.session.refresh_token,
+        expires_in: verifyData.session.expires_in,
+        expires_at: verifyData.session.expires_at,
+        token_type: verifyData.session.token_type,
         user: verifyData.session.user,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },

@@ -34,9 +34,9 @@ export default function Auth() {
   const location = useLocation();
   const { toast } = useToast();
 
-  // ВРЕМЕННО: авто-вход включён → всегда уводим на главную, не показываем форму
+  // ВРЕМЕННО: авто-вход включён → уводим дальше только после появления пользователя
   useEffect(() => {
-    if (!authLoading) {
+    if (!authLoading && user) {
       const state = location.state as LocationState | null;
       const from = state?.from;
       if (user && from?.pathname) {
