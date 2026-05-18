@@ -2,6 +2,10 @@ import { useState, useEffect, createContext, useContext, ReactNode, useRef } fro
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { proxySignInWithPassword, proxyRefreshSession, isNetworkError } from '@/lib/authProxy';
+import { proxyInvoke } from '@/lib/dbProxy';
+
+// ВРЕМЕННО: автовход без формы (для встречи). Удалить когда логин вернётся.
+const DEV_AUTO_LOGIN = true;
 
 interface AuthContextType {
   user: User | null;
