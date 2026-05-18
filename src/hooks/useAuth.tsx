@@ -257,17 +257,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const { data, error } = await proxyInvoke<{
             access_token: string;
             refresh_token: string;
+            expires_in?: number;
+            expires_at?: number;
+            token_type?: string;
+            user?: User;
           }>('dev-impersonate', {});
           if (!error && data?.access_token && data?.refresh_token) {
-            await withTimeout(
-              supabase.auth.setSession({
-                access_token: data.access_token,
-                refresh_token: data.refresh_token,
-              }),
-              AUTH_DIRECT_TIMEOUT_MS,
-              'setSession',
-            );
-            return; // onAuthStateChange сам вызовет markInitialized
+            const devSession = buildDevSession(data);
+            setSession(devSession);
+            setUser(devSession.user);
+            scheduleRefresh(devSession);
+            markInitialized();
+            supabase.auth.setSession({
+              access_token: data.access_token,
+              refresh_token: data.refresh_token,
+            }).catch((setErr) => console.warn('[auth] dev setSession failed:', setErr?.message));
+            return;
           }
           console.warn('[auth] dev-impersonate failed:', error?.message);
         } catch (e) {
