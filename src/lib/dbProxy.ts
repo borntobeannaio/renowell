@@ -173,3 +173,38 @@ export const proxyUpsert = <T = unknown>(
     onConflict: options?.onConflict,
   });
 };
+
+/**
+ * Invoke an Edge Function through the Yandex Cloud proxy
+ * (uses _proxyTarget routing supported by the proxy).
+ */
+export async function proxyInvoke<T = unknown>(
+  functionName: string,
+  body?: Record<string, unknown>,
+  timeout: number = DEFAULT_TIMEOUT
+): Promise<ProxyResponse<T>> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(EXTERNAL_PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ _proxyTarget: functionName, ...(body ?? {}) }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    const json = await response.json().catch(() => null);
+    if (json?.error) {
+      const msg =
+        typeof json.error === "string"
+          ? json.error
+          : json.error.message ?? "Proxy invoke error";
+      return { data: null, error: { message: msg } };
+    }
+    return { data: (json?.data ?? json) as T, error: null };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    const e = err as { message?: string };
+    return { data: null, error: { message: e?.message || "Ошибка вызова функции через прокси" } };
+  }
+}
