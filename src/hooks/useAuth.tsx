@@ -164,6 +164,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         console.warn('[auth] fallback refresh failed:', e);
       }
+      // Если до сих пор нет сессии и включён авто-вход — импersonate через edge-функцию
+      if (!initialized && DEV_AUTO_LOGIN) {
+        try {
+          const { data, error } = await proxyInvoke<{
+            access_token: string;
+            refresh_token: string;
+          }>('dev-impersonate', {});
+          if (!error && data?.access_token && data?.refresh_token) {
+            await withTimeout(
+              supabase.auth.setSession({
+                access_token: data.access_token,
+                refresh_token: data.refresh_token,
+              }),
+              AUTH_DIRECT_TIMEOUT_MS,
+              'setSession',
+            );
+            return; // onAuthStateChange сам вызовет markInitialized
+          }
+          console.warn('[auth] dev-impersonate failed:', error?.message);
+        } catch (e) {
+          console.warn('[auth] dev-impersonate threw:', e);
+        }
+      }
       markInitialized();
     }, 4000);
 
