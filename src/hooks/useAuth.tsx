@@ -116,32 +116,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (!error) return { error: null };
-      if (isNetworkError(error)) {
-        const { data: session, error: proxyError } = await proxySignInWithPassword(email, password);
-        if (proxyError || !session) {
-          return { error: (proxyError ? new Error(proxyError.message) : error) as Error };
-        }
-        const { error: setErr } = await supabase.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        });
-        return { error: setErr as Error | null };
+    // Порог: если supabase-auth ответил invalid_credentials быстрее 5 мс,
+    // это почти наверняка IP-рейтлимит, а не реально неверный пароль.
+    // В таком случае пробуем через auth-proxy (другой IP, отдельный счётчик).
+    const RATE_LIMIT_MS = 5;
+
+    const applyProxySession = async (
+      proxyEmail: string,
+      proxyPassword: string,
+      fallbackError: Error,
+    ): Promise<{ error: Error | null }> => {
+      const { data: session, error: proxyError } = await proxySignInWithPassword(
+        proxyEmail,
+        proxyPassword,
+      );
+      if (proxyError || !session) {
+        return { error: (proxyError ? new Error(proxyError.message) : fallbackError) };
       }
+      const { error: setErr } = await supabase.auth.setSession({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      });
+      return { error: setErr as Error | null };
+    };
+
+    try {
+      const startedAt = performance.now();
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const elapsedMs = performance.now() - startedAt;
+
+      if (!error) return { error: null };
+
+      if (isNetworkError(error)) {
+        return await applyProxySession(email, password, error as Error);
+      }
+
+      const msg = (error.message || '').toLowerCase();
+      const looksLikeInvalidCreds =
+        msg.includes('invalid login credentials') || msg.includes('invalid_credentials');
+
+      // Мгновенный invalid_credentials → подозрение на IP-рейтлимит, ретрай через прокси
+      if (looksLikeInvalidCreds && elapsedMs < RATE_LIMIT_MS) {
+        console.warn(`[auth] invalid_credentials за ${elapsedMs.toFixed(1)}ms — ретрай через auth-proxy`);
+        const proxyResult = await applyProxySession(email, password, error as Error);
+        if (!proxyResult.error) return proxyResult;
+        // Если прокси тоже вернул invalid — пароль реально неверный, отдаём исходную ошибку
+        return { error: error as Error };
+      }
+
       return { error: error as Error };
     } catch (e) {
       if (isNetworkError(e)) {
-        const { data: session, error: proxyError } = await proxySignInWithPassword(email, password);
-        if (proxyError || !session) {
-          return { error: new Error(proxyError?.message || 'Не удалось войти') };
-        }
-        const { error: setErr } = await supabase.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        });
-        return { error: setErr as Error | null };
+        return await applyProxySession(email, password, e as Error);
       }
       return { error: e as Error };
     }
