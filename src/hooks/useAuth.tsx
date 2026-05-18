@@ -17,6 +17,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // За сколько секунд до истечения токена пытаемся обновить сессию вручную
 // (раньше встроенного авторефреша supabase-js, чтобы поймать сетевую ошибку и уйти в прокси).
 const REFRESH_LEAD_SECONDS = 5 * 60; // 5 минут
+const AUTH_DIRECT_TIMEOUT_MS = 4000;
+const AUTH_PROXY_RETRY_MS = 1500;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timeoutId: number | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(`${label} timeout`)), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId !== null) window.clearTimeout(timeoutId);
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -39,9 +53,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshTimerRef.current = window.setTimeout(async () => {
       refreshTimerRef.current = null;
       try {
-        const { data, error } = await supabase.auth.refreshSession({
-          refresh_token: sess.refresh_token,
-        });
+        const { data, error } = await withTimeout(
+          supabase.auth.refreshSession({ refresh_token: sess.refresh_token }),
+          AUTH_DIRECT_TIMEOUT_MS,
+          'refreshSession',
+        );
         if (!error && data.session) return; // onAuthStateChange сам перезапланирует
         if (error && !isNetworkError(error)) {
           console.warn('[auth] refresh error (non-network):', error.message);
@@ -61,10 +77,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshTimerRef.current = window.setTimeout(() => scheduleRefresh(sess), 60_000);
         return;
       }
-      const { error: setErr } = await supabase.auth.setSession({
-        access_token: proxySess.access_token,
-        refresh_token: proxySess.refresh_token,
-      });
+      const { error: setErr } = await withTimeout(
+        supabase.auth.setSession({
+          access_token: proxySess.access_token,
+          refresh_token: proxySess.refresh_token,
+        }),
+        AUTH_DIRECT_TIMEOUT_MS,
+        'setSession',
+      );
       if (setErr) console.warn('[auth] setSession after proxy refresh failed:', setErr.message);
     }, fireInSec * 1000);
   };
