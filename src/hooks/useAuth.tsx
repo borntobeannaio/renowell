@@ -112,11 +112,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     // THEN check for existing session
-    withTimeout(supabase.auth.getSession(), AUTH_DIRECT_TIMEOUT_MS, 'getSession').then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    withTimeout(supabase.auth.getSession(), AUTH_DIRECT_TIMEOUT_MS, 'getSession').then(async ({ data: { session } }) => {
+      if (session) {
+        setSession(session);
+        setUser(session.user);
+        markInitialized();
+        scheduleRefresh(session);
+        return;
+      }
+      // Нет сессии → пробуем авто-вход через edge-функцию
+      if (DEV_AUTO_LOGIN) {
+        try {
+          const { data, error } = await proxyInvoke<{
+            access_token: string;
+            refresh_token: string;
+          }>('dev-impersonate', {});
+          if (!error && data?.access_token && data?.refresh_token) {
+            await withTimeout(
+              supabase.auth.setSession({
+                access_token: data.access_token,
+                refresh_token: data.refresh_token,
+              }),
+              AUTH_DIRECT_TIMEOUT_MS,
+              'setSession',
+            );
+            return; // onAuthStateChange → markInitialized
+          }
+          console.warn('[auth] dev-impersonate failed:', error?.message);
+        } catch (e) {
+          console.warn('[auth] dev-impersonate threw:', e);
+        }
+      }
       markInitialized();
-      scheduleRefresh(session);
     }).catch((e) => {
       console.warn('[auth] getSession failed:', e);
       markInitialized();
