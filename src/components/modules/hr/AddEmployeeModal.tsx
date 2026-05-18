@@ -50,31 +50,26 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
     try {
       const full_name = [formData.last_name, formData.first_name, formData.middle_name].filter(Boolean).join(" ");
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-employee-user`,
+      const { data, error: invokeError } = await proxyInvoke<{ password: string; error?: string }>(
+        "create-employee-user",
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.access_token}`,
-          },
-          body: JSON.stringify({
-            full_name,
-            last_name: formData.last_name,
-            first_name: formData.first_name,
-            middle_name: formData.middle_name || undefined,
-            position: formData.position,
-            email: formData.email,
-            phone: formData.phone || undefined,
-            birthday: formData.birthday || undefined,
-          }),
-        }
+          full_name,
+          last_name: formData.last_name,
+          first_name: formData.first_name,
+          middle_name: formData.middle_name || undefined,
+          position: formData.position,
+          email: formData.email,
+          phone: formData.phone || undefined,
+          birthday: formData.birthday || undefined,
+        },
+        { accessToken: session?.access_token },
       );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Ошибка создания сотрудника");
+      if (invokeError) {
+        throw new Error(invokeError.message);
+      }
+      if (!data || data.error) {
+        throw new Error(data?.error || "Ошибка создания сотрудника");
       }
 
       setCreatedEmployee({
