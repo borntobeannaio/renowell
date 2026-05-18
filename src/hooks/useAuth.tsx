@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { proxySignInWithPassword, isNetworkError } from '@/lib/authProxy';
 
 interface AuthContextType {
   user: User | null;
@@ -57,12 +58,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    
-    return { error: error as Error | null };
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (!error) return { error: null };
+      if (isNetworkError(error)) {
+        const { data: session, error: proxyError } = await proxySignInWithPassword(email, password);
+        if (proxyError || !session) {
+          return { error: (proxyError ? new Error(proxyError.message) : error) as Error };
+        }
+        const { error: setErr } = await supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+        return { error: setErr as Error | null };
+      }
+      return { error: error as Error };
+    } catch (e) {
+      if (isNetworkError(e)) {
+        const { data: session, error: proxyError } = await proxySignInWithPassword(email, password);
+        if (proxyError || !session) {
+          return { error: new Error(proxyError?.message || 'Не удалось войти') };
+        }
+        const { error: setErr } = await supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+        return { error: setErr as Error | null };
+      }
+      return { error: e as Error };
+    }
   };
 
   const signOut = async () => {
