@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
+import { proxyInvoke } from "@/lib/dbProxy";
 import { toast } from "sonner";
 import { UserPlus, Copy, Check, AlertTriangle } from "lucide-react";
 
