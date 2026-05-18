@@ -41,16 +41,20 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Verify the caller is an HR admin
+    // Read body once — нужен и для токена-fallback, и для данных сотрудника
+    const body: CreateEmployeeRequest & { _accessToken?: string } = await req.json();
+
+    // Verify the caller is an HR admin (токен из заголовка или из тела — при вызове через Yandex Cloud proxy)
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    const headerToken = authHeader ? authHeader.replace("Bearer ", "") : "";
+    const token = headerToken || (body._accessToken ?? "");
+    if (!token) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const token = authHeader.replace("Bearer ", "");
     const { data: { user: callerUser }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !callerUser) {
@@ -69,7 +73,6 @@ serve(async (req) => {
       );
     }
 
-    const body: CreateEmployeeRequest = await req.json();
     const { full_name, position, email, phone, department, birthday, middle_name } = body;
 
     // Support both old (full_name) and new (first_name/last_name) formats
