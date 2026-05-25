@@ -5,7 +5,7 @@ import { proxySignInWithPassword, proxyRefreshSession, isNetworkError } from '@/
 import { proxyInvoke } from '@/lib/dbProxy';
 
 // ВРЕМЕННО: автовход без формы (для встречи). Удалить когда логин вернётся.
-const DEV_AUTO_LOGIN = true;
+const DEV_AUTO_LOGIN = false;
 
 interface AuthContextType {
   user: User | null;
