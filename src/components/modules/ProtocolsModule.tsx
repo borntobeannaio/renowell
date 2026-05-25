@@ -199,6 +199,8 @@ export function ProtocolsModule() {
             )}
           </div>
 
+          {canCreateConstructionProtocol && <DraftsSection filterType="construction" />}
+
           <div className="space-y-4">
             {renderProtocolList(constructionProtocols, {
               canEdit: true,
