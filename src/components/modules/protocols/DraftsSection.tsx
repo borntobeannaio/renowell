@@ -14,33 +14,41 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-export function DraftsSection() {
-  const { data: drafts = [], isLoading } = useProtocolDrafts();
+interface DraftsSectionProps {
+  filterType?: 'meeting' | 'tender' | 'construction';
+}
+
+export function DraftsSection({ filterType = 'meeting' }: DraftsSectionProps) {
+  const { data: allDrafts = [], isLoading } = useProtocolDrafts();
   const deleteDraft = useDeleteProtocolDraft();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [draftToDelete, setDraftToDelete] = useState<ProtocolDraft | null>(null);
 
+  const drafts = allDrafts.filter((d) => {
+    const mt = d.draft_data?.meeting_type;
+    if (filterType === 'construction') return mt === 'construction';
+    if (filterType === 'tender') return mt === 'tender';
+    return mt !== 'construction' && mt !== 'tender';
+  });
+
   if (isLoading) {
-    return null; // Не показываем пока загружается
+    return null;
   }
 
   if (drafts.length === 0) {
-    return null; // Скрываем секцию если нет черновиков
+    return null;
   }
 
   const handleContinue = (draft: ProtocolDraft) => {
     const entityId = draft.entity_id;
-    
-    // Определяем URL на основе entity_id
+    const typeParam = filterType !== 'meeting' ? `?type=${filterType}` : '';
+
     if (entityId === 'new') {
-      // Новый протокол
-      window.open('/protocols/new', '_blank');
+      window.open(`/protocols/new${typeParam}`, '_blank');
     } else if (entityId.startsWith('copy-')) {
-      // Копия протокола
       const sourceId = entityId.replace('copy-', '');
       window.open(`/protocols/new?copy=${sourceId}`, '_blank');
     } else {
-      // Редактирование существующего
       window.open(`/protocols/edit/${entityId}`, '_blank');
     }
   };
