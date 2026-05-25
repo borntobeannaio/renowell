@@ -73,8 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const refreshTimerRef = useRef<number | null>(null);
 
-  // Запланировать обновление сессии заранее. Сначала пробуем напрямую,
-  // при сетевой ошибке — через auth-proxy (Yandex Cloud).
+  // Обновление сессии ВСЕГДА через Яндекс-прокси (никаких прямых обращений к supabase.co/auth).
   const scheduleRefresh = (sess: Session | null) => {
     if (refreshTimerRef.current !== null) {
       window.clearTimeout(refreshTimerRef.current);
@@ -87,28 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     refreshTimerRef.current = window.setTimeout(async () => {
       refreshTimerRef.current = null;
-      try {
-        const { data, error } = await withTimeout(
-          supabase.auth.refreshSession({ refresh_token: sess.refresh_token }),
-          AUTH_DIRECT_TIMEOUT_MS,
-          'refreshSession',
-        );
-        if (!error && data.session) return; // onAuthStateChange сам перезапланирует
-        if (error && !isNetworkError(error)) {
-          console.warn('[auth] refresh error (non-network):', error.message);
-          return;
-        }
-      } catch (e) {
-        if (!isNetworkError(e)) {
-          console.warn('[auth] refresh threw:', e);
-          return;
-        }
-      }
-      // Сетевой сбой — пробуем через прокси
       const { data: proxySess, error: proxyErr } = await proxyRefreshSession(sess.refresh_token);
       if (proxyErr || !proxySess) {
         console.warn('[auth] proxy refresh failed:', proxyErr?.message);
-        // Повторим попытку через минуту
         refreshTimerRef.current = window.setTimeout(() => scheduleRefresh(sess), 60_000);
         return;
       }
