@@ -365,6 +365,7 @@ export default function ProtocolEditor() {
         title: existingProtocol.title,
         organizer_id: organizerEmployee?.id || "",
         attendee_ids: attendeeIds,
+        participant_ids: existingProtocol.participant_ids || [],
       });
 
       // Build section groups from sections and items
@@ -450,6 +451,7 @@ export default function ProtocolEditor() {
         title: sourceProtocol.title,
         organizer_id: organizerEmployee?.id || "",
         attendee_ids: attendeeIds,
+        participant_ids: sourceProtocol.participant_ids || [],
       });
 
       // Build section groups from source
