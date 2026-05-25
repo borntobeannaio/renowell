@@ -2246,6 +2246,7 @@ export default function ProtocolEditor() {
               protocolNumber={isEditMode ? existingProtocol?.number || nextNumber : nextNumber}
               isEditMode={isEditMode}
               defaultCollapsed={isEditMode}
+              isConstructionMode={isConstructionMode}
             />
 
             <section className="space-y-4">
