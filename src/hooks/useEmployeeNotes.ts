@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { proxySelect, proxyInsert, proxyUpdate, proxyDelete } from "@/lib/dbProxy";
 
+export interface NoteAttachment {
+  url: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
 export interface EmployeeNote {
   id: string;
   owner_profile_id: string;
@@ -8,6 +15,7 @@ export interface EmployeeNote {
   title: string;
   body: string;
   pinned: boolean;
+  attachments: NoteAttachment[];
   created_at: string;
   updated_at: string;
 }
