@@ -146,6 +146,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       id: crypto.randomUUID(),
     };
     setNews((prev) => [newItem, ...prev]);
+    // Сохраняем в БД через прокси (если не получилось — пост остаётся локально)
+    proxyInsert("news_posts", {
+      kind: newItem.kind,
+      title: newItem.title,
+      body: newItem.body,
+      author: newItem.author,
+      tags: newItem.tags,
+      mentioned_employees: newItem.mentionedEmployees ?? [],
+      date: newItem.date,
+    }).catch((e) => console.warn("[news] persist failed:", e));
   };
 
   const addProtocol = (protocol: Omit<Protocol, "id">) => {
