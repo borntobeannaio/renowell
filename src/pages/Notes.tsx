@@ -201,6 +201,12 @@ function NotesContent() {
                     <p className="text-sm text-muted-foreground line-clamp-4 whitespace-pre-wrap">
                       {note.body || <span className="italic">Пусто</span>}
                     </p>
+                    {note.attachments && note.attachments.length > 0 && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Paperclip className="w-3 h-3" />
+                        {note.attachments.length} файл(ов)
+                      </div>
+                    )}
                     <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
                       {activeTab === "work" ? (
                         <span className="truncate">{authorName}</span>
