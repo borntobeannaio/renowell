@@ -1624,13 +1624,21 @@ export default function ProtocolEditor() {
     setSaveProgress("Сохранение протокола...");
     
     try {
+      const constructionParticipants = isConstructionMode
+        ? Array.from(new Set([
+            ...(form.participant_ids || []),
+            ...(currentProfile?.id ? [currentProfile.id] : []),
+          ]))
+        : (existingProtocol?.participant_ids || []);
+
       await updateProtocol.mutateAsync({
         id,
         date: form.date,
         title: form.title,
         organizer: organizerName,
-        meeting_type: isTenderMode ? 'tender' : form.title,
+        meeting_type: isConstructionMode ? 'construction' : (isTenderMode ? 'tender' : form.title),
         attendees: attendeeNames,
+        participant_ids: constructionParticipants,
       });
 
       const groupsSnapshot = cloneGroups(sectionGroups);
