@@ -271,14 +271,34 @@ function NoteEditor(props: NoteEditorProps) {
   const isCreate = props.mode === "create";
   const [title, setTitle] = useState(isCreate ? "" : props.note.title);
   const [body, setBody] = useState(isCreate ? "" : props.note.body);
+  const [attachments, setAttachments] = useState<NoteAttachment[]>(
+    isCreate ? [] : (props.note.attachments || []),
+  );
   const [saving, setSaving] = useState(false);
   const updateNote = useUpdateNote();
   const createNote = useCreateNote();
+  const { uploadFiles, isUploading, uploadProgress } = useChatAttachments();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const visibility = isCreate ? props.visibility : props.note.visibility;
 
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const arr = Array.from(files);
+    const uploaded = await uploadFiles(arr);
+    if (uploaded.length > 0) {
+      setAttachments((prev) => [...prev, ...uploaded]);
+      toast.success(`Загружено: ${uploaded.length}`);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removeAttachment = (idx: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   const handleSave = async () => {
-    if (!title.trim() && !body.trim()) {
-      toast.error("Заполните заголовок или текст");
+    if (!title.trim() && !body.trim() && attachments.length === 0) {
+      toast.error("Заполните заголовок, текст или прикрепите файл");
       return;
     }
     setSaving(true);
@@ -289,9 +309,10 @@ function NoteEditor(props: NoteEditorProps) {
           visibility: props.visibility,
           title,
           body,
+          attachments,
         });
       } else {
-        await updateNote.mutateAsync({ id: props.note.id, title, body });
+        await updateNote.mutateAsync({ id: props.note.id, title, body, attachments });
       }
       toast.success("Сохранено");
       props.onClose();
@@ -325,28 +346,101 @@ function NoteEditor(props: NoteEditorProps) {
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder="Текст заметки..."
-          className="flex-1 p-4 bg-transparent border-0 outline-none focus:ring-0 resize-none min-h-[300px]"
+          className="flex-1 p-4 bg-transparent border-0 outline-none focus:ring-0 resize-none min-h-[200px]"
         />
-        <div className="p-4 border-t flex items-center justify-end gap-2">
+
+        {attachments.length > 0 && (
+          <div className="px-4 pb-2 border-t pt-3 space-y-2 max-h-48 overflow-y-auto">
+            {attachments.map((att, idx) => (
+              <div key={idx} className="flex items-center gap-2 p-2 rounded-lg border bg-muted/30">
+                {isImageFile(att.contentType) ? (
+                  <img src={att.url} alt={att.fileName} className="w-10 h-10 object-cover rounded" />
+                ) : (
+                  <div className="w-10 h-10 flex items-center justify-center rounded bg-muted">
+                    <FileText className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <a
+                    href={att.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium truncate block hover:underline"
+                  >
+                    {att.fileName}
+                  </a>
+                  <div className="text-xs text-muted-foreground">{formatFileSize(att.size)}</div>
+                </div>
+                <a
+                  href={att.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={att.fileName}
+                  className="p-1 rounded hover:bg-muted text-muted-foreground"
+                  title="Скачать"
+                >
+                  <Download className="w-4 h-4" />
+                </a>
+                <button
+                  onClick={() => removeAttachment(idx)}
+                  className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                  title="Удалить"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {isUploading && (
+          <div className="px-4 pb-2">
+            <div className="h-1 bg-muted rounded overflow-hidden">
+              <div className="h-full bg-primary transition-all" style={{ width: `${uploadProgress}%` }} />
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">Загрузка... {uploadProgress}%</div>
+          </div>
+        )}
+
+        <div className="p-4 border-t flex items-center justify-between gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => handleFiles(e.target.files)}
+          />
           <button
-            onClick={props.onClose}
-            className="px-4 py-2 rounded-lg border hover:bg-muted text-sm"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="px-3 py-2 rounded-lg border hover:bg-muted text-sm flex items-center gap-2"
+            title="Прикрепить файл"
           >
-            Отмена
+            <Paperclip className="w-4 h-4" />
+            Файл
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="btn-primary px-4 py-2 text-sm flex items-center gap-2"
-          >
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            Сохранить
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={props.onClose}
+              className="px-4 py-2 rounded-lg border hover:bg-muted text-sm"
+            >
+              Отмена
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || isUploading}
+              className="btn-primary px-4 py-2 text-sm flex items-center gap-2"
+            >
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              Сохранить
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
 
 export default function NotesPage() {
   return (
