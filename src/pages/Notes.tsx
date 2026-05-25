@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { Plus, Pin, PinOff, Trash2, Loader2, Search, NotebookPen, Users as UsersIcon, Lock } from "lucide-react";
+import { useState, useMemo, useRef } from "react";
+import { Plus, Pin, PinOff, Trash2, Loader2, Search, NotebookPen, Users as UsersIcon, Lock, Paperclip, X, FileText, Download } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { useEmployees } from "@/hooks/useEmployees";
