@@ -1423,13 +1423,22 @@ export default function ProtocolEditor() {
     setSaveProgress("Создание протокола...");
     
     try {
+      // For construction protocols, always include current user as participant
+      const constructionParticipants = isConstructionMode
+        ? Array.from(new Set([
+            ...(form.participant_ids || []),
+            ...(currentProfile?.id ? [currentProfile.id] : []),
+          ]))
+        : [];
+
       const result = await createProtocol.mutateAsync({
         number: nextNumber,
         date: form.date,
         title: form.title,
         organizer: organizerName,
-        meeting_type: isTenderMode ? 'tender' : form.title,
+        meeting_type: isConstructionMode ? 'construction' : (isTenderMode ? 'tender' : form.title),
         attendees: attendeeNames,
+        participant_ids: constructionParticipants,
       });
 
       const groupsSnapshot = cloneGroups(sectionGroups);
