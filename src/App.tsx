@@ -17,6 +17,7 @@ import CreateEvent from "./pages/CreateEvent";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 import AccountDeletion from "./pages/AccountDeletion";
+import NotesPage from "./pages/Notes";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -191,6 +192,14 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <Profile />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/notes"
+                  element={
+                    <ProtectedRoute>
+                      <NotesPage />
                     </ProtectedRoute>
                   }
                 />
