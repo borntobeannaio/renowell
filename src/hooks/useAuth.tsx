@@ -117,25 +117,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const nowSec = Math.floor(Date.now() / 1000);
     const fireInSec = Math.max(5, sess.expires_at - nowSec - REFRESH_LEAD_SECONDS);
 
-    refreshTimerRef.current = window.setTimeout(async () => {
-      refreshTimerRef.current = null;
-      const { data: proxySess, error: proxyErr } = await proxyRefreshSession(sess.refresh_token);
-      if (proxyErr || !proxySess) {
-        console.warn('[auth] proxy refresh failed:', proxyErr?.message);
-        refreshTimerRef.current = window.setTimeout(() => scheduleRefresh(sess), 60_000);
-        return;
-      }
-      const { error: setErr } = await withTimeout(
-        supabase.auth.setSession({
-          access_token: proxySess.access_token,
-          refresh_token: proxySess.refresh_token,
-        }),
-        AUTH_DIRECT_TIMEOUT_MS,
-        'setSession',
-      );
-      if (setErr) console.warn('[auth] setSession after proxy refresh failed:', setErr.message);
-    }, fireInSec * 1000);
-  };
+      refreshTimerRef.current = window.setTimeout(async () => {
+        refreshTimerRef.current = null;
+        const { data: proxySess, error: proxyErr } = await proxyRefreshSession(sess.refresh_token);
+        if (proxyErr || !proxySess) {
+          console.warn('[auth] proxy refresh failed:', proxyErr?.message);
+          refreshTimerRef.current = window.setTimeout(() => scheduleRefresh(sess), 60_000);
+          return;
+        }
+        const newSession = sessionFromProxy({
+          ...proxySess,
+          user: proxySess.user ?? sess.user,
+        });
+        persistSessionToStorage(newSession);
+        setSession(newSession);
+        setUser(newSession.user);
+        scheduleRefresh(newSession);
+      }, fireInSec * 1000);
+    };
 
   useEffect(() => {
     let initialized = false;
