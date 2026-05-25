@@ -35,6 +35,7 @@ function NotesContent() {
   const [activeTab, setActiveTab] = useState<"private" | "work">("private");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<EmployeeNote | null>(null);
+  const [creating, setCreating] = useState<"private" | "work" | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const profileId = profile?.id || null;
