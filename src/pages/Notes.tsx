@@ -107,14 +107,9 @@ function NotesContent() {
         </div>
         <button
           onClick={handleNewNote}
-          disabled={createNote.isPending}
           className="btn-primary h-9 md:h-11 px-3 md:px-5 flex items-center gap-2 text-sm md:text-base"
         >
-          {createNote.isPending ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Plus className="w-4 h-4" />
-          )}
+          <Plus className="w-4 h-4" />
           Новая заметка
         </button>
       </div>
