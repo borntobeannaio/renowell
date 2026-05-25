@@ -9,7 +9,9 @@ import {
   useUpdateNote,
   useDeleteNote,
   EmployeeNote,
+  NoteAttachment,
 } from "@/hooks/useEmployeeNotes";
+import { useChatAttachments, isImageFile, formatFileSize } from "@/hooks/useChatAttachments";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { Header } from "@/components/layout/Header";
