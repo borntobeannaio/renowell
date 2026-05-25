@@ -137,7 +137,7 @@ export default function ProtocolEditor() {
   const { data: protocols = [], isLoading: protocolsLoading } = useProtocols();
   const { data: projects = [] } = useProjects();
   const { data: employees = [], isLoading: employeesLoading } = useEmployees();
-  const { data: nextNumber = 1 } = useNextProtocolNumber();
+  const { data: nextNumber = 1 } = useNextProtocolNumber(urlType === 'construction' ? 'construction' : null);
   const createProtocol = useCreateProtocol();
   const updateProtocol = useUpdateProtocol();
   const createProtocolItem = useCreateProtocolItem();
