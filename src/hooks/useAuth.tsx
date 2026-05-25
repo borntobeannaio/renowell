@@ -112,6 +112,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     };
 
+    // Отключаем встроенный авто-refresh supabase-js — он бьёт напрямую в supabase.co/auth.
+    // Все обновления токенов делаем сами через Яндекс-прокси (scheduleRefresh).
+    try { supabase.auth.stopAutoRefresh(); } catch {}
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
