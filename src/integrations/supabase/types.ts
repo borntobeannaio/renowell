@@ -71,6 +71,41 @@ export type Database = {
         }
         Relationships: []
       }
+      birthday_greetings_log: {
+        Row: {
+          created_at: string
+          employee_id: string
+          id: string
+          news_post_id: string | null
+          telegram_sent: boolean
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          id?: string
+          news_post_id?: string | null
+          telegram_sent?: boolean
+          year: number
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          id?: string
+          news_post_id?: string | null
+          telegram_sent?: boolean
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "birthday_greetings_log_news_post_id_fkey"
+            columns: ["news_post_id"]
+            isOneToOne: false
+            referencedRelation: "news_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bot_settings: {
         Row: {
           key: string
@@ -676,6 +711,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      news_posts: {
+        Row: {
+          author: string
+          body: string
+          created_at: string
+          date: string
+          id: string
+          kind: string
+          mentioned_employees: string[]
+          related_employee_id: string | null
+          tags: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          author?: string
+          body: string
+          created_at?: string
+          date?: string
+          id?: string
+          kind?: string
+          mentioned_employees?: string[]
+          related_employee_id?: string | null
+          tags?: string[]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          author?: string
+          body?: string
+          created_at?: string
+          date?: string
+          id?: string
+          kind?: string
+          mentioned_employees?: string[]
+          related_employee_id?: string | null
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       notifications: {
         Row: {
