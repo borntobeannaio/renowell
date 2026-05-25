@@ -98,7 +98,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data, error } = await proxySelect<Array<{
+      const { data, error } = await proxySelect<{
         id: string;
         kind: "news" | "congrats";
         title: string;
@@ -107,7 +107,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         tags: string[] | null;
         date: string;
         mentioned_employees: string[] | null;
-      }>>("news_posts", {
+      }>("news_posts", {
         select: "id, kind, title, body, author, tags, date, mentioned_employees",
         order: [{ column: "date", ascending: false }, { column: "created_at", ascending: false }],
         limit: 200,
