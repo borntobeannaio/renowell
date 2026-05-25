@@ -255,18 +255,38 @@ function NotesContent() {
   );
 }
 
-function NoteEditor({ note, onClose }: { note: EmployeeNote; onClose: () => void }) {
-  const [title, setTitle] = useState(note.title);
-  const [body, setBody] = useState(note.body);
+type NoteEditorProps =
+  | { mode: "edit"; note: EmployeeNote; onClose: () => void }
+  | { mode: "create"; visibility: "private" | "work"; ownerProfileId: string; onClose: () => void };
+
+function NoteEditor(props: NoteEditorProps) {
+  const isCreate = props.mode === "create";
+  const [title, setTitle] = useState(isCreate ? "" : props.note.title);
+  const [body, setBody] = useState(isCreate ? "" : props.note.body);
   const [saving, setSaving] = useState(false);
   const updateNote = useUpdateNote();
+  const createNote = useCreateNote();
+  const visibility = isCreate ? props.visibility : props.note.visibility;
 
   const handleSave = async () => {
+    if (!title.trim() && !body.trim()) {
+      toast.error("Заполните заголовок или текст");
+      return;
+    }
     setSaving(true);
     try {
-      await updateNote.mutateAsync({ id: note.id, title, body });
+      if (isCreate) {
+        await createNote.mutateAsync({
+          owner_profile_id: props.ownerProfileId,
+          visibility: props.visibility,
+          title,
+          body,
+        });
+      } else {
+        await updateNote.mutateAsync({ id: props.note.id, title, body });
+      }
       toast.success("Сохранено");
-      onClose();
+      props.onClose();
     } catch (e: any) {
       toast.error("Ошибка сохранения");
     } finally {
@@ -275,7 +295,7 @@ function NoteEditor({ note, onClose }: { note: EmployeeNote; onClose: () => void
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm" onClick={props.onClose}>
       <div
         className="bg-card border rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -290,7 +310,7 @@ function NoteEditor({ note, onClose }: { note: EmployeeNote; onClose: () => void
             className="w-full text-lg font-medium bg-transparent border-0 outline-none focus:ring-0"
           />
           <div className="text-xs text-muted-foreground mt-1">
-            {note.visibility === "private" ? "Личная заметка" : "Рабочая заметка — видна всем сотрудникам"}
+            {visibility === "private" ? "Личная заметка" : "Рабочая заметка — видна всем сотрудникам"}
           </div>
         </div>
         <textarea
