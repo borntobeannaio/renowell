@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.dev-impersonate]
 verify_jwt = false
+
+[functions.birthday-greetings]
+verify_jwt = false
