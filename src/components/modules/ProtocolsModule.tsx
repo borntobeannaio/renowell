@@ -90,7 +90,10 @@ export function ProtocolsModule() {
     }
   };
 
-  const renderProtocolList = (list: DbProtocol[]) => {
+  const renderProtocolList = (list: DbProtocol[], opts?: { canEdit?: boolean; canDelete?: boolean; canCopy?: boolean }) => {
+    const editAllowed = opts?.canEdit ?? canEditProtocols;
+    const deleteAllowed = opts?.canDelete ?? canDeleteProtocol;
+    const copyAllowed = opts?.canCopy ?? canCopyProtocol;
     if (isLoading) {
       return <div className="text-center py-12 text-muted-foreground">Загрузка...</div>;
     }
@@ -104,9 +107,9 @@ export function ProtocolsModule() {
         projects={projects}
         isExpanded={expandedId === protocol.id}
         onToggleExpand={() => setExpandedId(expandedId === protocol.id ? null : protocol.id)}
-        onEdit={canEditProtocols ? () => handleEditProtocol(protocol.id) : undefined}
-        onCopy={canCopyProtocol ? () => handleCopyProtocol(protocol.id) : undefined}
-        onDelete={canDeleteProtocol ? () => handleDeleteClick(protocol) : undefined}
+        onEdit={editAllowed ? () => handleEditProtocol(protocol.id) : undefined}
+        onCopy={copyAllowed ? () => handleCopyProtocol(protocol.id) : undefined}
+        onDelete={deleteAllowed ? () => handleDeleteClick(protocol) : undefined}
       />
     ));
   };
@@ -124,6 +127,11 @@ export function ProtocolsModule() {
               <Building className="w-3.5 h-3.5" />
               Тендер-протоколы
               <span className="ml-1.5 text-xs text-muted-foreground">({tenderProtocols.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="construction" className="gap-1.5">
+              <HardHat className="w-3.5 h-3.5" />
+              Строители
+              <span className="ml-1.5 text-xs text-muted-foreground">({constructionProtocols.length})</span>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -171,6 +179,32 @@ export function ProtocolsModule() {
 
           <div className="space-y-4">
             {renderProtocolList(tenderProtocols)}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="construction" className="space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm md:text-base text-muted-foreground">
+              Строй-протоколов: {constructionProtocols.length}
+            </p>
+            {canCreateConstructionProtocol && (
+              <button
+                onClick={handleNewConstructionProtocol}
+                className="btn-primary h-9 md:h-11 px-3 md:px-5 flex items-center gap-2 text-sm md:text-base"
+              >
+                <HardHat className="w-4 h-4" />
+                <span className="hidden sm:inline">Новый строй-протокол</span>
+                <span className="sm:hidden">Добавить</span>
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            {renderProtocolList(constructionProtocols, {
+              canEdit: true,
+              canDelete: isConstructionAdmin,
+              canCopy: canCreateConstructionProtocol,
+            })}
           </div>
         </TabsContent>
       </Tabs>
