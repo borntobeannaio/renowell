@@ -248,18 +248,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn('[auth] getSession hang — пробуем refresh через auth-proxy');
           const { data: proxySess } = await proxyRefreshSession(refreshToken);
           if (proxySess) {
-            const { error: setErr } = await withTimeout(
-              supabase.auth.setSession({
-                access_token: proxySess.access_token,
-                refresh_token: proxySess.refresh_token,
-              }),
-              AUTH_DIRECT_TIMEOUT_MS,
-              'setSession',
-            );
-            if (!setErr) {
-              setSession(proxySess as Session);
-              setUser(proxySess.user as User);
-            }
+            const newSession = sessionFromProxy(proxySess);
+            persistSessionToStorage(newSession);
+            setSession(newSession);
+            setUser(newSession.user);
+            scheduleRefresh(newSession);
             markInitialized();
             return;
           }
