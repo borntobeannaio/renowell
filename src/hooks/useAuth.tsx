@@ -73,8 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const refreshTimerRef = useRef<number | null>(null);
 
-  // Запланировать обновление сессии заранее. Сначала пробуем напрямую,
-  // при сетевой ошибке — через auth-proxy (Yandex Cloud).
+  // Обновление сессии ВСЕГДА через Яндекс-прокси (никаких прямых обращений к supabase.co/auth).
   const scheduleRefresh = (sess: Session | null) => {
     if (refreshTimerRef.current !== null) {
       window.clearTimeout(refreshTimerRef.current);
@@ -87,28 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     refreshTimerRef.current = window.setTimeout(async () => {
       refreshTimerRef.current = null;
-      try {
-        const { data, error } = await withTimeout(
-          supabase.auth.refreshSession({ refresh_token: sess.refresh_token }),
-          AUTH_DIRECT_TIMEOUT_MS,
-          'refreshSession',
-        );
-        if (!error && data.session) return; // onAuthStateChange сам перезапланирует
-        if (error && !isNetworkError(error)) {
-          console.warn('[auth] refresh error (non-network):', error.message);
-          return;
-        }
-      } catch (e) {
-        if (!isNetworkError(e)) {
-          console.warn('[auth] refresh threw:', e);
-          return;
-        }
-      }
-      // Сетевой сбой — пробуем через прокси
       const { data: proxySess, error: proxyErr } = await proxyRefreshSession(sess.refresh_token);
       if (proxyErr || !proxySess) {
         console.warn('[auth] proxy refresh failed:', proxyErr?.message);
-        // Повторим попытку через минуту
         refreshTimerRef.current = window.setTimeout(() => scheduleRefresh(sess), 60_000);
         return;
       }
@@ -131,6 +111,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       initialized = true;
       setLoading(false);
     };
+
+    // Отключаем встроенный авто-refresh supabase-js — он бьёт напрямую в supabase.co/auth.
+    // Все обновления токенов делаем сами через Яндекс-прокси (scheduleRefresh).
+    try { supabase.auth.stopAutoRefresh(); } catch {}
 
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -311,65 +295,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    // Порог: если supabase-auth ответил invalid_credentials быстрее 5 мс,
-    // это почти наверняка IP-рейтлимит, а не реально неверный пароль.
-    // В таком случае пробуем через auth-proxy (другой IP, отдельный счётчик).
-    const RATE_LIMIT_MS = 5;
-
-    const applyProxySession = async (
-      proxyEmail: string,
-      proxyPassword: string,
-      fallbackError: Error,
-    ): Promise<{ error: Error | null }> => {
-      const { data: session, error: proxyError } = await proxySignInWithPassword(
-        proxyEmail,
-        proxyPassword,
-      );
-      if (proxyError || !session) {
-        return { error: (proxyError ? new Error(proxyError.message) : fallbackError) };
-      }
-      const { error: setErr } = await supabase.auth.setSession({
-        access_token: session.access_token,
-        refresh_token: session.refresh_token,
-      });
-      return { error: setErr as Error | null };
-    };
-
-    try {
-      const startedAt = performance.now();
-      const { error } = await withTimeout(
-        supabase.auth.signInWithPassword({ email, password }),
-        AUTH_DIRECT_TIMEOUT_MS,
-        'signInWithPassword',
-      );
-      const elapsedMs = performance.now() - startedAt;
-
-      if (!error) return { error: null };
-
-      if (isNetworkError(error)) {
-        return await applyProxySession(email, password, error as Error);
-      }
-
-      const msg = (error.message || '').toLowerCase();
-      const looksLikeInvalidCreds =
-        msg.includes('invalid login credentials') || msg.includes('invalid_credentials');
-
-      // Мгновенный invalid_credentials → подозрение на IP-рейтлимит, ретрай через прокси
-      if (looksLikeInvalidCreds && elapsedMs < AUTH_PROXY_RETRY_MS) {
-        console.warn(`[auth] invalid_credentials за ${elapsedMs.toFixed(1)}ms — ретрай через auth-proxy`);
-        const proxyResult = await applyProxySession(email, password, error as Error);
-        if (!proxyResult.error) return proxyResult;
-        // Если прокси тоже вернул invalid — пароль реально неверный, отдаём исходную ошибку
-        return { error: error as Error };
-      }
-
-      return { error: error as Error };
-    } catch (e) {
-      if (isNetworkError(e)) {
-        return await applyProxySession(email, password, e as Error);
-      }
-      return { error: e as Error };
+    // Вход ВСЕГДА через Яндекс-прокси (никаких прямых обращений к supabase.co/auth).
+    const { data: session, error: proxyError } = await proxySignInWithPassword(email, password);
+    if (proxyError || !session) {
+      return { error: new Error(proxyError?.message || 'Не удалось войти') };
     }
+    const { error: setErr } = await supabase.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    });
+    return { error: setErr as Error | null };
   };
 
   const signOut = async () => {
