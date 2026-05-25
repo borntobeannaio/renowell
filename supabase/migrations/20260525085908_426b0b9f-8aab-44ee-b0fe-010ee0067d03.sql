@@ -1,0 +1,1 @@
+ALTER TABLE public.employee_notes ADD COLUMN IF NOT EXISTS attachments jsonb NOT NULL DEFAULT '[]'::jsonb;
