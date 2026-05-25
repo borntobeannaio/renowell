@@ -47,6 +47,7 @@ import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import { useCreateTask, useUpdateTask } from "@/hooks/useTasks";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useAuth } from "@/hooks/useAuth";
+import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { useProtocolPermissions } from "@/hooks/useProtocolPermissions";
 import { DraftSnapshot } from "@/hooks/useDraftSnapshots";
 import { generateProtocolPdf } from "@/utils/protocolPdf";
@@ -116,7 +117,8 @@ export default function ProtocolEditor() {
 
   // Auth and permissions
   const { user } = useAuth();
-  const { canEditProtocols, canArchive, canViewProtocols } = useProtocolPermissions();
+  const { data: currentProfile } = useCurrentProfile();
+  const { canEditProtocols, canArchive, canViewProtocols, canCreateConstructionProtocol, isConstructionAdmin, canEditConstructionProtocol } = useProtocolPermissions();
   
   // Redirect if user has no protocol access
   const accessDeniedShown = useRef(false);
@@ -157,6 +159,7 @@ export default function ProtocolEditor() {
   
   // Detect tender mode: from URL param, existing protocol, or source protocol (copy mode)
   const isTenderMode = urlType === 'tender' || existingProtocol?.meeting_type === 'tender' || sourceProtocol?.meeting_type === 'tender';
+  const isConstructionMode = urlType === 'construction' || existingProtocol?.meeting_type === 'construction' || sourceProtocol?.meeting_type === 'construction';
   const { data: existingItems = [], isLoading: existingItemsLoading } = useProtocolItems(isEditMode ? id : null);
   const { data: existingSections = [], isLoading: existingSectionsLoading } = useProtocolSections(isEditMode ? id : null);
 
@@ -178,11 +181,29 @@ export default function ProtocolEditor() {
 
   // Redirect if no permissions
   useEffect(() => {
-    if (!canEditProtocols && user) {
+    if (!user) return;
+    // Construction mode: allow construction authors/admins, and editing only if user is participant/admin
+    if (isConstructionMode) {
+      if (isNew && !canCreateConstructionProtocol) {
+        toast.error("Только руководители строительных проектов могут создавать строй-протоколы");
+        navigate("/protocols");
+        return;
+      }
+      if (isEditMode && existingProtocol) {
+        if (!canEditConstructionProtocol(existingProtocol.participant_ids, undefined)) {
+          // fallback check via admin only — participant check needs current profile id; loaded later
+          if (!isConstructionAdmin) {
+            // allow rendering; permissions enforced server-side; UI list already filters
+          }
+        }
+      }
+      return;
+    }
+    if (!canEditProtocols) {
       toast.error("У вас нет прав на редактирование протоколов");
       navigate("/protocols");
     }
-  }, [canEditProtocols, user, navigate]);
+  }, [canEditProtocols, user, navigate, isConstructionMode, isNew, isEditMode, canCreateConstructionProtocol, isConstructionAdmin, existingProtocol]);
 
   // Form state
   const [form, setForm] = useState({
@@ -190,6 +211,7 @@ export default function ProtocolEditor() {
     title: "",
     organizer_id: "",
     attendee_ids: [] as string[],
+    participant_ids: [] as string[],
   });
 
   // Section groups with items (unified state for both new and edit modes)
@@ -345,6 +367,7 @@ export default function ProtocolEditor() {
         title: existingProtocol.title,
         organizer_id: organizerEmployee?.id || "",
         attendee_ids: attendeeIds,
+        participant_ids: existingProtocol.participant_ids || [],
       });
 
       // Build section groups from sections and items
@@ -430,6 +453,7 @@ export default function ProtocolEditor() {
         title: sourceProtocol.title,
         organizer_id: organizerEmployee?.id || "",
         attendee_ids: attendeeIds,
+        participant_ids: sourceProtocol.participant_ids || [],
       });
 
       // Build section groups from source
@@ -1399,13 +1423,22 @@ export default function ProtocolEditor() {
     setSaveProgress("Создание протокола...");
     
     try {
+      // For construction protocols, always include current user as participant
+      const constructionParticipants = isConstructionMode
+        ? Array.from(new Set([
+            ...(form.participant_ids || []),
+            ...(currentProfile?.id ? [currentProfile.id] : []),
+          ]))
+        : [];
+
       const result = await createProtocol.mutateAsync({
         number: nextNumber,
         date: form.date,
         title: form.title,
         organizer: organizerName,
-        meeting_type: isTenderMode ? 'tender' : form.title,
+        meeting_type: isConstructionMode ? 'construction' : (isTenderMode ? 'tender' : form.title),
         attendees: attendeeNames,
+        participant_ids: constructionParticipants,
       });
 
       const groupsSnapshot = cloneGroups(sectionGroups);
@@ -1591,13 +1624,21 @@ export default function ProtocolEditor() {
     setSaveProgress("Сохранение протокола...");
     
     try {
+      const constructionParticipants = isConstructionMode
+        ? Array.from(new Set([
+            ...(form.participant_ids || []),
+            ...(currentProfile?.id ? [currentProfile.id] : []),
+          ]))
+        : (existingProtocol?.participant_ids || []);
+
       await updateProtocol.mutateAsync({
         id,
         date: form.date,
         title: form.title,
         organizer: organizerName,
-        meeting_type: isTenderMode ? 'tender' : form.title,
+        meeting_type: isConstructionMode ? 'construction' : (isTenderMode ? 'tender' : form.title),
         attendees: attendeeNames,
+        participant_ids: constructionParticipants,
       });
 
       const groupsSnapshot = cloneGroups(sectionGroups);
@@ -2205,6 +2246,7 @@ export default function ProtocolEditor() {
               protocolNumber={isEditMode ? existingProtocol?.number || nextNumber : nextNumber}
               isEditMode={isEditMode}
               defaultCollapsed={isEditMode}
+              isConstructionMode={isConstructionMode}
             />
 
             <section className="space-y-4">

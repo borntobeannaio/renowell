@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Info } from "lucide-react";
+import { ChevronDown, ChevronUp, Info, HardHat } from "lucide-react";
 import { EmployeeMultiSelect } from "@/components/ui/EmployeeMultiSelect";
 import { DbEmployee } from "@/hooks/useEmployees";
 
@@ -9,12 +9,14 @@ interface ProtocolMetadataProps {
     title: string;
     organizer_id: string;
     attendee_ids: string[];
+    participant_ids?: string[];
   };
   onChange: (updates: Partial<ProtocolMetadataProps["form"]>) => void;
   employees: DbEmployee[];
   protocolNumber: number;
   isEditMode?: boolean;
   defaultCollapsed?: boolean;
+  isConstructionMode?: boolean;
 }
 
 export function ProtocolMetadata({
@@ -24,6 +26,7 @@ export function ProtocolMetadata({
   protocolNumber,
   isEditMode = false,
   defaultCollapsed = false,
+  isConstructionMode = false,
 }: ProtocolMetadataProps) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
 
@@ -35,8 +38,8 @@ export function ProtocolMetadata({
         className="w-full flex items-center justify-between p-4 hover:bg-muted/30 transition-colors"
       >
         <div className="flex items-center gap-3">
-          <Info className="w-5 h-5 text-primary" />
-          <h2 className="text-lg font-medium text-foreground">Информация о совещании</h2>
+          {isConstructionMode ? <HardHat className="w-5 h-5 text-primary" /> : <Info className="w-5 h-5 text-primary" />}
+          <h2 className="text-lg font-medium text-foreground">{isConstructionMode ? "Строительный протокол" : "Информация о совещании"}</h2>
         </div>
         {isCollapsed ? (
           <ChevronDown className="w-5 h-5 text-muted-foreground" />
@@ -102,6 +105,24 @@ export function ProtocolMetadata({
               usePortal
             />
           </div>
+
+          {isConstructionMode && (
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Участники протокола (доступ к просмотру и редактированию)
+              </label>
+              <EmployeeMultiSelect
+                employees={employees}
+                selectedIds={form.participant_ids || []}
+                onChange={(ids) => onChange({ participant_ids: ids })}
+                placeholder="Выберите сотрудников с доступом"
+                usePortal
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Автор протокола добавляется автоматически.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </section>

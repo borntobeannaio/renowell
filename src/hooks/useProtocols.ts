@@ -10,6 +10,7 @@ export interface DbProtocol {
   organizer: string | null;
   meeting_type: string | null;
   attendees: string[];
+  participant_ids: string[];
   created_at: string;
   updated_at: string;
 }
@@ -82,6 +83,7 @@ export function useCreateProtocol() {
       organizer?: string | null;
       meeting_type?: string | null;
       attendees?: string[];
+      participant_ids?: string[];
     }) => {
       // Use extended retries and timeout for protocol creation
       const { data, error } = await proxyInsert<DbProtocol>(
@@ -93,6 +95,7 @@ export function useCreateProtocol() {
           organizer: protocol.organizer || null,
           meeting_type: protocol.meeting_type || null,
           attendees: protocol.attendees || [],
+          participant_ids: protocol.participant_ids || [],
         },
         "*",
         { retries: 3, timeout: 30000 } // 3 retries, 30 second timeout
@@ -123,6 +126,7 @@ export function useUpdateProtocol() {
       organizer?: string | null;
       meeting_type?: string | null;
       attendees?: string[];
+      participant_ids?: string[];
     }) => {
       const { data, error } = await proxyUpdate<DbProtocol>(
         "protocols",

@@ -541,6 +541,39 @@ export type Database = {
           },
         ]
       }
+      employee_notes: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          owner_profile_id: string
+          pinned: boolean
+          title: string
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          body?: string
+          created_at?: string
+          id?: string
+          owner_profile_id: string
+          pinned?: boolean
+          title?: string
+          updated_at?: string
+          visibility: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          owner_profile_id?: string
+          pinned?: boolean
+          title?: string
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: []
+      }
       employees: {
         Row: {
           avatar_url: string | null
@@ -1121,6 +1154,7 @@ export type Database = {
           meeting_type: string | null
           number: number
           organizer: string | null
+          participant_ids: string[]
           title: string
           updated_at: string
         }
@@ -1132,6 +1166,7 @@ export type Database = {
           meeting_type?: string | null
           number: number
           organizer?: string | null
+          participant_ids?: string[]
           title: string
           updated_at?: string
         }
@@ -1143,6 +1178,7 @@ export type Database = {
           meeting_type?: string | null
           number?: number
           organizer?: string | null
+          participant_ids?: string[]
           title?: string
           updated_at?: string
         }

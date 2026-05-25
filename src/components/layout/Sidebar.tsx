@@ -14,6 +14,7 @@ import {
   Sparkles,
   Info,
   Building,
+  NotebookPen,
 } from "lucide-react";
 import renowellLogo from "@/assets/renowell-logo-text.png";
 
@@ -23,6 +24,7 @@ const allNavItems: { id: NavigationSection; path: string; label: string; icon: R
   { id: "news", path: "/news", label: "Новости", icon: Newspaper },
   { id: "protocols", path: "/protocols", label: "Протоколы", icon: FileText },
   { id: "tasks", path: "/tasks", label: "Задачи", icon: CheckSquare },
+  { id: "notes" as NavigationSection, path: "/notes", label: "Заметки", icon: NotebookPen },
   { id: "tenders", path: "/tenders", label: "Коммерческий\nотдел", icon: Building },
   { id: "hr", path: "/hr", label: "HR и Офис", icon: Users },
   { id: "calendar", path: "/calendar", label: "Календарь", icon: Calendar },
