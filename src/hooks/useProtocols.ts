@@ -275,12 +275,16 @@ export function useDeleteProtocol() {
   });
 }
 
-export function useNextProtocolNumber() {
+export function useNextProtocolNumber(meetingType?: string | null) {
   return useQuery({
-    queryKey: ["next_protocol_number"],
+    queryKey: ["next_protocol_number", meetingType || "default"],
     queryFn: async () => {
+      const filters = meetingType === 'construction'
+        ? [{ column: 'meeting_type', operator: 'eq' as const, value: 'construction' }]
+        : [];
       const { data, error } = await proxySelect<{ number: number }>('protocols', {
         select: 'number',
+        filters,
         order: [{ column: 'number', ascending: false }],
         limit: 1,
       });
