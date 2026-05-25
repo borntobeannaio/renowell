@@ -327,16 +327,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    // Вход ВСЕГДА через Яндекс-прокси (никаких прямых обращений к supabase.co/auth).
-    const { data: session, error: proxyError } = await proxySignInWithPassword(email, password);
-    if (proxyError || !session) {
+    // Вход ВСЕГДА через Яндекс-прокси. Сессию записываем напрямую в localStorage,
+    // минуя supabase.auth.setSession() (он дёргает /auth/v1/user для валидации).
+    const { data: proxySess, error: proxyError } = await proxySignInWithPassword(email, password);
+    if (proxyError || !proxySess) {
       return { error: new Error(proxyError?.message || 'Не удалось войти') };
     }
-    const { error: setErr } = await supabase.auth.setSession({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-    });
-    return { error: setErr as Error | null };
+    const newSession = sessionFromProxy(proxySess);
+    persistSessionToStorage(newSession);
+    setSession(newSession);
+    setUser(newSession.user);
+    scheduleRefresh(newSession);
+    return { error: null };
   };
 
   const signOut = async () => {
