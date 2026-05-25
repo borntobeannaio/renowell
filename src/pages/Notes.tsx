@@ -218,8 +218,17 @@ function NotesContent() {
       {/* Editor modal */}
       {editing && (
         <NoteEditor
+          mode="edit"
           note={editing}
           onClose={() => setEditing(null)}
+        />
+      )}
+      {creating && profileId && (
+        <NoteEditor
+          mode="create"
+          visibility={creating}
+          ownerProfileId={profileId}
+          onClose={() => setCreating(null)}
         />
       )}
 
