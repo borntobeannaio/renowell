@@ -105,6 +105,24 @@ export function ProtocolMetadata({
               usePortal
             />
           </div>
+
+          {isConstructionMode && (
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Участники протокола (доступ к просмотру и редактированию)
+              </label>
+              <EmployeeMultiSelect
+                employees={employees}
+                selectedIds={form.participant_ids || []}
+                onChange={(ids) => onChange({ participant_ids: ids })}
+                placeholder="Выберите сотрудников с доступом"
+                usePortal
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Автор протокола добавляется автоматически.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </section>
