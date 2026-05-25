@@ -321,7 +321,7 @@ function NoteEditor(props: NoteEditorProps) {
         />
         <div className="p-4 border-t flex items-center justify-end gap-2">
           <button
-            onClick={onClose}
+            onClick={props.onClose}
             className="px-4 py-2 rounded-lg border hover:bg-muted text-sm"
           >
             Отмена
