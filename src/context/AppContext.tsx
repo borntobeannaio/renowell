@@ -24,6 +24,7 @@ import {
   mockKBRubrics,
   mockChats,
 } from "@/data/mockData";
+import { proxySelect, proxyInsert } from "@/lib/dbProxy";
 
 interface AppState {
   employees: Employee[];
@@ -92,6 +93,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   });
   const [news, setNews] = useState<NewsItem[]>(mockNews);
+
+  // Подгружаем посты ленты (включая авто-поздравления) из БД через прокси
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await proxySelect<{
+        id: string;
+        kind: "news" | "congrats";
+        title: string;
+        body: string;
+        author: string;
+        tags: string[] | null;
+        date: string;
+        mentioned_employees: string[] | null;
+      }>("news_posts", {
+        select: "id, kind, title, body, author, tags, date, mentioned_employees",
+        order: [{ column: "date", ascending: false }, { column: "created_at", ascending: false }],
+        limit: 200,
+      });
+      if (cancelled || error || !data) return;
+      const dbItems: NewsItem[] = data.map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        title: r.title,
+        body: r.body,
+        author: r.author,
+        date: r.date,
+        tags: r.tags ?? [],
+        mentionedEmployees: r.mentioned_employees ?? [],
+      }));
+      // Сохраняем mock как фолбэк, но db-посты идут первыми
+      setNews([...dbItems, ...mockNews]);
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const [protocols, setProtocols] = useState<Protocol[]>(mockProtocols);
   const [tasks, setTasks] = useState<Task[]>(mockTasks);
   const [vacations] = useState<HRVacation[]>(mockVacations);
@@ -110,6 +146,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       id: crypto.randomUUID(),
     };
     setNews((prev) => [newItem, ...prev]);
+    // Сохраняем в БД через прокси (если не получилось — пост остаётся локально)
+    proxyInsert("news_posts", {
+      kind: newItem.kind,
+      title: newItem.title,
+      body: newItem.body,
+      author: newItem.author,
+      tags: newItem.tags,
+      mentioned_employees: newItem.mentionedEmployees ?? [],
+      date: newItem.date,
+    }).catch((e) => console.warn("[news] persist failed:", e));
   };
 
   const addProtocol = (protocol: Omit<Protocol, "id">) => {
