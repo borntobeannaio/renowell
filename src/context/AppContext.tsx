@@ -24,6 +24,7 @@ import {
   mockKBRubrics,
   mockChats,
 } from "@/data/mockData";
+import { proxySelect, proxyInsert } from "@/lib/dbProxy";
 
 interface AppState {
   employees: Employee[];
