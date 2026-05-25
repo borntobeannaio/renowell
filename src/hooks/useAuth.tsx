@@ -67,6 +67,39 @@ function buildDevSession(data: {
   } as Session;
 }
 
+// Записываем сессию напрямую в localStorage supabase-js, минуя setSession()
+// (который дёргает /auth/v1/user для валидации — это прямой запрос к supabase.co).
+function persistSessionToStorage(sess: Session): void {
+  try {
+    const projectRef = (import.meta.env.VITE_SUPABASE_PROJECT_ID as string) || '';
+    if (!projectRef) return;
+    const key = `sb-${projectRef}-auth-token`;
+    localStorage.setItem(key, JSON.stringify(sess));
+  } catch (e) {
+    console.warn('[auth] persistSessionToStorage failed:', e);
+  }
+}
+
+function sessionFromProxy(data: {
+  access_token: string;
+  refresh_token: string;
+  expires_in?: number;
+  expires_at?: number;
+  token_type?: string;
+  user?: unknown;
+}): Session {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const expiresIn = data.expires_in ?? 3600;
+  return {
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+    expires_in: expiresIn,
+    expires_at: data.expires_at ?? nowSec + expiresIn,
+    token_type: data.token_type ?? 'bearer',
+    user: (data.user ?? {}) as User,
+  } as Session;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
