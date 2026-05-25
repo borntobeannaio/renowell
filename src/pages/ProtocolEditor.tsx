@@ -47,6 +47,7 @@ import { useEmployees, getEmployeeDisplayName } from "@/hooks/useEmployees";
 import { useCreateTask, useUpdateTask } from "@/hooks/useTasks";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useAuth } from "@/hooks/useAuth";
+import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { useProtocolPermissions } from "@/hooks/useProtocolPermissions";
 import { DraftSnapshot } from "@/hooks/useDraftSnapshots";
 import { generateProtocolPdf } from "@/utils/protocolPdf";
@@ -116,6 +117,7 @@ export default function ProtocolEditor() {
 
   // Auth and permissions
   const { user } = useAuth();
+  const { data: currentProfile } = useCurrentProfile();
   const { canEditProtocols, canArchive, canViewProtocols, canCreateConstructionProtocol, isConstructionAdmin, canEditConstructionProtocol } = useProtocolPermissions();
   
   // Redirect if user has no protocol access
