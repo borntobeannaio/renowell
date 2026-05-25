@@ -70,22 +70,12 @@ function NotesContent() {
     );
   }, [list, search]);
 
-  const handleNewNote = async () => {
+  const handleNewNote = () => {
     if (!profileId) {
       toast.error("Профиль не загружен");
       return;
     }
-    try {
-      const created = await createNote.mutateAsync({
-        owner_profile_id: profileId,
-        visibility: activeTab,
-        title: "",
-        body: "",
-      });
-      setEditing(created);
-    } catch (e: any) {
-      toast.error("Не удалось создать заметку", { description: e?.message });
-    }
+    setCreating(activeTab);
   };
 
   const handleTogglePin = async (note: EmployeeNote) => {
