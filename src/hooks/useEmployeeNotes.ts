@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { proxySelect, proxyInsert, proxyUpdate, proxyDelete } from "@/lib/dbProxy";
 
+export interface NoteAttachment {
+  url: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
 export interface EmployeeNote {
   id: string;
   owner_profile_id: string;
@@ -8,6 +15,7 @@ export interface EmployeeNote {
   title: string;
   body: string;
   pinned: boolean;
+  attachments: NoteAttachment[];
   created_at: string;
   updated_at: string;
 }
@@ -48,6 +56,7 @@ export function useCreateNote() {
       title?: string;
       body?: string;
       pinned?: boolean;
+      attachments?: NoteAttachment[];
     }) => {
       const { data, error } = await proxyInsert<EmployeeNote>("employee_notes", {
         owner_profile_id: note.owner_profile_id,
@@ -55,6 +64,7 @@ export function useCreateNote() {
         title: note.title || "",
         body: note.body || "",
         pinned: note.pinned || false,
+        attachments: note.attachments || [],
       });
       if (error) throw new Error(error.message);
       return data?.[0] as EmployeeNote;
