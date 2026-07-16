@@ -15,32 +15,43 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Verify caller is HR admin
+    // Читаем токен и из Authorization, и из body._accessToken (Yandex proxy не пробрасывает кастомные заголовки)
+    const bodyJson = await req.json().catch(() => ({} as Record<string, unknown>));
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    const headerToken = authHeader ? authHeader.replace("Bearer ", "") : "";
+    const token = headerToken || (typeof bodyJson._accessToken === "string" ? bodyJson._accessToken : "");
+    if (!token) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user: callerUser }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !callerUser) {
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
+      console.warn("[delete-employee] getClaims failed:", claimsError?.message);
       return new Response(
-        JSON.stringify({ error: "Invalid token" }),
+        JSON.stringify({ error: "Invalid token", details: claimsError?.message ?? null }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    const claims = claimsData.claims as Record<string, unknown>;
+    const callerEmail = (
+      (claims.email as string | undefined) ??
+      ((claims.user_metadata as { email?: string } | undefined)?.email) ??
+      ""
+    ).toLowerCase();
+
     const hrAdmins = ["sonya369@gmail.com", "astashkina495@gmail.com", "anna.rum91@gmail.com", "oparin@renowell.ru"];
-    if (!callerUser.email || !hrAdmins.includes(callerUser.email.toLowerCase())) {
+    if (!callerEmail || !hrAdmins.includes(callerEmail)) {
       return new Response(
         JSON.stringify({ error: "Forbidden - only HR admins can delete employees" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const employee_id = bodyJson.employee_id as string | undefined;
 
     const { employee_id } = await req.json();
     if (!employee_id) {
