@@ -53,7 +53,6 @@ Deno.serve(async (req) => {
 
     const employee_id = bodyJson.employee_id as string | undefined;
 
-    const { employee_id } = await req.json();
     if (!employee_id) {
       return new Response(
         JSON.stringify({ error: "Missing employee_id" }),
