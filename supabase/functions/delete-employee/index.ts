@@ -19,7 +19,9 @@ Deno.serve(async (req) => {
     const bodyJson = await req.json().catch(() => ({} as Record<string, unknown>));
     const authHeader = req.headers.get("Authorization");
     const headerToken = authHeader ? authHeader.replace("Bearer ", "") : "";
-    const token = headerToken || (typeof bodyJson._accessToken === "string" ? bodyJson._accessToken : "");
+    // Через Yandex proxy в Authorization может прийти служебный anon-token без sub.
+    // Настоящий пользовательский JWT прокидываем в body._accessToken и берём его первым.
+    const token = (typeof bodyJson._accessToken === "string" ? bodyJson._accessToken : "") || headerToken;
     if (!token) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),

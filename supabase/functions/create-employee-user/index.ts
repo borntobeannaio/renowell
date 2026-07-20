@@ -47,7 +47,9 @@ serve(async (req) => {
     // Verify the caller is an HR admin (токен из заголовка или из тела — при вызове через Yandex Cloud proxy)
     const authHeader = req.headers.get("Authorization");
     const headerToken = authHeader ? authHeader.replace("Bearer ", "") : "";
-    const token = headerToken || (body._accessToken ?? "");
+    // Через Yandex proxy в Authorization может прийти служебный anon-token без sub.
+    // Настоящий пользовательский JWT прокидываем в body._accessToken и берём его первым.
+    const token = (body._accessToken ?? "") || headerToken;
     if (!token) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
