@@ -1762,7 +1762,7 @@ export default function ProtocolEditor() {
 
               taskId = taskResult.id;
               toast.success(`Задача "${item.item_text.slice(0, 30)}..." создана`);
-            } else {
+            } else if (item.task_id) {
               // Update existing task with current item data (sync all editable fields)
               const { assignee_ids, observer_ids } = splitResponsibleForTask(effectiveResponsible);
 
