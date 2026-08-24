@@ -463,9 +463,11 @@ export default function ProtocolEditor() {
         participant_ids: sourceProtocol.participant_ids || [],
       });
 
-      // Build section groups from source
+      // Build section groups from source (архивные проекты не переносим)
       if (sourceSections.length > 0) {
-        const groups: SectionGroup[] = sourceSections.map(section => {
+        const groups: SectionGroup[] = sourceSections
+          .filter(section => section.section_type !== 'project' || !isArchivedProject(section.entity_id))
+          .map(section => {
           const sectionItems = sourceItems
             .filter(item => item.section_id === section.id)
             .map(item => ({
@@ -474,7 +476,7 @@ export default function ProtocolEditor() {
               create_task: false,
               task_id: item.task_id ?? null,
             }));
-          
+
           // For tender sections, parse [Company] prefix and build companyGroups
           if (section.section_type === 'tender') {
             const companyGroups = parseTenderItemsToGroups(sectionItems, generateTempId);
@@ -488,7 +490,7 @@ export default function ProtocolEditor() {
               companyGroups,
             };
           }
-          
+
           return {
             id: generateTempId(),
             sectionType: section.section_type,
@@ -498,16 +500,17 @@ export default function ProtocolEditor() {
             items: sectionItems,
           };
         });
-        
+
         if (groups.length === 0) {
           groups.push({ id: 'temp-default', sectionType: 'project', entityId: null, entityName: null, defaultResponsible: null, items: [] });
         }
-        
+
         setSectionGroups(groups);
       } else {
-        // Legacy: group by project_id
+        // Legacy: group by project_id (архивные проекты не переносим)
         const groups: Record<string, UniversalItemData[]> = {};
         sourceItems.forEach(item => {
+          if (isArchivedProject(item.project_id)) return;
           const key = item.project_id || "no_project";
           if (!groups[key]) groups[key] = [];
           groups[key].push({
