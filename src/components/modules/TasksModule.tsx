@@ -809,11 +809,13 @@ export function TasksModule() {
               className="input-base w-full"
             >
               <option value="">Без проекта</option>
-              {projects.map((proj) => (
-                <option key={proj.id} value={proj.id}>
-                  {proj.name}
-                </option>
-              ))}
+              {projects
+                .filter((proj) => !proj.archived || proj.id === form.project)
+                .map((proj) => (
+                  <option key={proj.id} value={proj.id}>
+                    {proj.name}{proj.archived ? " (архив)" : ""}
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -944,11 +946,13 @@ export function TasksModule() {
               className="input-base w-full"
             >
               <option value="">Без проекта</option>
-              {projects.map((proj) => (
-                <option key={proj.id} value={proj.id}>
-                  {proj.name}
-                </option>
-              ))}
+              {projects
+                .filter((proj) => !proj.archived || proj.id === form.project)
+                .map((proj) => (
+                  <option key={proj.id} value={proj.id}>
+                    {proj.name}{proj.archived ? " (архив)" : ""}
+                  </option>
+                ))}
             </select>
           </div>
 
