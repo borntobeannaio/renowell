@@ -540,7 +540,7 @@ export default function ProtocolEditor() {
       setCopyApplied(true);
       markAsChanged(); // Включаем автосохранение черновика для копии
     }
-  }, [isCopyMode, sourceProtocol, sourceItems, employees, copyApplied, sourceItemsLoading, sourceSections, sourceSectionsLoading, markAsChanged]);
+  }, [isCopyMode, sourceProtocol, sourceItems, employees, copyApplied, sourceItemsLoading, sourceSections, sourceSectionsLoading, markAsChanged, projects, projectsLoading]);
 
   // Prompt to restore draft when available
   useEffect(() => {
