@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { DraftsSection } from "./protocols/DraftsSection";
+import { ProjectsTab } from "./protocols/ProjectsTab";
 
 export function ProtocolsModule() {
   const navigate = useNavigate();
@@ -133,6 +134,11 @@ export function ProtocolsModule() {
               Строители
               <span className="ml-1.5 text-xs text-muted-foreground">({constructionProtocols.length})</span>
             </TabsTrigger>
+            <TabsTrigger value="projects" className="gap-1.5">
+              <FolderOpen className="w-3.5 h-3.5" />
+              Проекты
+              <span className="ml-1.5 text-xs text-muted-foreground">({projects.length})</span>
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -208,6 +214,10 @@ export function ProtocolsModule() {
               canCopy: canCreateConstructionProtocol,
             })}
           </div>
+        </TabsContent>
+
+        <TabsContent value="projects" className="space-y-4">
+          <ProjectsTab canManage={canEditProtocols} />
         </TabsContent>
       </Tabs>
 
