@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { proxySelect, proxyUpdate } from "@/lib/dbProxy";
+import { proxySelect, proxyUpdate, proxyInsert } from "@/lib/dbProxy";
 
 export interface Project {
   id: string;
@@ -25,6 +25,27 @@ export function useProjects(options?: { includeArchived?: boolean }) {
     },
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+  });
+}
+
+export function useCreateProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ name }: { name: string }) => {
+      const { data, error } = await proxyInsert<Project>(
+        'projects',
+        { name: name.trim(), archived: false },
+        '*'
+      );
+      if (error) throw new Error(error.message);
+      const result = data?.[0];
+      if (!result) throw new Error('Сервер не вернул данные проекта (проверьте соединение)');
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
   });
 }
 
