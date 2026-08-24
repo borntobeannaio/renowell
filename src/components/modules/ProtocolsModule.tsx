@@ -35,7 +35,7 @@ import { ProjectsTab } from "./protocols/ProjectsTab";
 export function ProtocolsModule() {
   const navigate = useNavigate();
   const { data: protocols = [], isLoading } = useProtocols();
-  const { data: projects = [] } = useProjects();
+  const { data: projects = [] } = useProjects({ includeArchived: true });
   const deleteProtocol = useDeleteProtocol();
   const { canCreateProtocol, canEditProtocols, canCopyProtocol, canDeleteProtocol, canCreateConstructionProtocol, canViewConstructionProtocol, isConstructionAdmin } = useProtocolPermissions();
   const { data: currentProfile } = useCurrentProfile();
@@ -137,7 +137,7 @@ export function ProtocolsModule() {
             <TabsTrigger value="projects" className="gap-1.5">
               <FolderOpen className="w-3.5 h-3.5" />
               Проекты
-              <span className="ml-1.5 text-xs text-muted-foreground">({projects.length})</span>
+              <span className="ml-1.5 text-xs text-muted-foreground">({projects.filter(p => !p.archived).length})</span>
             </TabsTrigger>
           </TabsList>
         </div>
