@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { DocsTab } from "@/components/modules/hr/DocsTab";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { proxySelect } from "@/lib/dbProxy";
+import { proxyInvoke, proxySelect } from "@/lib/dbProxy";
 
 import { Modal } from "@/components/ui/Modal";
 import { ProxiedAvatar } from "@/components/ui/ProxiedAvatar";
@@ -11,9 +11,9 @@ import { formatDisplayDate } from "@/utils/dateFormat";
 import { useHRPermissions } from "@/hooks/useHRPermissions";
 import { AddEmployeeModal } from "@/components/modules/hr/AddEmployeeModal";
 import { EditEmployeeModal } from "@/components/modules/hr/EditEmployeeModal";
-import { proxyEdgeFunction } from "@/lib/mediaProxy";
 import { toast } from "sonner";
 import { DbEmployee, getEmployeeDisplayName, getEmployeeFullDisplayName } from "@/hooks/useEmployees";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Users,
   Calendar,
@@ -72,6 +72,7 @@ function EmployeesTab() {
   const [deletingEmployee, setDeletingEmployee] = useState<DbEmployee | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const { canAddEmployee, canEditEmployee, canDeleteEmployee } = useHRPermissions();
+  const { session } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: employees = [], isLoading } = useQuery({
@@ -99,11 +100,14 @@ function EmployeesTab() {
     if (!deletingEmployee) return;
     setIsDeleting(true);
     try {
-      const data = await proxyEdgeFunction<{ error?: string }>("delete-employee", {
-        employee_id: deletingEmployee.id,
-      });
+      const { data, error } = await proxyInvoke<{ success?: boolean; error?: string }>(
+        "delete-employee",
+        { employee_id: deletingEmployee.id },
+        { accessToken: session?.access_token },
+      );
 
-      if (data?.error) throw new Error(data.error);
+      if (error) throw new Error(error.message);
+      if (!data?.success || data.error) throw new Error(data?.error || "Сотрудник не был удалён");
 
       toast.success(`Сотрудник ${getEmployeeDisplayName(deletingEmployee)} удалён`);
       setDeletingEmployee(null);
