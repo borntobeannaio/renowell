@@ -135,9 +135,14 @@ export default function ProtocolEditor() {
   
   // Data hooks
   const { data: protocols = [], isLoading: protocolsLoading } = useProtocols();
-  const { data: projects = [] } = useProjects({ includeArchived: true });
+  const { data: projects = [], isLoading: projectsLoading } = useProjects({ includeArchived: true });
   // Для выбора (добавление секций) — только активные проекты; для отображения имён — все
   const activeProjects = projects.filter(p => !p.archived);
+  // Архивный ли проект (для исключения при копировании протокола)
+  const isArchivedProject = (projectId: string | null) => {
+    if (!projectId) return false;
+    return projects.find(p => p.id === projectId)?.archived === true;
+  };
   const { data: employees = [], isLoading: employeesLoading } = useEmployees();
   const { data: nextNumber = 1 } = useNextProtocolNumber(urlType === 'construction' ? 'construction' : null);
   const createProtocol = useCreateProtocol();
