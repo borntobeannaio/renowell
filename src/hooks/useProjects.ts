@@ -28,6 +28,27 @@ export function useProjects(options?: { includeArchived?: boolean }) {
   });
 }
 
+export function useCreateProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ name }: { name: string }) => {
+      const { data, error } = await proxyInsert<Project>(
+        'projects',
+        { name: name.trim(), archived: false },
+        '*'
+      );
+      if (error) throw new Error(error.message);
+      const result = data?.[0];
+      if (!result) throw new Error('Сервер не вернул данные проекта (проверьте соединение)');
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+}
+
 export function useUpdateProject() {
   const queryClient = useQueryClient();
 
