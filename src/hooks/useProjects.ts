@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { proxySelect, proxyUpdate } from "@/lib/dbProxy";
+import { proxySelect, proxyUpdate, proxyInsert } from "@/lib/dbProxy";
 
 export interface Project {
   id: string;
