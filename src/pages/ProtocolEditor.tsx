@@ -446,7 +446,7 @@ export default function ProtocolEditor() {
 
   // Initialize for copy mode
   useEffect(() => {
-    if (isCopyMode && sourceProtocol && !copyApplied && employees.length > 0 && !sourceItemsLoading && !sourceSectionsLoading) {
+    if (isCopyMode && sourceProtocol && !copyApplied && employees.length > 0 && !sourceItemsLoading && !sourceSectionsLoading && !projectsLoading) {
       const organizerEmployee = sourceProtocol.organizer
         ? employees.find((e) => getEmployeeDisplayName(e) === sourceProtocol.organizer)
         : null;
