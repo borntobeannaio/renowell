@@ -2444,7 +2444,7 @@ export default function ProtocolEditor() {
         open={showSectionModal}
         onClose={() => setShowSectionModal(false)}
         onSelect={handleAddSection}
-        projects={projects}
+        projects={activeProjects}
         usedProjectIds={usedProjectIds}
       />
 

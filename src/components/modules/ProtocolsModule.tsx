@@ -137,7 +137,7 @@ export function ProtocolsModule() {
             <TabsTrigger value="projects" className="gap-1.5">
               <FolderOpen className="w-3.5 h-3.5" />
               Проекты
-              <span className="ml-1.5 text-xs text-muted-foreground">({projects.length})</span>
+              <span className="ml-1.5 text-xs text-muted-foreground">({projects.filter(p => !p.archived).length})</span>
             </TabsTrigger>
           </TabsList>
         </div>
