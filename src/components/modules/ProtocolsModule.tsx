@@ -35,7 +35,7 @@ import { ProjectsTab } from "./protocols/ProjectsTab";
 export function ProtocolsModule() {
   const navigate = useNavigate();
   const { data: protocols = [], isLoading } = useProtocols();
-  const { data: projects = [] } = useProjects();
+  const { data: projects = [] } = useProjects({ includeArchived: true });
   const deleteProtocol = useDeleteProtocol();
   const { canCreateProtocol, canEditProtocols, canCopyProtocol, canDeleteProtocol, canCreateConstructionProtocol, canViewConstructionProtocol, isConstructionAdmin } = useProtocolPermissions();
   const { data: currentProfile } = useCurrentProfile();

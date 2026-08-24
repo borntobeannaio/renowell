@@ -135,7 +135,9 @@ export default function ProtocolEditor() {
   
   // Data hooks
   const { data: protocols = [], isLoading: protocolsLoading } = useProtocols();
-  const { data: projects = [] } = useProjects();
+  const { data: projects = [] } = useProjects({ includeArchived: true });
+  // Для выбора (добавление секций) — только активные проекты; для отображения имён — все
+  const activeProjects = projects.filter(p => !p.archived);
   const { data: employees = [], isLoading: employeesLoading } = useEmployees();
   const { data: nextNumber = 1 } = useNextProtocolNumber(urlType === 'construction' ? 'construction' : null);
   const createProtocol = useCreateProtocol();
