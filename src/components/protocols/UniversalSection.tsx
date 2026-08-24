@@ -247,10 +247,10 @@ export function UniversalSection({
               >
                 <option value="">Без проекта (общие вопросы)</option>
                 {projects
-                  .filter((p) => !p.archived || p.id === entityId)
+                  .filter((p) => !p.archived)
                   .map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name}{p.archived ? " (архив)" : ""}
+                      {p.name}
                     </option>
                   ))}
               </select>

@@ -135,9 +135,14 @@ export default function ProtocolEditor() {
   
   // Data hooks
   const { data: protocols = [], isLoading: protocolsLoading } = useProtocols();
-  const { data: projects = [] } = useProjects({ includeArchived: true });
+  const { data: projects = [], isLoading: projectsLoading } = useProjects({ includeArchived: true });
   // Для выбора (добавление секций) — только активные проекты; для отображения имён — все
   const activeProjects = projects.filter(p => !p.archived);
+  // Архивный ли проект (для исключения при копировании протокола)
+  const isArchivedProject = (projectId: string | null) => {
+    if (!projectId) return false;
+    return projects.find(p => p.id === projectId)?.archived === true;
+  };
   const { data: employees = [], isLoading: employeesLoading } = useEmployees();
   const { data: nextNumber = 1 } = useNextProtocolNumber(urlType === 'construction' ? 'construction' : null);
   const createProtocol = useCreateProtocol();
@@ -441,7 +446,7 @@ export default function ProtocolEditor() {
 
   // Initialize for copy mode
   useEffect(() => {
-    if (isCopyMode && sourceProtocol && !copyApplied && employees.length > 0 && !sourceItemsLoading && !sourceSectionsLoading) {
+    if (isCopyMode && sourceProtocol && !copyApplied && employees.length > 0 && !sourceItemsLoading && !sourceSectionsLoading && !projectsLoading) {
       const organizerEmployee = sourceProtocol.organizer
         ? employees.find((e) => getEmployeeDisplayName(e) === sourceProtocol.organizer)
         : null;
@@ -458,9 +463,11 @@ export default function ProtocolEditor() {
         participant_ids: sourceProtocol.participant_ids || [],
       });
 
-      // Build section groups from source
+      // Build section groups from source (архивные проекты не переносим)
       if (sourceSections.length > 0) {
-        const groups: SectionGroup[] = sourceSections.map(section => {
+        const groups: SectionGroup[] = sourceSections
+          .filter(section => section.section_type !== 'project' || !isArchivedProject(section.entity_id))
+          .map(section => {
           const sectionItems = sourceItems
             .filter(item => item.section_id === section.id)
             .map(item => ({
@@ -469,7 +476,7 @@ export default function ProtocolEditor() {
               create_task: false,
               task_id: item.task_id ?? null,
             }));
-          
+
           // For tender sections, parse [Company] prefix and build companyGroups
           if (section.section_type === 'tender') {
             const companyGroups = parseTenderItemsToGroups(sectionItems, generateTempId);
@@ -483,7 +490,7 @@ export default function ProtocolEditor() {
               companyGroups,
             };
           }
-          
+
           return {
             id: generateTempId(),
             sectionType: section.section_type,
@@ -493,16 +500,17 @@ export default function ProtocolEditor() {
             items: sectionItems,
           };
         });
-        
+
         if (groups.length === 0) {
           groups.push({ id: 'temp-default', sectionType: 'project', entityId: null, entityName: null, defaultResponsible: null, items: [] });
         }
-        
+
         setSectionGroups(groups);
       } else {
-        // Legacy: group by project_id
+        // Legacy: group by project_id (архивные проекты не переносим)
         const groups: Record<string, UniversalItemData[]> = {};
         sourceItems.forEach(item => {
+          if (isArchivedProject(item.project_id)) return;
           const key = item.project_id || "no_project";
           if (!groups[key]) groups[key] = [];
           groups[key].push({
@@ -532,7 +540,7 @@ export default function ProtocolEditor() {
       setCopyApplied(true);
       markAsChanged(); // Включаем автосохранение черновика для копии
     }
-  }, [isCopyMode, sourceProtocol, sourceItems, employees, copyApplied, sourceItemsLoading, sourceSections, sourceSectionsLoading, markAsChanged]);
+  }, [isCopyMode, sourceProtocol, sourceItems, employees, copyApplied, sourceItemsLoading, sourceSections, sourceSectionsLoading, markAsChanged, projects, projectsLoading]);
 
   // Prompt to restore draft when available
   useEffect(() => {
