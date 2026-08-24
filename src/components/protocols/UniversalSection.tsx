@@ -32,7 +32,7 @@ interface UniversalSectionProps {
   entityName: string | null;
   items: (ProtocolItemData | GoalItemData)[];
   employees: DbEmployee[];
-  projects: { id: string; name: string }[];
+  projects: { id: string; name: string; archived?: boolean }[];
   defaultResponsible: string | null;
   onChangeDefaultResponsible: (responsible: string | null) => void;
   onUpdateItem: (itemId: string, updates: Partial<ProtocolItemData | GoalItemData>) => void;
@@ -246,11 +246,13 @@ export function UniversalSection({
                 autoFocus
               >
                 <option value="">Без проекта (общие вопросы)</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
+                {projects
+                  .filter((p) => !p.archived || p.id === entityId)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}{p.archived ? " (архив)" : ""}
+                    </option>
+                  ))}
               </select>
             ) : (
               <input
