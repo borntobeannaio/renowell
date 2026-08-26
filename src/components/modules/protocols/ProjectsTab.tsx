@@ -21,7 +21,10 @@ export function ProjectsTab({ canManage }: ProjectsTabProps) {
 
   const handleAdd = async () => {
     const name = newName.trim();
-    if (!name) return;
+    if (!name) {
+      toast.error("Введите название проекта");
+      return;
+    }
     if (projects.some(p => p.name.trim().toLowerCase() === name.toLowerCase())) {
       toast.error("Проект с таким названием уже существует");
       return;
@@ -31,9 +34,11 @@ export function ProjectsTab({ canManage }: ProjectsTabProps) {
       setNewName("");
       toast.success("Проект добавлен");
     } catch (error) {
-      toast.error("Ошибка добавления проекта");
+      console.error("[ProjectsTab] create project failed", error);
+      toast.error(error instanceof Error ? error.message : "Ошибка добавления проекта");
     }
   };
+
 
   const handleStartEdit = (id: string, currentName: string) => {
     setEditingId(id);
