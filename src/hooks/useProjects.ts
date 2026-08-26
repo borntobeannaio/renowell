@@ -39,10 +39,9 @@ export function useCreateProject() {
         '*'
       );
       if (error) throw new Error(error.message);
-      const result = data?.[0];
-      if (!result) throw new Error('Сервер не вернул данные проекта (проверьте соединение)');
-      return result;
+      return data?.[0] ?? null;
     },
+
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
     },
