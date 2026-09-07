@@ -82,7 +82,7 @@ export function useProtocolPermissions() {
   const isConstructionAuthor = CONSTRUCTION_AUTHORS.includes(email);
   const isConstructionAdmin = CONSTRUCTION_ADMINS.includes(email);
   const isConstructionViewer = CONSTRUCTION_VIEWERS.includes(email);
-  const canCreateConstructionProtocol = isConstructionAuthor || isConstructionAdmin;
+  const canCreateConstructionProtocol = isConstructionAuthor || isConstructionAdmin || isConstructionViewer;
 
   // Доступ к конкретному строй-протоколу: admin (полный), сотрудник стройотдела или участник
   const canViewConstructionProtocol = (
