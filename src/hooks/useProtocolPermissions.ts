@@ -80,14 +80,15 @@ export function useProtocolPermissions() {
 
   const isConstructionAuthor = CONSTRUCTION_AUTHORS.includes(email);
   const isConstructionAdmin = CONSTRUCTION_ADMINS.includes(email);
+  const isConstructionViewer = CONSTRUCTION_VIEWERS.includes(email);
   const canCreateConstructionProtocol = isConstructionAuthor || isConstructionAdmin;
 
-  // Доступ к конкретному строй-протоколу: admin (полный) или участник (включая автора)
+  // Доступ к конкретному строй-протоколу: admin (полный), сотрудник стройотдела или участник
   const canViewConstructionProtocol = (
     protocolParticipantIds: string[] | null | undefined,
     currentProfileId: string | null | undefined,
   ) => {
-    if (isConstructionAdmin) return true;
+    if (isConstructionAdmin || isConstructionViewer) return true;
     if (!currentProfileId) return false;
     return Array.isArray(protocolParticipantIds) && protocolParticipantIds.includes(currentProfileId);
   };
