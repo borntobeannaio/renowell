@@ -82,7 +82,7 @@ export function useProtocolPermissions() {
   const isConstructionAuthor = CONSTRUCTION_AUTHORS.includes(email);
   const isConstructionAdmin = CONSTRUCTION_ADMINS.includes(email);
   const isConstructionViewer = CONSTRUCTION_VIEWERS.includes(email);
-  const canCreateConstructionProtocol = isConstructionAuthor || isConstructionAdmin;
+  const canCreateConstructionProtocol = isConstructionAuthor || isConstructionAdmin || isConstructionViewer;
 
   // Доступ к конкретному строй-протоколу: admin (полный), сотрудник стройотдела или участник
   const canViewConstructionProtocol = (
@@ -94,13 +94,12 @@ export function useProtocolPermissions() {
     return Array.isArray(protocolParticipantIds) && protocolParticipantIds.includes(currentProfileId);
   };
 
-  // Редактировать могут админы и участники протокола; сотрудники стройотдела (viewers) — только просмотр
+  // Редактировать и сохранять могут админы, сотрудники стройотдела и участники протокола
   const canEditConstructionProtocol = (
     protocolParticipantIds: string[] | null | undefined,
     currentProfileId: string | null | undefined,
   ) => {
-    if (isConstructionAdmin) return true;
-    if (isConstructionViewer) return false;
+    if (isConstructionAdmin || isConstructionViewer) return true;
     if (!currentProfileId) return false;
     return Array.isArray(protocolParticipantIds) && protocolParticipantIds.includes(currentProfileId);
   };
