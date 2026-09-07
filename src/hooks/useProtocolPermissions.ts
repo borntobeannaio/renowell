@@ -43,6 +43,29 @@ const CONSTRUCTION_ADMINS = [
   "anna.rum91@gmail.com",
 ];
 
+// Сотрудники строительного отдела — просмотр и редактирование всех строй-протоколов
+const CONSTRUCTION_VIEWERS = [
+  "a.bikkuzhin@renowell.ru",   // Биккужин Артур
+  "moroz@renowell.ru",         // Мороз Сергей
+  "a.voichenko@renowell.ru",   // Войченко Александр
+  "popov@renowell.ru",         // Попов Никита
+  "a.zaveryachev@renowell.ru", // Заверячев Александр
+  "murashko@renowell.ru",      // Мурашко Александр
+  "m.akopyan@renowell.ru",     // Акопян Марк
+  "d.davaakay@renowell.ru",    // Даваакай Дажы
+  "r.panchenko@renowell.ru",   // Панченко Ростислав
+  "a.gorbatov@renowell.ru",    // Горбатов Александр
+  "t.lagiev@renowell.ru",      // Лагиев Тагир
+  "e.lazarev@renowell.ru",     // Лазарев Евгений
+  "k.magomedov@renowell.ru",   // Магомедов Курбан
+  "a.serov@renowell.ru",       // Серов Александр
+  "e.litvin@renowell.ru",      // Литвин Евгений
+  "oparin@renowell.ru",        // Опарин Андрей
+  "s.nechaeva@renowell.ru",    // Нечаева Софья
+  "m.vlasova@renowell.ru",     // Власова Мария
+  "la@renowell.ru",            // Лизунок Анастасия
+];
+
 export function useProtocolPermissions() {
   const { user } = useAuth();
   const email = user?.email?.toLowerCase() || "";
