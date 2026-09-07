@@ -115,6 +115,7 @@ export function useProtocolPermissions() {
     // construction
     canCreateConstructionProtocol,
     isConstructionAdmin,
+    isConstructionViewer,
     canViewConstructionProtocol,
     canEditConstructionProtocol,
   };
