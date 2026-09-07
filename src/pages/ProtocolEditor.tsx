@@ -2226,7 +2226,7 @@ export default function ProtocolEditor() {
             )}
             <Button
               onClick={isEditMode ? handleSaveChanges : handleCreate}
-              disabled={isSaving || !form.title.trim()}
+              disabled={isSaving || !form.title.trim() || !canModifyThisProtocol}
               className={`gap-2 ${hasUnsavedChanges && !isSaving ? "ring-2 ring-orange-400 ring-offset-2 ring-offset-background" : ""}`}
             >
               {isSaving ? (
@@ -2447,7 +2447,7 @@ export default function ProtocolEditor() {
               <Button
                 onClick={isEditMode ? handleSaveChanges : handleCreate}
                 size="lg"
-                disabled={isSaving || !form.title.trim()}
+                disabled={isSaving || !form.title.trim() || !canModifyThisProtocol}
                 className="gap-2 text-base font-semibold px-8"
               >
                 {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
