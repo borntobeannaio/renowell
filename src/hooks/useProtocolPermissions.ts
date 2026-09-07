@@ -73,7 +73,8 @@ export function useProtocolPermissions() {
   const canViewProtocols = PROTOCOL_ALLOWED_EMAILS.includes(email)
     || PROTOCOL_EDITORS.includes(email)
     || CONSTRUCTION_AUTHORS.includes(email)
-    || CONSTRUCTION_ADMINS.includes(email);
+    || CONSTRUCTION_ADMINS.includes(email)
+    || CONSTRUCTION_VIEWERS.includes(email);
 
   const canEditProtocols = PROTOCOL_EDITORS.includes(email);
   const canArchive = PROTOCOL_ADMINS.includes(email);
