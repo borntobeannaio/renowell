@@ -94,13 +94,12 @@ export function useProtocolPermissions() {
     return Array.isArray(protocolParticipantIds) && protocolParticipantIds.includes(currentProfileId);
   };
 
-  // Редактировать могут админы и участники протокола; сотрудники стройотдела (viewers) — только просмотр
+  // Редактировать и сохранять могут админы, сотрудники стройотдела и участники протокола
   const canEditConstructionProtocol = (
     protocolParticipantIds: string[] | null | undefined,
     currentProfileId: string | null | undefined,
   ) => {
-    if (isConstructionAdmin) return true;
-    if (isConstructionViewer) return false;
+    if (isConstructionAdmin || isConstructionViewer) return true;
     if (!currentProfileId) return false;
     return Array.isArray(protocolParticipantIds) && protocolParticipantIds.includes(currentProfileId);
   };
