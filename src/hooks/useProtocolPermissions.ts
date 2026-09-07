@@ -94,7 +94,16 @@ export function useProtocolPermissions() {
     return Array.isArray(protocolParticipantIds) && protocolParticipantIds.includes(currentProfileId);
   };
 
-  const canEditConstructionProtocol = canViewConstructionProtocol;
+  // Редактировать могут админы и участники протокола; сотрудники стройотдела (viewers) — только просмотр
+  const canEditConstructionProtocol = (
+    protocolParticipantIds: string[] | null | undefined,
+    currentProfileId: string | null | undefined,
+  ) => {
+    if (isConstructionAdmin) return true;
+    if (isConstructionViewer) return false;
+    if (!currentProfileId) return false;
+    return Array.isArray(protocolParticipantIds) && protocolParticipantIds.includes(currentProfileId);
+  };
 
   return {
     canEditProtocols,
@@ -106,6 +115,7 @@ export function useProtocolPermissions() {
     // construction
     canCreateConstructionProtocol,
     isConstructionAdmin,
+    isConstructionViewer,
     canViewConstructionProtocol,
     canEditConstructionProtocol,
   };

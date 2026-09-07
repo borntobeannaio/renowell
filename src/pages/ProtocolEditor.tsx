@@ -1610,13 +1610,23 @@ export default function ProtocolEditor() {
     }
   };
 
+  // Права на редактирование строй-протокола: зрители стройотдела — только просмотр
+  const canModifyThisProtocol = !isConstructionMode
+    || !existingProtocol
+    || canEditConstructionProtocol(existingProtocol.participant_ids, currentProfile?.id);
+
   const handleSaveChanges = async () => {
     // Prevent double submission
     if (isSavingRef.current) {
       console.log("Save already in progress, ignoring duplicate call");
       return;
     }
-    
+
+    if (!canModifyThisProtocol) {
+      toast.error("У вас нет прав на редактирование этого протокола — доступ только на просмотр");
+      return;
+    }
+
     if (!id || !form.title.trim()) {
       toast.error("Введите тему совещания");
       return;
@@ -2216,7 +2226,7 @@ export default function ProtocolEditor() {
             )}
             <Button
               onClick={isEditMode ? handleSaveChanges : handleCreate}
-              disabled={isSaving || !form.title.trim()}
+              disabled={isSaving || !form.title.trim() || !canModifyThisProtocol}
               className={`gap-2 ${hasUnsavedChanges && !isSaving ? "ring-2 ring-orange-400 ring-offset-2 ring-offset-background" : ""}`}
             >
               {isSaving ? (
@@ -2437,7 +2447,7 @@ export default function ProtocolEditor() {
               <Button
                 onClick={isEditMode ? handleSaveChanges : handleCreate}
                 size="lg"
-                disabled={isSaving || !form.title.trim()}
+                disabled={isSaving || !form.title.trim() || !canModifyThisProtocol}
                 className="gap-2 text-base font-semibold px-8"
               >
                 {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
