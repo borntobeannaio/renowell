@@ -43,6 +43,29 @@ const CONSTRUCTION_ADMINS = [
   "anna.rum91@gmail.com",
 ];
 
+// Сотрудники строительного отдела — просмотр и редактирование всех строй-протоколов
+const CONSTRUCTION_VIEWERS = [
+  "a.bikkuzhin@renowell.ru",   // Биккужин Артур
+  "moroz@renowell.ru",         // Мороз Сергей
+  "a.voichenko@renowell.ru",   // Войченко Александр
+  "popov@renowell.ru",         // Попов Никита
+  "a.zaveryachev@renowell.ru", // Заверячев Александр
+  "murashko@renowell.ru",      // Мурашко Александр
+  "m.akopyan@renowell.ru",     // Акопян Марк
+  "d.davaakay@renowell.ru",    // Даваакай Дажы
+  "r.panchenko@renowell.ru",   // Панченко Ростислав
+  "a.gorbatov@renowell.ru",    // Горбатов Александр
+  "t.lagiev@renowell.ru",      // Лагиев Тагир
+  "e.lazarev@renowell.ru",     // Лазарев Евгений
+  "k.magomedov@renowell.ru",   // Магомедов Курбан
+  "a.serov@renowell.ru",       // Серов Александр
+  "e.litvin@renowell.ru",      // Литвин Евгений
+  "oparin@renowell.ru",        // Опарин Андрей
+  "s.nechaeva@renowell.ru",    // Нечаева Софья
+  "m.vlasova@renowell.ru",     // Власова Мария
+  "la@renowell.ru",            // Лизунок Анастасия
+];
+
 export function useProtocolPermissions() {
   const { user } = useAuth();
   const email = user?.email?.toLowerCase() || "";
@@ -50,21 +73,23 @@ export function useProtocolPermissions() {
   const canViewProtocols = PROTOCOL_ALLOWED_EMAILS.includes(email)
     || PROTOCOL_EDITORS.includes(email)
     || CONSTRUCTION_AUTHORS.includes(email)
-    || CONSTRUCTION_ADMINS.includes(email);
+    || CONSTRUCTION_ADMINS.includes(email)
+    || CONSTRUCTION_VIEWERS.includes(email);
 
   const canEditProtocols = PROTOCOL_EDITORS.includes(email);
   const canArchive = PROTOCOL_ADMINS.includes(email);
 
   const isConstructionAuthor = CONSTRUCTION_AUTHORS.includes(email);
   const isConstructionAdmin = CONSTRUCTION_ADMINS.includes(email);
+  const isConstructionViewer = CONSTRUCTION_VIEWERS.includes(email);
   const canCreateConstructionProtocol = isConstructionAuthor || isConstructionAdmin;
 
-  // Доступ к конкретному строй-протоколу: admin (полный) или участник (включая автора)
+  // Доступ к конкретному строй-протоколу: admin (полный), сотрудник стройотдела или участник
   const canViewConstructionProtocol = (
     protocolParticipantIds: string[] | null | undefined,
     currentProfileId: string | null | undefined,
   ) => {
-    if (isConstructionAdmin) return true;
+    if (isConstructionAdmin || isConstructionViewer) return true;
     if (!currentProfileId) return false;
     return Array.isArray(protocolParticipantIds) && protocolParticipantIds.includes(currentProfileId);
   };
