@@ -189,20 +189,13 @@ export default function ProtocolEditor() {
   // Redirect if no permissions
   useEffect(() => {
     if (!user) return;
+    // Ждём загрузки протокола: тип (строй/тендер/обычный) известен только после неё
+    if ((isEditMode || isCopyMode) && (protocolsLoading || (!existingProtocol && !sourceProtocol))) return;
     // Construction mode: allow construction authors/admins, and editing only if user is participant/admin
     if (isConstructionMode) {
       if (isNew && !canCreateConstructionProtocol) {
         toast.error("Только руководители строительных проектов могут создавать строй-протоколы");
         navigate("/protocols");
-        return;
-      }
-      if (isEditMode && existingProtocol) {
-        if (!canEditConstructionProtocol(existingProtocol.participant_ids, undefined)) {
-          // fallback check via admin only — participant check needs current profile id; loaded later
-          if (!isConstructionAdmin) {
-            // allow rendering; permissions enforced server-side; UI list already filters
-          }
-        }
       }
       return;
     }
@@ -210,7 +203,7 @@ export default function ProtocolEditor() {
       toast.error("У вас нет прав на редактирование протоколов");
       navigate("/protocols");
     }
-  }, [canEditProtocols, user, navigate, isConstructionMode, isNew, isEditMode, canCreateConstructionProtocol, isConstructionAdmin, existingProtocol]);
+  }, [canEditProtocols, user, navigate, isConstructionMode, isNew, isEditMode, isCopyMode, protocolsLoading, existingProtocol, sourceProtocol, canCreateConstructionProtocol]);
 
   // Form state
   const [form, setForm] = useState({
