@@ -37,9 +37,6 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = (db as any);
 
     // Read body once — нужен и для токена-fallback, и для данных сотрудника
     const body: CreateEmployeeRequest & { _accessToken?: string } = await req.json();
@@ -57,22 +54,14 @@ serve(async (req) => {
       );
     }
 
-    // Валидируем JWT через getClaims (совместимо с миграцией на JWKS/asymmetric keys)
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      console.warn("[create-employee-user] getClaims failed:", claimsError?.message);
+    const who = await verifyAccessToken(token);
+    if (!who) {
       return new Response(
-        JSON.stringify({ error: "Invalid token", details: claimsError?.message ?? null }),
+        JSON.stringify({ error: "Invalid token" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const claims = claimsData.claims as Record<string, unknown>;
-    const callerEmail = (
-      (claims.email as string | undefined) ??
-      ((claims.user_metadata as { email?: string } | undefined)?.email) ??
-      ""
-    ).toLowerCase();
+    const callerEmail = who.email.toLowerCase();
 
     // Check if caller is HR admin
     const hrAdmins = ["sonya369@gmail.com", "astashkina495@gmail.com", "anna.rum91@gmail.com", "oparin@renowell.ru"];
@@ -102,13 +91,7 @@ serve(async (req) => {
       );
     }
 
-    // Check if user with this email already exists
-    const { data: existingUsers } = await supabase.auth.admin.listUsers();
-    const existingUser = existingUsers?.users?.find(
-      u => u.email?.toLowerCase() === email.toLowerCase()
-    );
-
-    if (existingUser) {
+    if (await getUserByEmail(email)) {
       return new Response(
         JSON.stringify({ error: "Пользователь с таким email уже существует" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -118,29 +101,18 @@ serve(async (req) => {
     // Generate password
     const password = generatePassword();
 
-    // Create auth user with auto-confirm
-    const { data: authData, error: createError } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        first_name: firstName,
-        last_name: lastName,
-      },
-    });
-
-    if (createError || !authData.user) {
-      console.error("Error creating auth user:", createError);
+    // Create user (also creates the profile row)
+    let userId: string;
+    try {
+      userId = (await createUser(email, password, { first_name: firstName, last_name: lastName })).id;
+    } catch (createError) {
+      console.error("Error creating user:", createError);
       return new Response(
-        JSON.stringify({ error: createError?.message || "Failed to create user" }),
+        JSON.stringify({ error: (createError as Error).message || "Failed to create user" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const userId = authData.user.id;
-
-    // Wait a bit for trigger to create profile
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const supabase = { ...(db as any), auth: { admin: { deleteUser: (id: string) => deleteUser(id) } } };
 
     // Get profile created by trigger and update it with additional data
     const { data: profile, error: profileError } = await supabase
