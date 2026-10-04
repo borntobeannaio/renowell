@@ -336,7 +336,9 @@ export async function runQuery<T = Record<string, unknown>[]>(req: QueryRequest,
 
     if (isNotifInsert && rows.length) {
       // replaces DB trigger notify_external_channels
-      dispatchExternalNotifications(rows.map((r) => String(r.id))).catch((e) => console.warn("[renowellDb] notify dispatch failed", e));
+      const job = dispatchExternalNotifications(rows.map((r) => String(r.id))).catch((e) => console.warn("[renowellDb] notify dispatch failed", e));
+      // deno-lint-ignore no-explicit-any
+      (globalThis as any).EdgeRuntime?.waitUntil?.(job);
     }
     return { data: (callerWantsRows ? rows : null) as T, error: null };
   } catch (e) {
