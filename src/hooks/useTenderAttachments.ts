@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { proxySelect, proxyInsert, proxyDelete as dbProxyDelete } from "@/lib/dbProxy";
 import { proxyUpload, proxyDelete as storageProxyDelete } from "@/lib/storageProxy";
-import { supabase } from "@/integrations/supabase/client";
+import { loadSession } from "@/lib/session";
 
 export interface TenderAttachment {
   id: string;
@@ -34,7 +34,7 @@ export function useUploadTenderAttachment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ tenderId, file }: { tenderId: string; file: File }) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = loadSession()?.user ?? null;
       
       // Get profile id
       let profileId: string | null = null;
