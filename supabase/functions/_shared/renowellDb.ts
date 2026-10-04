@@ -276,7 +276,9 @@ export async function runQuery<T = Record<string, unknown>[]>(req: QueryRequest,
     const cols = meta.cols.get(table);
     if (!cols) throw new Error(`Unknown table ${req.table}`);
     const spec = parseSelect(req.select);
-    const wantRows = req.action === "select" || req.returning || !!req.select;
+    const callerWantsRows = req.action === "select" || req.returning || !!req.select;
+    const isNotifInsert = table === "renowell_notifications" && (req.action === "insert" || req.action === "upsert");
+    const wantRows = callerWantsRows || isNotifInsert;
 
     const rows = await sql.begin(async (tx) => {
       if (userId) await tx`select set_config('app.user_id', ${userId}, true)`;
@@ -332,13 +334,11 @@ export async function runQuery<T = Record<string, unknown>[]>(req: QueryRequest,
       return plain;
     });
 
-    if (table === "renowell_notifications" && (req.action === "insert" || req.action === "upsert") && rows.length) {
+    if (isNotifInsert && rows.length) {
       // replaces DB trigger notify_external_channels
       dispatchExternalNotifications(rows.map((r) => String(r.id))).catch((e) => console.warn("[renowellDb] notify dispatch failed", e));
-    } else if (table === "renowell_notifications" && (req.action === "insert") && !wantRows) {
-      // ids unknown when caller did not ask for rows; handled by returning ids below
     }
-    return { data: (wantRows ? rows : null) as T, error: null };
+    return { data: (callerWantsRows ? rows : null) as T, error: null };
   } catch (e) {
     const err = e as { message?: string; code?: string; detail?: string };
     console.error("[renowellDb]", req.action, req.table, err.message);
