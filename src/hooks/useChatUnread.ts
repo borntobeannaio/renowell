@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useRef, useCallback } from "react";
+import { useNewRows } from "@/lib/poll";
 import { proxySelect, proxyInsert, proxyUpdate } from "@/lib/dbProxy";
 import { useAuth } from "@/hooks/useAuth";
 
