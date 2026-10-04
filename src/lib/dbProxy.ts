@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { getAccessToken } from "@/lib/session";
 
 interface Filter {
   column: string;
@@ -55,7 +55,7 @@ async function callExternalProxy<T>(request: ProxyRequest, timeout: number = DEF
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(request),
+      body: JSON.stringify({ ...request, _accessToken: getAccessToken() ?? undefined }),
       signal: controller.signal,
     });
 
@@ -191,11 +191,10 @@ export async function proxyInvoke<T = unknown>(
       _proxyTarget: functionName,
       ...(body ?? {}),
     };
-    if (options?.accessToken) {
-      // Yandex Cloud прокси не пробрасывает кастомные заголовки —
-      // токен передаём в теле, edge-функция вытаскивает его как fallback.
-      envelope._accessToken = options.accessToken;
-    }
+    // Yandex Cloud прокси не пробрасывает кастомные заголовки —
+    // токен передаём в теле, edge-функция вытаскивает его оттуда.
+    const token = options?.accessToken ?? getAccessToken();
+    if (token) envelope._accessToken = token;
     const response = await fetch(EXTERNAL_PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
