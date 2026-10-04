@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { db } from "../_shared/renowellDb.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,10 +20,7 @@ serve(async (req) => {
       throw new Error("TELEGRAM_BOT_TOKEN not configured");
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabase = (db as any);
 
     const update = await req.json();
     console.log("Telegram update received:", JSON.stringify(update));
@@ -96,14 +93,14 @@ serve(async (req) => {
 
 // --- Forwarding logic ---
 
-async function saveForwardChatId(supabase: ReturnType<typeof createClient>, chatId: string) {
+async function saveForwardChatId(supabase: any, chatId: string) {
   const { error } = await supabase
     .from("bot_settings")
     .upsert({ key: "forward_chat_id", value: chatId }, { onConflict: "key" });
   if (error) console.error("Error saving forward_chat_id:", error);
 }
 
-async function getForwardChatId(supabase: ReturnType<typeof createClient>): Promise<string | null> {
+async function getForwardChatId(supabase: any): Promise<string | null> {
   const { data, error } = await supabase
     .from("bot_settings")
     .select("value")
@@ -114,7 +111,7 @@ async function getForwardChatId(supabase: ReturnType<typeof createClient>): Prom
 }
 
 async function forwardMessageToAdmin(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   botToken: string,
   message: Record<string, unknown>
 ) {
@@ -155,7 +152,7 @@ async function forwardMessageToAdmin(
 // --- User message handling ---
 
 async function handleUserMessage(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   botToken: string,
   chatId: string,
   text: string,
@@ -248,7 +245,7 @@ async function handleUserMessage(
 // --- Channel post processing ---
 
 async function processChannelPost(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   _botToken: string,
   post: Record<string, unknown>
 ): Promise<void> {
@@ -297,7 +294,7 @@ async function processChannelPost(
 // --- Support reply handling ---
 
 async function handleSupportReply(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   replyToMessageId: number,
   text: string
 ): Promise<boolean> {
