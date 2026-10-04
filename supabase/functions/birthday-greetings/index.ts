@@ -5,7 +5,7 @@
 // - отправляет Telegram-сообщение имениннику и всем сотрудникам с привязанным TG
 // - логирует факт поздравления (один сотрудник = 1 поздравление в год)
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { db } from "../_shared/renowellDb.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,7 +18,7 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 
-const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+const supabase = (db as any);
 
 function todayMoscow(): { month: number; day: number; year: number; iso: string } {
   const now = new Date();

@@ -32,7 +32,8 @@ import { toast } from "sonner";
 import { proxyUpload, proxyDelete as storageProxyDelete, proxyGetPublicUrl } from "@/lib/storageProxy";
 import { proxySelect, proxyUpdate, proxyDelete, proxyInsert as dbProxyInsert } from "@/lib/dbProxy";
 import { useProxiedAvatarUrl } from "@/lib/avatarProxy";
-import { supabase } from "@/integrations/supabase/client";
+import { loadSession } from "@/lib/session";
+import { proxyUpdatePassword } from "@/lib/authProxy";
 import renowellLogo from "@/assets/renowell-logo-text.png";
 
 interface ProfileData {
@@ -339,39 +340,19 @@ export default function Profile() {
     
     try {
       // Check current session
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = loadSession();
       if (!session) {
         console.error('[Password] No active session');
         toast.error("Сессия истекла. Пожалуйста, войдите заново.");
         setIsChangingPassword(false);
         return;
       }
-      
-      console.log('[Password] Session valid, verifying current password...');
 
-      // First, verify current password by re-authenticating
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user?.email || "",
-        password: currentPassword,
-      });
-
-      if (signInError) {
-        console.error('[Password] Current password verification failed:', signInError);
-        toast.error("Неверный текущий пароль");
-        setIsChangingPassword(false);
-        return;
-      }
-
-      console.log('[Password] Current password verified, updating...');
-
-      // Update password
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
+      const { error: updateError } = await proxyUpdatePassword(session.access_token, newPassword, currentPassword);
 
       if (updateError) {
         console.error('[Password] Update failed:', updateError);
-        toast.error("Ошибка смены пароля: " + updateError.message);
+        toast.error(/текущий/i.test(updateError.message) ? "Неверный текущий пароль" : "Ошибка смены пароля: " + updateError.message);
         setIsChangingPassword(false);
         return;
       }

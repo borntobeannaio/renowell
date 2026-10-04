@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { db } from "../_shared/renowellDb.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -124,7 +124,7 @@ serve(async (req) => {
       throw new Error('Missing Supabase configuration');
     }
     
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = (db as any);
     
     // First, try to get posts from database (cached via webhook)
     console.log('[telegram-channel] Fetching posts from database...');

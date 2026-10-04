@@ -1,4 +1,5 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { db } from "../_shared/renowellDb.ts";
+import { getUserById } from "../_shared/renowellAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -91,7 +92,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabase = createClient(supabaseUrl, serviceKey);
+    const supabase = { ...(db as any), auth: { admin: { getUserById: async (id: string) => ({ data: { user: await getUserById(id) } }) } } };
 
     // Fetch event
     const { data: event, error: eventErr } = await supabase

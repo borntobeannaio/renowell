@@ -1,11 +1,7 @@
-import { useState, useEffect, createContext, useContext, ReactNode, useRef } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
-import { proxySignInWithPassword, proxyRefreshSession, isNetworkError } from '@/lib/authProxy';
-import { proxyInvoke } from '@/lib/dbProxy';
-
-// ВРЕМЕННО: автовход без формы (для встречи). Удалить когда логин вернётся.
-const DEV_AUTO_LOGIN = false;
+import { useState, useEffect, createContext, useContext, ReactNode, useRef, useCallback } from 'react';
+import type { User, Session } from '@supabase/supabase-js';
+import { proxySignInWithPassword, proxyRefreshSession, proxySignOut, type ProxyAuthSession } from '@/lib/authProxy';
+import { loadSession, saveSession, clearLegacySessions } from '@/lib/session';
 
 interface AuthContextType {
   user: User | null;
@@ -18,34 +14,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// За сколько секунд до истечения токена пытаемся обновить сессию вручную
-// (раньше встроенного авторефреша supabase-js, чтобы поймать сетевую ошибку и уйти в прокси).
-const REFRESH_LEAD_SECONDS = 5 * 60; // 5 минут
-const AUTH_DIRECT_TIMEOUT_MS = 4000;
-const AUTH_PROXY_RETRY_MS = 1500;
-const DEV_IMPERSONATE_EMAIL = 'anna.rum91@gmail.com';
-const DEV_IMPERSONATE_USER_ID = '5bb8d8f4-ead5-497a-8055-11bc99b36084';
+// За сколько секунд до истечения токена обновляем сессию.
+const REFRESH_LEAD_SECONDS = 5 * 60;
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
-  let timeoutId: number | null = null;
-  const timeout = new Promise<never>((_, reject) => {
-    timeoutId = window.setTimeout(() => reject(new Error(`${label} timeout`)), timeoutMs);
-  });
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    if (timeoutId !== null) window.clearTimeout(timeoutId);
-  }
-}
-
-function buildDevSession(data: {
-  access_token: string;
-  refresh_token: string;
-  expires_in?: number;
-  expires_at?: number;
-  token_type?: string;
-  user?: User;
-}): Session {
+function toSession(data: ProxyAuthSession, fallbackUser?: User): Session {
   const nowSec = Math.floor(Date.now() / 1000);
   const expiresIn = data.expires_in ?? 3600;
   return {
@@ -54,49 +26,7 @@ function buildDevSession(data: {
     expires_in: expiresIn,
     expires_at: data.expires_at ?? nowSec + expiresIn,
     token_type: data.token_type ?? 'bearer',
-    user: data.user ?? ({
-      id: DEV_IMPERSONATE_USER_ID,
-      aud: 'authenticated',
-      role: 'authenticated',
-      email: DEV_IMPERSONATE_EMAIL,
-      app_metadata: { provider: 'email', providers: ['email'] },
-      user_metadata: {},
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    } as User),
-  } as Session;
-}
-
-// Записываем сессию напрямую в localStorage supabase-js, минуя setSession()
-// (который дёргает /auth/v1/user для валидации — это прямой запрос к supabase.co).
-function persistSessionToStorage(sess: Session): void {
-  try {
-    const projectRef = (import.meta.env.VITE_SUPABASE_PROJECT_ID as string) || '';
-    if (!projectRef) return;
-    const key = `sb-${projectRef}-auth-token`;
-    localStorage.setItem(key, JSON.stringify(sess));
-  } catch (e) {
-    console.warn('[auth] persistSessionToStorage failed:', e);
-  }
-}
-
-function sessionFromProxy(data: {
-  access_token: string;
-  refresh_token: string;
-  expires_in?: number;
-  expires_at?: number;
-  token_type?: string;
-  user?: unknown;
-}): Session {
-  const nowSec = Math.floor(Date.now() / 1000);
-  const expiresIn = data.expires_in ?? 3600;
-  return {
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
-    expires_in: expiresIn,
-    expires_at: data.expires_at ?? nowSec + expiresIn,
-    token_type: data.token_type ?? 'bearer',
-    user: (data.user ?? {}) as User,
+    user: (data.user ?? fallbackUser ?? {}) as User,
   } as Session;
 }
 
@@ -106,236 +36,105 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const refreshTimerRef = useRef<number | null>(null);
 
-  // Обновление сессии ВСЕГДА через Яндекс-прокси (никаких прямых обращений к supabase.co/auth).
-  const scheduleRefresh = (sess: Session | null) => {
+  const apply = useCallback((sess: Session | null) => {
+    saveSession(sess);
+    setSession(sess);
+    setUser(sess?.user ?? null);
+  }, []);
+
+  const clearTimer = () => {
     if (refreshTimerRef.current !== null) {
       window.clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = null;
     }
-    if (!sess?.expires_at || !sess.refresh_token) return;
+  };
 
+  const doRefresh = useCallback(async (sess: Session): Promise<Session | null> => {
+    const { data, error } = await proxyRefreshSession(sess.refresh_token);
+    if (error || !data) {
+      // Недействительный refresh-токен → выходим; сетевую ошибку переживаем.
+      if (error && /invalid refresh|not found/i.test(error.message)) {
+        apply(null);
+        return null;
+      }
+      return undefined as unknown as null;
+    }
+    const next = toSession(data, sess.user);
+    apply(next);
+    return next;
+  }, [apply]);
+
+  const scheduleRefresh = useCallback((sess: Session | null) => {
+    clearTimer();
+    if (!sess?.expires_at || !sess.refresh_token) return;
     const nowSec = Math.floor(Date.now() / 1000);
     const fireInSec = Math.max(5, sess.expires_at - nowSec - REFRESH_LEAD_SECONDS);
-
-      refreshTimerRef.current = window.setTimeout(async () => {
-        refreshTimerRef.current = null;
-        const { data: proxySess, error: proxyErr } = await proxyRefreshSession(sess.refresh_token);
-        if (proxyErr || !proxySess) {
-          console.warn('[auth] proxy refresh failed:', proxyErr?.message);
-          refreshTimerRef.current = window.setTimeout(() => scheduleRefresh(sess), 60_000);
-          return;
-        }
-        const newSession = sessionFromProxy({
-          ...proxySess,
-          user: proxySess.user ?? sess.user,
-        });
-        persistSessionToStorage(newSession);
-        setSession(newSession);
-        setUser(newSession.user);
-        scheduleRefresh(newSession);
-      }, fireInSec * 1000);
-    };
+    refreshTimerRef.current = window.setTimeout(async () => {
+      refreshTimerRef.current = null;
+      const next = await doRefresh(sess);
+      if (next) scheduleRefresh(next);
+      else if (next === undefined) refreshTimerRef.current = window.setTimeout(() => scheduleRefresh(sess), 60_000);
+    }, fireInSec * 1000);
+  }, [doRefresh]);
 
   useEffect(() => {
-    let initialized = false;
-    const markInitialized = () => {
-      if (initialized) return;
-      initialized = true;
-      setLoading(false);
-    };
-
-    // Отключаем встроенный авто-refresh supabase-js — он бьёт напрямую в supabase.co/auth.
-    // Все обновления токенов делаем сами через Яндекс-прокси (scheduleRefresh).
-    try { supabase.auth.stopAutoRefresh(); } catch {}
-
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        markInitialized();
-        scheduleRefresh(session);
-      }
-    );
-
-    // THEN check for existing session
-    withTimeout(supabase.auth.getSession(), AUTH_DIRECT_TIMEOUT_MS, 'getSession').then(async ({ data: { session } }) => {
-      if (session) {
-        setSession(session);
-        setUser(session.user);
-        markInitialized();
-        scheduleRefresh(session);
+    clearLegacySessions();
+    const stored = loadSession();
+    (async () => {
+      if (!stored) {
+        setLoading(false);
         return;
       }
-      // Нет сессии → пробуем авто-вход через edge-функцию
-      if (DEV_AUTO_LOGIN) {
-        try {
-          const { data, error } = await proxyInvoke<{
-            access_token: string;
-            refresh_token: string;
-            expires_in?: number;
-            expires_at?: number;
-            token_type?: string;
-            user?: User;
-          }>('dev-impersonate', {});
-          if (!error && data?.access_token && data?.refresh_token) {
-            const devSession = buildDevSession(data);
-            setSession(devSession);
-            setUser(devSession.user);
-            scheduleRefresh(devSession);
-            markInitialized();
-            supabase.auth.setSession({
-              access_token: data.access_token,
-              refresh_token: data.refresh_token,
-            }).catch((setErr) => console.warn('[auth] dev setSession failed:', setErr?.message));
-            return;
-          }
-          console.warn('[auth] dev-impersonate failed:', error?.message);
-        } catch (e) {
-          console.warn('[auth] dev-impersonate threw:', e);
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (!stored.expires_at || stored.expires_at - nowSec < 60) {
+        const next = await doRefresh(stored);
+        if (next) scheduleRefresh(next);
+        else if (next === undefined) {
+          // сеть недоступна — используем сохранённую сессию, обновим позже
+          setSession(stored);
+          setUser(stored.user);
+          scheduleRefresh(stored);
         }
+      } else {
+        setSession(stored);
+        setUser(stored.user);
+        scheduleRefresh(stored);
       }
-      markInitialized();
-    }).catch(async (e) => {
-      console.warn('[auth] getSession failed:', e);
-      if (DEV_AUTO_LOGIN) {
-        try {
-          const { data, error } = await proxyInvoke<{
-            access_token: string;
-            refresh_token: string;
-            expires_in?: number;
-            expires_at?: number;
-            token_type?: string;
-            user?: User;
-          }>('dev-impersonate', {});
-          if (!error && data?.access_token && data?.refresh_token) {
-            const devSession = buildDevSession(data);
-            setSession(devSession);
-            setUser(devSession.user);
-            scheduleRefresh(devSession);
-            supabase.auth.setSession({
-              access_token: data.access_token,
-              refresh_token: data.refresh_token,
-            }).catch((setErr) => console.warn('[auth] dev setSession failed:', setErr?.message));
-          }
-        } catch (impersonateErr) {
-          console.warn('[auth] dev-impersonate after getSession failure threw:', impersonateErr);
-        }
-      }
-      markInitialized();
-    });
+      setLoading(false);
+    })();
 
-    // Страховка: если getSession завис (сеть до auth.supabase.co заблокирована
-    // и идёт молчаливый refresh) — через 4с пробуем восстановить сессию через
-    // auth-proxy по сохранённому refresh_token, иначе хотя бы показываем форму логина.
-    const fallbackTimer = window.setTimeout(async () => {
-      if (initialized) return;
-      try {
-        // Достаём сохранённый refresh_token из localStorage supabase-js
-        let refreshToken: string | null = null;
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (!key || !key.startsWith('sb-') || !key.endsWith('-auth-token')) continue;
-          try {
-            const parsed = JSON.parse(localStorage.getItem(key) || 'null');
-            if (parsed?.refresh_token) {
-              refreshToken = parsed.refresh_token;
-              break;
-            }
-          } catch {}
-        }
-        if (refreshToken) {
-          console.warn('[auth] getSession hang — пробуем refresh через auth-proxy');
-          const { data: proxySess } = await proxyRefreshSession(refreshToken);
-          if (proxySess) {
-            const newSession = sessionFromProxy(proxySess);
-            persistSessionToStorage(newSession);
-            setSession(newSession);
-            setUser(newSession.user);
-            scheduleRefresh(newSession);
-            markInitialized();
-            return;
-          }
-        }
-      } catch (e) {
-        console.warn('[auth] fallback refresh failed:', e);
-      }
-      // Если до сих пор нет сессии и включён авто-вход — импersonate через edge-функцию
-      if (!initialized && DEV_AUTO_LOGIN) {
-        try {
-          const { data, error } = await proxyInvoke<{
-            access_token: string;
-            refresh_token: string;
-            expires_in?: number;
-            expires_at?: number;
-            token_type?: string;
-            user?: User;
-          }>('dev-impersonate', {});
-          if (!error && data?.access_token && data?.refresh_token) {
-            const devSession = buildDevSession(data);
-            setSession(devSession);
-            setUser(devSession.user);
-            scheduleRefresh(devSession);
-            markInitialized();
-            supabase.auth.setSession({
-              access_token: data.access_token,
-              refresh_token: data.refresh_token,
-            }).catch((setErr) => console.warn('[auth] dev setSession failed:', setErr?.message));
-            return;
-          }
-          console.warn('[auth] dev-impersonate failed:', error?.message);
-        } catch (e) {
-          console.warn('[auth] dev-impersonate threw:', e);
-        }
-      }
-      markInitialized();
-    }, 4000);
-
-    return () => {
-      subscription.unsubscribe();
-      window.clearTimeout(fallbackTimer);
-      if (refreshTimerRef.current !== null) {
-        window.clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== 'renowell-auth-session') return;
+      const s = loadSession();
+      setSession(s);
+      setUser(s?.user ?? null);
     };
-  }, []);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      clearTimer();
+    };
+  }, [doRefresh, scheduleRefresh]);
 
-  const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          first_name: firstName,
-          last_name: lastName,
-        }
-      }
-    });
-    
-    return { error: error as Error | null };
+  const signUp = async () => {
+    // Самостоятельная регистрация отключена: сотрудников создаёт администратор.
+    return { error: new Error('Регистрация отключена. Обратитесь к администратору.') };
   };
 
   const signIn = async (email: string, password: string) => {
-    // Вход ВСЕГДА через Яндекс-прокси. Сессию записываем напрямую в localStorage,
-    // минуя supabase.auth.setSession() (он дёргает /auth/v1/user для валидации).
-    const { data: proxySess, error: proxyError } = await proxySignInWithPassword(email, password);
-    if (proxyError || !proxySess) {
-      return { error: new Error(proxyError?.message || 'Не удалось войти') };
-    }
-    const newSession = sessionFromProxy(proxySess);
-    persistSessionToStorage(newSession);
-    setSession(newSession);
-    setUser(newSession.user);
-    scheduleRefresh(newSession);
+    const { data, error } = await proxySignInWithPassword(email.trim(), password);
+    if (error || !data) return { error: new Error(error?.message || 'Не удалось войти') };
+    const next = toSession(data);
+    apply(next);
+    scheduleRefresh(next);
     return { error: null };
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    const rt = session?.refresh_token;
+    clearTimer();
+    apply(null);
+    if (rt) await proxySignOut(rt);
   };
 
   return (

@@ -1,8 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { proxySelect, proxyInsert, proxyUpdate, proxyDelete } from "@/lib/dbProxy";
-import { useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 
 export type NotificationType = "task_assigned" | "deadline_week" | "deadline_day" | "mention" | "chat_message" | "chat_created" | "calendar_invite";
 
@@ -37,32 +35,9 @@ export function useNotifications() {
       return data ?? [];
     },
     enabled: !!profile?.id,
+    // Опрос новых уведомлений вместо подписки в реальном времени
+    refetchInterval: 10_000,
   });
-
-  // Realtime subscription для новых уведомлений
-  useEffect(() => {
-    if (!profile?.id) return;
-
-    const channel = supabase
-      .channel(`notifications-${profile.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `recipient_id=eq.${profile.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["notifications", profile.id] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [profile?.id, queryClient]);
 
   return query;
 }

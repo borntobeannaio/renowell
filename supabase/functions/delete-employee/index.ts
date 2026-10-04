@@ -1,4 +1,5 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { db } from "../_shared/renowellDb.ts";
+import { verifyAccessToken, deleteUser } from "../_shared/renowellAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,9 +12,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = { ...(db as any), auth: { admin: { deleteUser: async (id: string) => { try { await deleteUser(id); return { error: null }; } catch (e) { return { error: e }; } } } } };
 
     // Читаем токен и из Authorization, и из body._accessToken (Yandex proxy не пробрасывает кастомные заголовки)
     const bodyJson = await req.json().catch(() => ({} as Record<string, unknown>));
@@ -29,21 +28,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      console.warn("[delete-employee] getClaims failed:", claimsError?.message);
+    const who = await verifyAccessToken(token);
+    if (!who) {
       return new Response(
-        JSON.stringify({ error: "Invalid token", details: claimsError?.message ?? null }),
+        JSON.stringify({ error: "Invalid token" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const claims = claimsData.claims as Record<string, unknown>;
-    const callerEmail = (
-      (claims.email as string | undefined) ??
-      ((claims.user_metadata as { email?: string } | undefined)?.email) ??
-      ""
-    ).toLowerCase();
+    const callerEmail = who.email.toLowerCase();
 
     const hrAdmins = ["sonya369@gmail.com", "astashkina495@gmail.com", "anna.rum91@gmail.com", "oparin@renowell.ru"];
     if (!callerEmail || !hrAdmins.includes(callerEmail)) {

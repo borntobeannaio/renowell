@@ -1,7 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
 import { proxySelect, proxyInsert, proxyDelete } from "@/lib/dbProxy";
-import { supabase } from "@/integrations/supabase/client";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 
 interface Reaction {
@@ -40,28 +38,10 @@ export function useMessageReactions(conversationId: string | null) {
       return data || [];
     },
     enabled: !!conversationId,
-    staleTime: 30_000,
+    staleTime: 3_000,
+    // Опрос реакций вместо подписки в реальном времени
+    refetchInterval: 5000,
   });
-
-  // Realtime subscription
-  useEffect(() => {
-    if (!conversationId) return;
-
-    const channel = supabase
-      .channel(`chat-reactions-${conversationId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "chat_message_reactions" },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["chat-reactions", conversationId] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [conversationId, queryClient]);
 
   return query;
 }
