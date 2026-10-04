@@ -1,8 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { proxySelect, proxyInsert } from "@/lib/dbProxy";
-import { supabase } from "@/integrations/supabase/client";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
-import { useEffect } from "react";
 
 // Anna's profile ID — the support admin
 export const SUPPORT_ADMIN_PROFILE_ID = "a605b92c-b750-4772-84a3-9a45730af9c8";
@@ -105,25 +103,9 @@ export function useSupportUserMessages(userProfileId: string | null) {
       return data || [];
     },
     enabled: !!userProfileId,
+    // Опрос новых сообщений вместо подписки в реальном времени
+    refetchInterval: 4000,
   });
-
-  // Realtime for new messages
-  useEffect(() => {
-    if (!userProfileId) return;
-    const channel = supabase
-      .channel(`support-admin-${userProfileId}`)
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "support_messages",
-        filter: `user_profile_id=eq.${userProfileId}`,
-      }, () => {
-        queryClient.invalidateQueries({ queryKey: ["support_messages_admin", userProfileId] });
-        queryClient.invalidateQueries({ queryKey: ["support_threads"] });
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [userProfileId, queryClient]);
 
   return query;
 }

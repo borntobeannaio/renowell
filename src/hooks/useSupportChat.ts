@@ -1,8 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { proxySelect, proxyInsert, proxyInvoke } from "@/lib/dbProxy";
-import { supabase } from "@/integrations/supabase/client";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
-import { useEffect } from "react";
 import { toast } from "sonner";
 
 export interface SupportMessage {
@@ -29,32 +27,9 @@ export function useSupportMessages() {
       return data || [];
     },
     enabled: !!profile,
+    // Опрос новых сообщений вместо подписки в реальном времени
+    refetchInterval: 4000,
   });
-
-  // Realtime subscription for new support messages
-  useEffect(() => {
-    if (!profile) return;
-
-    const channel = supabase
-      .channel("support-messages-realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "support_messages",
-          filter: `user_profile_id=eq.${profile.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["support_messages", profile.id] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [profile?.id, queryClient]);
 
   return query;
 }

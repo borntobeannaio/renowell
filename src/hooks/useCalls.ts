@@ -1,8 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { proxySelect, proxyInsert, proxyUpdate } from "@/lib/dbProxy";
 import { useAuth } from "@/hooks/useAuth";
-import { useEffect } from "react";
 
 export interface Call {
   id: string;
@@ -133,34 +131,7 @@ export function useActiveCall() {
     refetchInterval: 2000,
   });
 
-  // Subscribe to realtime updates
-  useEffect(() => {
-    if (!currentProfile) return;
-
-    const channel = supabase
-      .channel("calls-updates")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "calls" },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["incoming-call"] });
-          queryClient.invalidateQueries({ queryKey: ["active-call"] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "call_participants" },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["incoming-call"] });
-          queryClient.invalidateQueries({ queryKey: ["active-call"] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentProfile, queryClient]);
+  // Обновления звонков: запросы выше уже опрашиваются каждые 2 секунды (refetchInterval).
 
   return { incomingCall, activeCall, currentProfile };
 }

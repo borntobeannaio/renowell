@@ -186,26 +186,12 @@ export function useChatNotificationSound(
     queryClient.invalidateQueries({ queryKey: ["unread-counts"] });
   }, [profileId, isOpen, currentConversationId, queryClient]);
 
-  useEffect(() => {
-    if (!profileId) return;
-
-    const channel = supabase
-      .channel("chat-notifications")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "chat_messages",
-        },
-        handleNewMessage
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [profileId, handleNewMessage]);
+  // Опрос новых сообщений вместо подписки в реальном времени
+  useNewRows<{ id: string; sender_id: string; conversation_id: string; created_at: string }>(
+    "chat_messages",
+    (row) => handleNewMessage({ new: row }),
+    !!profileId,
+  );
 }
 
 // Get total unread count across all conversations
