@@ -2100,9 +2100,9 @@ export default function ProtocolEditor() {
         ? "Новый тендер-протокол"
         : "Новый протокол";
 
-  const totalItems = sectionGroups.reduce((sum, g) => {
+  const totalItems = (sectionGroups ?? []).reduce((sum, g) => {
     if (g.sectionType === "tender" && g.companyGroups) {
-      return sum + g.companyGroups.reduce((cs, c) => cs + c.items.length, 0);
+      return sum + (g.companyGroups ?? []).reduce((cs, c) => cs + (c.items?.length ?? 0), 0);
     }
     return sum + g.items.length;
   }, 0);

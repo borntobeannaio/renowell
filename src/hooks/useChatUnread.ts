@@ -198,5 +198,5 @@ export function useChatNotificationSound(
 export function useTotalUnreadCount(conversationIds: string[]) {
   const { data: unreadCounts = [] } = useUnreadCounts(conversationIds);
   
-  return unreadCounts.reduce((total, c) => total + c.count, 0);
+  return (Array.isArray(unreadCounts) ? unreadCounts : []).reduce((total, c) => total + c.count, 0);
 }

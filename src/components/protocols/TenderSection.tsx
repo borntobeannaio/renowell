@@ -68,7 +68,7 @@ export function TenderSection({
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [editingCompanyName, setEditingCompanyName] = useState("");
 
-  const totalItems = companyGroups.reduce((sum, g) => sum + g.items.length, 0);
+  const totalItems = (companyGroups ?? []).reduce((sum, g) => sum + (g.items?.length ?? 0), 0);
 
   // Convert responsible string to employee IDs
   const getEmployeeIdsFromResponsible = (responsible: string | null): string[] => {

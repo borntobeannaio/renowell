@@ -191,7 +191,7 @@ export function useCalendarEvents() {
       queryClient.invalidateQueries({ queryKey: ["calendar_events"] });
       const results = data?.results;
       if (results?.length) {
-        const total = results.reduce((s: number, r: { synced: number }) => s + r.synced, 0);
+        const total = (Array.isArray(results) ? results : []).reduce((s: number, r: { synced: number }) => s + r.synced, 0);
         toast.success(`Синхронизировано: ${total} событий`);
       } else {
         toast.info("Нет календарей для синхронизации");
