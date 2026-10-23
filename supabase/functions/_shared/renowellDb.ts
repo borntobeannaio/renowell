@@ -92,7 +92,9 @@ class Params {
   }
   cast(col: ColInfo, forceArray: boolean) {
     const base = col.udt;
-    return (col.isArray || forceArray) ? `::${base}[]` : `::${base}`;
+    // json/jsonb: send as text first, otherwise the driver re-serializes the string (double-encoding)
+    const pre = base === "jsonb" || base === "json" ? "::text" : "";
+    return (col.isArray || forceArray) ? `${pre}::${base}[]` : `${pre}::${base}`;
   }
 }
 function looksJson(s: string) { const t = s.trim(); return t.startsWith("{") || t.startsWith("["); }
@@ -143,7 +145,7 @@ function buildWhere(table: string, filters: Filter[] | undefined, p: Params, met
       }
       case "cs": case "cd": case "ov": {
         const sym = op === "cs" ? "@>" : op === "cd" ? "<@" : "&&";
-        if (col.udt === "jsonb") expr = `${c} ${sym} ${p.add(typeof f.value === "string" ? f.value : JSON.stringify(f.value))}::jsonb`;
+        if (col.udt === "jsonb") expr = `${c} ${sym} ${p.add(typeof f.value === "string" ? f.value : JSON.stringify(f.value))}::text::jsonb`;
         else {
           const val = typeof f.value === "string" ? f.value : arrayLiteral(f.value as unknown[]);
           p.values.push(val);

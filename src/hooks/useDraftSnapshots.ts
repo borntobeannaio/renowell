@@ -45,7 +45,13 @@ export function useDraftSnapshots(formType: string, entityId: string) {
       );
 
       if (error) throw new Error(error.message);
-      return data || [];
+      // старые снимки могли сохраниться строкой JSON
+      return (data || []).map((s) => {
+        if (typeof s.draft_data === 'string') {
+          try { return { ...s, draft_data: JSON.parse(s.draft_data) }; } catch { return s; }
+        }
+        return s;
+      });
     },
     enabled: !!user && !!entityId,
     staleTime: 30_000,
