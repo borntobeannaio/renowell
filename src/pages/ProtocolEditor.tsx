@@ -571,9 +571,9 @@ export default function ProtocolEditor() {
         
         if (restore) {
           const data = acceptDraft();
-          if (data) {
-            setForm(data.form);
-            setSectionGroups(data.sectionGroups);
+          if (data && data.form && Array.isArray(data.sectionGroups)) {
+            setForm(prev => ({ ...prev, ...data.form }));
+            setSectionGroups(data.sectionGroups.map(g => ({ ...g, items: g.items || [] })));
             toast.success('Черновик восстановлен');
           }
         } else {
@@ -2497,8 +2497,8 @@ export default function ProtocolEditor() {
             if (data.form) {
               setForm(prev => ({ ...prev, ...data.form }));
             }
-            if (data.sectionGroups) {
-              setSectionGroups(data.sectionGroups as SectionGroup[]);
+            if (Array.isArray(data.sectionGroups)) {
+              setSectionGroups((data.sectionGroups as SectionGroup[]).map(g => ({ ...g, items: g.items || [] })));
             }
             setShowHistoryPanel(false);
             markAsChanged();
