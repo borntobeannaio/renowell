@@ -92,7 +92,9 @@ class Params {
   }
   cast(col: ColInfo, forceArray: boolean) {
     const base = col.udt;
-    return (col.isArray || forceArray) ? `::${base}[]` : `::${base}`;
+    // json/jsonb: send as text first, otherwise the driver re-serializes the string (double-encoding)
+    const pre = base === "jsonb" || base === "json" ? "::text" : "";
+    return (col.isArray || forceArray) ? `${pre}::${base}[]` : `${pre}::${base}`;
   }
 }
 function looksJson(s: string) { const t = s.trim(); return t.startsWith("{") || t.startsWith("["); }
