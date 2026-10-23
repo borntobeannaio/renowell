@@ -64,10 +64,17 @@ export function useFormDraft<T>(
         
         const draft = data?.[0] ?? null;
         if (draft && !error) {
-          setExistingDraft({
-            data: draft.draft_data as T,
-            savedAt: draft.updated_at
-          });
+          let parsed: unknown = draft.draft_data;
+          // старые черновики могли сохраниться строкой JSON
+          if (typeof parsed === 'string') {
+            try { parsed = JSON.parse(parsed); } catch { parsed = null; }
+          }
+          if (parsed && typeof parsed === 'object') {
+            setExistingDraft({
+              data: parsed as T,
+              savedAt: draft.updated_at
+            });
+          }
         }
       } catch (err) {
         console.error('Error loading draft:', err);

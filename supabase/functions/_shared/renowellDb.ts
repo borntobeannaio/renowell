@@ -145,7 +145,7 @@ function buildWhere(table: string, filters: Filter[] | undefined, p: Params, met
       }
       case "cs": case "cd": case "ov": {
         const sym = op === "cs" ? "@>" : op === "cd" ? "<@" : "&&";
-        if (col.udt === "jsonb") expr = `${c} ${sym} ${p.add(typeof f.value === "string" ? f.value : JSON.stringify(f.value))}::jsonb`;
+        if (col.udt === "jsonb") expr = `${c} ${sym} ${p.add(typeof f.value === "string" ? f.value : JSON.stringify(f.value))}::text::jsonb`;
         else {
           const val = typeof f.value === "string" ? f.value : arrayLiteral(f.value as unknown[]);
           p.values.push(val);
