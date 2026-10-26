@@ -1753,29 +1753,10 @@ export default function ProtocolEditor() {
 
             let taskId: string | undefined = item.task_id || undefined;
 
-            // Create task if no task exists yet and item has text, update if exists
-            if (!item.task_id && item.item_text.trim()) {
-              const { assignee_ids, observer_ids } = splitResponsibleForTask(effectiveResponsible);
-
-              const taskResult = await createTask.mutateAsync({
-                title: itemText,
-                assignee_ids,
-                observer_ids,
-                project_id: projectId,
-                due_date: item.due_date || null,
-                status: "new",
-                priority: "normal",
-              });
-
-              await updateProtocolItem.mutateAsync({
-                id: item.id,
-                protocol_id: id,
-                task_id: taskResult.id,
-              });
-
-              taskId = taskResult.id;
-              toast.success(`Задача "${item.item_text.slice(0, 30)}..." создана`);
-            } else if (item.task_id) {
+            // Existing items without a task: do NOT auto-create tasks on save
+            // (otherwise editing an old protocol spawns tasks for all its old items).
+            // Tasks are created only for newly added items (temp- branch above).
+            if (item.task_id) {
               // Update existing task with current item data (sync all editable fields)
               const { assignee_ids, observer_ids } = splitResponsibleForTask(effectiveResponsible);
 
