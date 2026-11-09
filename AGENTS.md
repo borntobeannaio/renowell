@@ -7,3 +7,4 @@
 - Access checks formerly done by RLS are enforced in the app/edge code; DB triggers read the acting user from `current_setting('app.user_id')`, set per transaction by `runQuery`.
 - No realtime subscriptions: use polling (`refetchInterval` / `src/lib/poll.ts`). Why: no Supabase Realtime on the external DB.
 - File storage stays in Yandex S3 and the existing `avatars` storage bucket (via proxies).
+- Inline project creation in protocols reuses `useCreateProject` with a caller-generated UUID, so a successful proxy insert without returned rows still links the new section to the saved project.
