@@ -32,10 +32,10 @@ export function useCreateProject() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ name }: { name: string }) => {
+    mutationFn: async ({ name, id }: { name: string; id?: string }) => {
       const { data, error } = await proxyInsert<Project>(
         'projects',
-        { name: name.trim(), archived: false },
+        { ...(id ? { id } : {}), name: name.trim(), archived: false },
         '*'
       );
       if (error) throw new Error(error.message);

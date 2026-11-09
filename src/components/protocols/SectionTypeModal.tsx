@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { X, FolderOpen, Building, Users, Briefcase, Target } from "lucide-react";
+import { X, FolderOpen, Building, Users, Briefcase, Target, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SectionType, SECTION_TYPE_LABELS } from "@/hooks/useProtocolSections";
+import { useCreateProject, useProjects } from "@/hooks/useProjects";
+import { toast } from "sonner";
 
 interface SectionTypeModalProps {
   open: boolean;
@@ -28,8 +30,11 @@ export function SectionTypeModal({
 }: SectionTypeModalProps) {
   const [step, setStep] = useState<'type' | 'details'>('type');
   const [selectedType, setSelectedType] = useState<SectionType | null>(null);
-  const [entityName, setEntityName] = useState("");
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const createProject = useCreateProject();
+  const { data: allProjects = [] } = useProjects({ includeArchived: true });
 
   const availableProjects = projects.filter(p => !usedProjectIds.includes(p.id));
 
@@ -56,10 +61,34 @@ export function SectionTypeModal({
     handleClose();
   };
 
+  const handleCreateProject = async () => {
+    if (createProject.isPending) return;
+    const name = newProjectName.trim();
+    if (!name) {
+      toast.error("Введите название проекта");
+      return;
+    }
+    if (allProjects.some(project => project.name.trim().toLowerCase() === name.toLowerCase())) {
+      toast.error("Проект с таким названием уже существует");
+      return;
+    }
+    try {
+      const id = crypto.randomUUID();
+      const project = await createProject.mutateAsync({ name, id });
+      onSelect('project', project?.id ?? id, name);
+      toast.success("Проект создан и добавлен в протокол");
+      handleClose();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Ошибка создания проекта");
+    }
+  };
+
   const handleClose = () => {
+    if (createProject.isPending) return;
     setStep('type');
     setSelectedType(null);
-    setEntityName("");
+    setIsCreatingProject(false);
+    setNewProjectName("");
     setSelectedProjectId(null);
     onClose();
   };
@@ -68,7 +97,7 @@ export function SectionTypeModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-card rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+      <div className="bg-card rounded-xl shadow-xl w-full max-w-md mx-4 max-h-[90dvh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="text-lg font-semibold text-foreground">
@@ -112,7 +141,7 @@ export function SectionTypeModal({
 
           {step === 'details' && selectedType === 'project' && (
             <div className="space-y-4">
-              <div>
+              {!isCreatingProject && <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Выберите проект
                 </label>
@@ -131,13 +160,44 @@ export function SectionTypeModal({
                     Все проекты уже добавлены
                   </p>
                 )}
-              </div>
+              </div>}
+              {isCreatingProject ? (
+                <div className="space-y-2">
+                  <label htmlFor="protocol-new-project-name" className="block text-sm font-medium text-foreground">
+                    Название нового проекта
+                  </label>
+                  <input
+                    id="protocol-new-project-name"
+                    value={newProjectName}
+                    onChange={(event) => setNewProjectName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        void handleCreateProject();
+                      }
+                    }}
+                    disabled={createProject.isPending}
+                    className="input-base w-full"
+                    autoFocus
+                  />
+                </div>
+              ) : (
+                <Button variant="outline" className="w-full gap-2" onClick={() => setIsCreatingProject(true)}>
+                  <Plus className="w-4 h-4" />
+                  Новый проект
+                </Button>
+              )}
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setStep('type')}>
+                <Button variant="outline" disabled={createProject.isPending} onClick={() => isCreatingProject ? setIsCreatingProject(false) : setStep('type')}>
                   Назад
                 </Button>
-                <Button onClick={handleConfirm}>
-                  Добавить
+                <Button
+                  onClick={isCreatingProject ? handleCreateProject : handleConfirm}
+                  disabled={createProject.isPending || (isCreatingProject && !newProjectName.trim())}
+                  className="gap-2"
+                >
+                  {createProject.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isCreatingProject ? 'Создать и добавить' : 'Добавить'}
                 </Button>
               </div>
             </div>
